@@ -18,8 +18,8 @@ export default function () {
 					god: {
 						sex: "male",
 						group: "shen",
-						hp: 4,
-						maxHp: 4,
+						hp: 3,
+						maxHp: 3,
 						hujia: 0,
 						skills: ["gryjuejing", "grylonghun"],
 						groupInGuozhan: "shu",
@@ -28,7 +28,7 @@ export default function () {
 					},
 				},
 				translate: {
-					god: "神·god",
+					god: "龙神赵云",
 				},
 			},
 			card: {
@@ -353,19 +353,15 @@ export default function () {
 									await player.discardPlayerCard(_status.currentPhase, "he", true);
 								},
 							},
-							// 新增：每个角色的回合内初次发动龙魂时，摸1+X张牌（X为已损失体力值）
-							// 结构对齐本体龙魂弃牌子技能：useCardAfter/respondAfter触发器(每次发动恰好触发一次)
-							// + get.sourceSkillFor还原viewAs变体名(_backup) + useSkill历史计数(每回合重置)
+							// 新增：每个回合内初次发动龙魂时，摸1+X张牌（X为已损失体力值）
+							// 判定依据：本次发动的useSkill历史恰好是本回合第一条（发动时logSkill已先于After触发器写入）
+							// 纯只读判定，无副作用——filter可能被arrangeTrigger循环多次调用，不能在filter里写storage
 							turn: {
 								trigger: { player: ["useCardAfter", "respondAfter"] },
 								forced: true,
 								filter(event, player) {
-									const skill = get.sourceSkillFor(event) || event.skill;
-									if (skill != "grylonghun") return false;
-									if (player.storage.grylonghun_turn == player.stat.length) return false;
-									if (player.getHistory("useSkill", (evt) => (get.sourceSkillFor(evt) || evt.skill) == "grylonghun").length > 1) return false;
-									player.storage.grylonghun_turn = player.stat.length;
-									return true;
+									if ((get.sourceSkillFor(event) || event.skill) != "grylonghun") return false;
+									return player.getHistory("useSkill", (evt) => (get.sourceSkillFor(evt) || evt.skill) == "grylonghun").length == 1;
 								},
 								async content(event, trigger, player) {
 									// 仅用于界面上显示"魂"标记提示（非判定依据），回合结束自动消失
