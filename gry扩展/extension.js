@@ -396,7 +396,7 @@ export default function () {
 			author: "gry",
 			diskURL: "",
 			forumURL: "",
-			version: "1.1",
+			version: "1.2",
 		},
 		files: { character: ["god.jpg"], card: [], skill: [], audio: [] },
 	};
