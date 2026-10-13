@@ -1,0 +1,52 @@
+import { lib, game, ui, get, ai, _status } from "noname";
+export const type = "extension";
+export default function(){
+	return {name:"gry扩展",editable:true,connect:false,arenaReady:function(){
+    
+},content:function(config,pack){
+    
+},prepare:function(){
+    
+},precontent:function(config){
+    
+},help:{},config:{},package:{
+    character: {
+        character: {
+            god: {
+                sex: "male",
+                group: "shen",
+                hp: 4,
+                maxHp: 4,
+                hujia: 0,
+                skills: [],
+                isAiForbidden: true,
+                trashBin: ["des:神"],
+                img: "extension/无名扩展/god.jpg",
+                dieAudios: ["ext:gry扩展/audio/die/god.mp3"],
+            },
+        },
+        translate: {
+            god: "god",
+            "无名扩展": "无名扩展",
+        },
+    },
+    card: {
+        card: {
+        },
+        translate: {
+        },
+        list: [],
+    },
+    skill: {
+        skill: {
+        },
+        translate: {
+        },
+    },
+    intro: "",
+    author: "gry",
+    diskURL: "",
+    forumURL: "",
+    version: "1.0",
+},files:{"character":["god.jpg"],"card":[],"skill":[],"audio":[]}} 
+};
