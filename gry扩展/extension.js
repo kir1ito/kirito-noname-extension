@@ -1,4 +1,5 @@
 import { lib, game, ui, get, ai, _status } from "noname";
+import { Character } from "../../noname/library/element/index.js";
 export const type = "extension";
 export default function () {
 	return {
@@ -13,9 +14,12 @@ export default function () {
 		config: {},
 		package: {
 			character: {
+				// 声明为国战角色包：加载时加入 lib.characterGuozhanFilter，开启"仅国战武将"时也能入选
+				mode: "guozhan",
 				character: {
 					// 以本体神赵云(character/extra.js:shen_zhaoyun)为底，仅名字、血量不同，技能为强化版
-					god: {
+					// 用 Character 实例而非普通对象：[1] 等旧式下标访问映射到 group，国战选将配对代码依赖它
+					god: new Character({
 						sex: "male",
 						group: "shen",
 						hp: 3,
@@ -25,7 +29,7 @@ export default function () {
 						groupInGuozhan: "shu",
 						// 不写img：自动使用 extension/gry扩展/god.jpg
 						dieAudios: ["ext:gry扩展/audio/die/god.mp3"],
-					},
+					}),
 				},
 				translate: {
 					god: "龙神赵云",
