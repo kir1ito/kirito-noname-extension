@@ -27,6 +27,8 @@ export default function () {
 						hujia: 0,
 						skills: ["gryjuejing", "grylonghun"],
 						groupInGuozhan: "shu",
+						// AI 禁选：AI 不选用此武将，玩家仍可正常选择
+						isAiForbidden: true,
 						// 不写img：自动使用 extension/gry扩展/god.jpg
 						dieAudios: ["ext:gry扩展/audio/die/god.mp3"],
 					}),
