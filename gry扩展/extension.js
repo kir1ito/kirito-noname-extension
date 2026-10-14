@@ -124,7 +124,10 @@ export default function () {
 										skill === "grylonghun" ||
 										skill.startsWith("gryjuejing_") ||
 										skill.startsWith("grylonghun_");
-									const hasJuejing = (player) => player && typeof player.hasSkill == "function" && player.hasSkill("gryjuejing");
+									// 注意：此处必须直查 player.skills 底层数组而非 hasSkill——
+								// hasSkill 的求值链(filterSkills→get.is.blocked)会回调本守护造成无限递归，
+								// 当敌方挂上技能封锁器(如于吉〖缠怨〗体力≤1时)即触发死循环卡死游戏
+								const hasJuejing = (player) => player && Array.isArray(player.skills) && player.skills.includes("gryjuejing");
 									// 拦截禁用：铁骑/止息类效果经 disableSkill 写入 disabledSkills，此处对持有绝境者拒绝写入受保护技能
 									const originDisableSkill = Player.prototype.disableSkill;
 									Player.prototype.disableSkill = function (reason, skills) {
