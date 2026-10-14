@@ -165,7 +165,7 @@ export default function () {
 					},
 					/* ===== 龙魂（强化版，本体技能见 character/extra.js relonghun）=====
 					 * 原效果：花色转化+双张强化，全部保留
-					 * 新增：每个角色的回合内，初次发动龙魂时摸1+X张牌（X为已损失体力值） */
+					 * 新增："魂"计数持续累计不清空，计数为1或2的倍数时摸1+X张牌（X封顶2） */
 					grylonghun: {
 						audio: "relonghun",
 						// 移除防护（官方机制）：与绝境同理，防止被断肠等移除型效果剥离
@@ -407,39 +407,46 @@ export default function () {
 									await player.discardPlayerCard(_status.currentPhase, "he", true);
 								},
 							},
-							// 新增：每个回合内初次发动龙魂时，摸1+X张牌（X为已损失体力值）
-							// 判定依据：本次发动的useSkill历史恰好是本回合第一条（发动时logSkill已先于After触发器写入）
-							// 纯只读判定，无副作用——filter可能被arrangeTrigger循环多次调用，不能在filter里写storage
+							// 新增：龙魂"魂"计数——每发动一次+1，持续累计不清空（跨回合保留）
+							// 当本次计数结果为1或2的倍数时，摸1+X张牌（X为已损失体力值，封顶2）
+							// 计数自增放在content执行（每次发动恰好触发一次）；filter保持纯只读
 							turn: {
 								trigger: { player: ["useCardAfter", "respondAfter"] },
 								forced: true,
 								filter(event, player) {
-									if ((get.sourceSkillFor(event) || event.skill) != "grylonghun") return false;
-									return player.getHistory("useSkill", (evt) => (get.sourceSkillFor(evt) || evt.skill) == "grylonghun").length == 1;
+									return (get.sourceSkillFor(event) || event.skill) == "grylonghun";
 								},
 								async content(event, trigger, player) {
-									// 仅用于界面上显示"魂"标记提示（非判定依据），回合结束自动消失
-									player.addTempSkill("grylonghun_used");
-									await player.draw(1 + juejingX(player));
+									if (!player.hasSkill("grylonghun_mark")) {
+										player.addSkill("grylonghun_mark");
+									}
+									player.addMark("grylonghun_mark", 1, false);
+									const count = player.countMark("grylonghun_mark");
+									if (count == 1 || count % 2 == 0) {
+										await player.draw(1 + juejingX(player));
+									}
 								},
 							},
 						},
 					},
-					// 龙魂"本回合已发动"标记，回合结束自动消失
-					grylonghun_used: {
-						locked: true,
-						mark: true,
-						marktext: "魂",
-						intro: {
-							content: "本回合已发动过〖龙魂〗的摸牌效果，回合结束后重置",
+						// 龙魂"魂"计数标记：持续累计，不清空；计数为1或2的倍数时摸1+X张牌
+						grylonghun_mark: {
+							locked: true,
+							mark: true,
+							marktext: "魂",
+							intro: {
+								name: "魂",
+								content(storage) {
+									return `〖龙魂〗累计发动：${storage || 0}次。当计数为1或2的倍数时，摸1+X张牌（X为已损失的体力值且至多为2）。`;
+								},
+							},
 						},
-					},
 				},
 				translate: {
 					gryjuejing: "绝境",
 					gryjuejing_info: "锁定技。①你的手牌上限+2，且你不会被翻面。②当你进入或脱离濒死状态时，你摸一张牌。③摸牌阶段，你额外摸X张牌。④你至其他角色的距离-X。⑤你每回合使用牌的次数上限+X（X为你已损失的体力值且至多为2）。⑥你的〖绝境〗和〖龙魂〗不能被移除或禁用。",
 					grylonghun: "龙魂",
-					grylonghun_info: "你可以将同花色的一至两张牌按下列规则使用或打出：红桃当【桃】，方块当火【杀】，梅花当【闪】，黑桃当【无懈可击】。若你以此法转化了两张：红色牌，则此牌回复值或伤害值+1；黑色牌，则你弃置当前回合角色一张牌。每个回合（包括其他角色的回合）你初次发动〖龙魂〗时，你摸1+X张牌（X为你已损失的体力值且至多为2）。",
+					grylonghun_info: "你可以将同花色的一至两张牌按下列规则使用或打出：红桃当【桃】，方块当火【杀】，梅花当【闪】，黑桃当【无懈可击】。若你以此法转化了两张：红色牌，则此牌回复值或伤害值+1；黑色牌，则你弃置当前回合角色一张牌。每当你发动〖龙魂〗，“魂”计数+1（计数持续累计，不会清空）。若计数为1或2的倍数，你摸1+X张牌（X为你已损失的体力值且至多为2）。",
 				},
 			},
 			intro: "",
