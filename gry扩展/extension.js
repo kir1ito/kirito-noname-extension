@@ -1,5 +1,5 @@
 import { lib, game, ui, get, ai, _status } from "noname";
-import { Character } from "../../noname/library/element/index.js";
+import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 export default function () {
 	return {
@@ -46,10 +46,12 @@ export default function () {
 				skill: {
 					/* ===== 绝境（强化版，本体技能见 character/extra.js xinjuejing）=====
 					 * 原效果：手牌上限+2；进入/脱离濒死摸一张牌
-					 * 新增：摸牌阶段+X；至其他角色距离-X；每回合用牌上限+X；受到的伤害大于1改为1
+					 * 新增：摸牌阶段+X；至其他角色距离-X；每回合用牌上限+X；绝境/龙魂不可被移除或禁用
 					 * X = player.getDamagedHp() 已损失体力值 */
 					gryjuejing: {
 						audio: "xinjuejing",
+						// 移除防护（官方机制）：removeSkill 对 fixed 技能直接拒绝，断肠 clearSkills 亦走此路径
+						fixed: true,
 						mod: {
 							maxHandcard(player, num) {
 								return 2 + num;
@@ -91,7 +93,7 @@ export default function () {
 								},
 							},
 						},
-						group: ["gryjuejing_draw", "gryjuejing_cap"],
+						group: ["gryjuejing_draw", "gryjuejing_guard"],
 						subSkill: {
 							// 新增：摸牌阶段多摸X张牌（写法同本体oldjuejing）
 							draw: {
@@ -104,15 +106,44 @@ export default function () {
 									trigger.num += player.getDamagedHp();
 								},
 							},
-							// 新增：受到的伤害超过1点时改为1点（写法同本体damageBegin封顶类技能）
-							cap: {
-								trigger: { player: "damageBegin1" },
-								forced: true,
-								filter(event, player) {
-									return event.num > 1;
-								},
-								async content(event, trigger, player) {
-									trigger.num = 1;
+							// 新增⑥：技能守护——绝境/龙魂（含子技能）不可被禁用或封锁
+							// 移除防护由 fixed: true 承担；禁用（disableSkill，铁骑/止息类）与
+							// 封锁（get.is.blocked，skillBlocker体系）在 init 中包一层拦截
+							guard: {
+								charlotte: true,
+								silent: true,
+								init() {
+									if (lib._grySkillGuardInstalled) {
+										return;
+									}
+									lib._grySkillGuardInstalled = true;
+									const isProtectedSkill = (skill) =>
+										skill === "gryjuejing" ||
+										skill === "grylonghun" ||
+										skill.startsWith("gryjuejing_") ||
+										skill.startsWith("grylonghun_");
+									const hasJuejing = (player) => player && typeof player.hasSkill == "function" && player.hasSkill("gryjuejing");
+									// 拦截禁用：铁骑/止息类效果经 disableSkill 写入 disabledSkills，此处对持有绝境者拒绝写入受保护技能
+									const originDisableSkill = Player.prototype.disableSkill;
+									Player.prototype.disableSkill = function (reason, skills) {
+										if (hasJuejing(this)) {
+											if (typeof skills == "string" && isProtectedSkill(skills)) {
+												return this;
+											}
+											if (Array.isArray(skills)) {
+												skills = skills.filter((skill) => !isProtectedSkill(skill));
+											}
+										}
+										return originDisableSkill.call(this, reason, skills);
+									};
+									// 拦截封锁：skillBlocker 体系经 get.is.blocked 判定技能被封锁，此处对持有绝境者的受保护技能直接放行
+									const originBlocked = get.is.blocked;
+									get.is.blocked = function (skill, player) {
+										if (isProtectedSkill(skill) && hasJuejing(player)) {
+											return false;
+										}
+										return originBlocked.call(this, skill, player);
+									};
 								},
 							},
 						},
@@ -122,6 +153,8 @@ export default function () {
 					 * 新增：每个角色的回合内，初次发动龙魂时摸1+X张牌（X为已损失体力值） */
 					grylonghun: {
 						audio: "relonghun",
+						// 移除防护（官方机制）：与绝境同理，防止被断肠等移除型效果剥离
+						fixed: true,
 						mod: {
 							aiOrder(player, card, num) {
 								if (num <= 0 || !player.isPhaseUsing() || player.needsToDiscard() < 2) {
@@ -389,7 +422,7 @@ export default function () {
 				},
 				translate: {
 					gryjuejing: "绝境",
-					gryjuejing_info: "锁定技。①你的手牌上限+2。②当你进入或脱离濒死状态时，你摸一张牌。③摸牌阶段，你额外摸X张牌。④你至其他角色的距离-X。⑤你每回合使用牌的次数上限+X（X为你已损失的体力值）。⑥当你受到的伤害大于1点时，将此伤害改为1点。",
+					gryjuejing_info: "锁定技。①你的手牌上限+2。②当你进入或脱离濒死状态时，你摸一张牌。③摸牌阶段，你额外摸X张牌。④你至其他角色的距离-X。⑤你每回合使用牌的次数上限+X（X为你已损失的体力值）。⑥你的〖绝境〗和〖龙魂〗不能被移除或禁用。",
 					grylonghun: "龙魂",
 					grylonghun_info: "你可以将同花色的一至两张牌按下列规则使用或打出：红桃当【桃】，方块当火【杀】，梅花当【闪】，黑桃当【无懈可击】。若你以此法转化了两张：红色牌，则此牌回复值或伤害值+1；黑色牌，则你弃置当前回合角色一张牌。每个回合（包括其他角色的回合）你初次发动〖龙魂〗时，你摸1+X张牌（X为你已损失的体力值）。",
 				},
