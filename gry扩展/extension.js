@@ -48,7 +48,7 @@ export default function () {
 				skill: {
 					/* ===== 绝境（强化版，本体技能见 character/extra.js xinjuejing）=====
 					 * 原效果：手牌上限+2；进入/脱离濒死摸一张牌
-					 * 新增：①附不会翻面；摸牌阶段+X；至其他角色距离-X；每回合用牌上限+X；绝境/龙魂不可被移除或禁用
+					 * 新增：①附不会翻面、体力上限不可被扣除；摸牌阶段+X；至其他角色距离-X；每回合用牌上限+X；绝境/龙魂不可被移除或禁用
 					 * X = min(getDamagedHp(), 2) 已损失体力值，封顶2 */
 					gryjuejing: {
 						audio: "xinjuejing",
@@ -161,6 +161,19 @@ export default function () {
 										return next;
 									}
 									return originTurnOver.call(this, bool);
+								};
+								// 拦截体力上限扣除：绝境①附加效果——体力上限只能增不能减（gainMaxHp不受影响）
+								const originLoseMaxHp = Player.prototype.loseMaxHp;
+								Player.prototype.loseMaxHp = function () {
+									if (hasJuejing(this)) {
+										game.log(this, "的〖绝境〗防止了体力上限的扣除");
+										const next = game.createEvent("loseMaxHp");
+										next.player = this;
+										next.num = 0;
+										next.setContent("emptyEvent");
+										return next;
+									}
+									return originLoseMaxHp.apply(this, arguments);
 								};
 								},
 							},
@@ -544,7 +557,7 @@ export default function () {
 				},
 				translate: {
 					gryjuejing: "绝境",
-					gryjuejing_info: "锁定技。①你的手牌上限+2，且你不会被翻面。②当你进入或脱离濒死状态时，你摸一张牌。③摸牌阶段，你额外摸X张牌。④你至其他角色的距离-X。⑤你每回合使用牌的次数上限+X（X为你已损失的体力值且至多为2）。⑥你的〖绝境〗和〖龙魂〗不能被移除或禁用。",
+					gryjuejing_info: "锁定技。①你的手牌上限+2，你不会被翻面，且你的体力上限不会减少。②当你进入或脱离濒死状态时，你摸一张牌。③摸牌阶段，你额外摸X张牌。④你至其他角色的距离-X。⑤你每回合使用牌的次数上限+X（X为你已损失的体力值且至多为2）。⑥你的〖绝境〗和〖龙魂〗不能被移除或禁用。",
 					grylonghun: "龙魂",
 					grylonghun_info: "你可以将同花色的一至两张牌按下列规则使用或打出：红桃当【桃】，方块当火【杀】，梅花当【闪】，黑桃当【无懈可击】。若你以此法转化了两张：红色牌，则此牌回复值或伤害值+1；黑色牌，则你弃置当前回合角色一张牌。每当你发动〖龙魂〗，“魂”计数+1（计数持续累计，不会清空）。若计数为1或2的倍数，你摸1+X张牌（X为你已损失的体力值且至多为2）。“魂”计数达到15后：你使用【杀】或【决斗】指定目标后，你可以选择一项：1.此伤害+1；2.此牌不可被响应；3.获得该目标区域内一张牌（其区域内没有牌则不能选择此项）。“魂”计数达到30后：1.你转化发动的【杀】不可被响应，转化的【无懈可击】不可被【无懈可击】响应；2.你以单张牌转化【闪】或【无懈可击】后，获得当前回合角色区域内一张牌。",
 				},
