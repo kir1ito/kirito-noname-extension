@@ -24,10 +24,10 @@ export default function () {
 					game.saveConfig("extension_kirito扩展_githubToken", this.innerHTML.replace(/<br>/g, "").trim());
 				},
 			},
-			// 在线更新：有Token走GitHub API（私有仓库可更新），无Token匿名直连raw（仓库公开后可用）
+			// 在线更新：有Token走GitHub API（私有仓库可更新），无Token匿名多源降级（镜像优先，直连兜底）
 			checkUpdate: {
 				name: "检查并更新扩展",
-				intro: "从 GitHub 仓库 kir1ito/gry-noname-extension 下载最新文件覆盖本地，完成后需重启生效",
+				intro: "从 GitHub 仓库 kir1ito/kirito-noname-extension 下载最新文件覆盖本地，完成后需重启生效",
 				clear: true,
 				async onclick() {
 					// 仅 Electron/Node（含安卓端）具备写盘能力，浏览器端不支持
@@ -36,13 +36,32 @@ export default function () {
 						return;
 					}
 					const name = "kirito扩展";
-					const repo = "kir1ito/gry-noname-extension";
+					const repo = "kir1ito/kirito-noname-extension";
 					const token = (lib.config["extension_kirito扩展_githubToken"] || "").replace(/<br>/g, "").trim();
 					// 更新文件清单：代码/配置/角色素材（仓库新增文件时需同步此处）
 					const fileList = ["extension.js", "info.json", "god.jpg", "audio/die/god.mp3"];
 					const localVersion = lib.extensionPack[name] && lib.extensionPack[name].version;
 					// API路径只编码每段，保留斜杠
 					const encodePath = (file) => encodeURIComponent(name) + "/" + file.split("/").map(encodeURIComponent).join("/");
+					// 匿名raw多源降级：公共镜像优先（国内直连可达），GitHub直连兜底（系统代理环境下可达）
+					const rawSources = [
+						`https://gh-proxy.com/https://raw.githubusercontent.com/${repo}/main/`,
+						`https://ghproxy.net/https://raw.githubusercontent.com/${repo}/main/`,
+						`https://raw.githubusercontent.com/${repo}/main/`,
+					];
+					const fetchRaw = async (file) => {
+						let lastError = null;
+						for (const source of rawSources) {
+							try {
+								const resp = await fetch(source + encodePath(file));
+								if (!resp.ok) throw new Error(`RAW ${resp.status}`);
+								return resp;
+							} catch (e) {
+								lastError = e;
+							}
+						}
+						throw lastError || new Error("RAW 网络错误");
+					};
 					// 拉远端info.json的版本号
 					const fetchVersion = async () => {
 						if (token) {
@@ -53,8 +72,7 @@ export default function () {
 							const data = await resp.json();
 							return JSON.parse(atob(data.content.replace(/\n/g, ""))).version;
 						}
-						const resp = await fetch(`https://raw.githubusercontent.com/${repo}/main/${encodePath("info.json")}`);
-						if (!resp.ok) throw new Error(`RAW ${resp.status}`);
+						const resp = await fetchRaw("info.json");
 						return (await resp.json()).version;
 					};
 					// 下载单个文件并覆盖写盘：文本写string，图片/音频等二进制写Uint8Array（game.writeFile均支持）
@@ -70,8 +88,7 @@ export default function () {
 							const decoded = atob(info.content.replace(/\n/g, ""));
 							data = isText ? decoded : Uint8Array.from(decoded, (char) => char.charCodeAt(0));
 						} else {
-							const resp = await fetch(`https://raw.githubusercontent.com/${repo}/main/${encodePath(file)}`);
-							if (!resp.ok) throw new Error(`${file}（RAW ${resp.status}）`);
+							const resp = await fetchRaw(file);
 							data = isText ? await resp.text() : new Uint8Array(await resp.arrayBuffer());
 						}
 						const local = `extension/${name}/${file}`;
