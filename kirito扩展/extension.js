@@ -5,7 +5,7 @@ export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
 	return {
-		name: "gry扩展",
+		name: "kirito扩展",
 		editable: true,
 		connect: false,
 		arenaReady: function () {},
@@ -21,7 +21,7 @@ export default function () {
 				input: true,
 				init: "",
 				onblur() {
-					game.saveConfig("extension_gry扩展_githubToken", this.innerHTML.replace(/<br>/g, "").trim());
+					game.saveConfig("extension_kirito扩展_githubToken", this.innerHTML.replace(/<br>/g, "").trim());
 				},
 			},
 			// 在线更新：有Token走GitHub API（私有仓库可更新），无Token匿名直连raw（仓库公开后可用）
@@ -35,9 +35,9 @@ export default function () {
 						alert("当前环境不支持在线更新，请在 PC 或安卓客户端中使用");
 						return;
 					}
-					const name = "gry扩展";
+					const name = "kirito扩展";
 					const repo = "kir1ito/gry-noname-extension";
-					const token = (lib.config["extension_gry扩展_githubToken"] || "").replace(/<br>/g, "").trim();
+					const token = (lib.config["extension_kirito扩展_githubToken"] || "").replace(/<br>/g, "").trim();
 					// 更新文件清单：代码/配置/角色素材（仓库新增文件时需同步此处）
 					const fileList = ["extension.js", "info.json", "god.jpg", "audio/die/god.mp3"];
 					const localVersion = lib.extensionPack[name] && lib.extensionPack[name].version;
@@ -140,8 +140,8 @@ export default function () {
 						groupInGuozhan: "shu",
 						// AI 禁选：AI 不选用此武将，玩家仍可正常选择
 						isAiForbidden: true,
-						// 不写img：自动使用 extension/gry扩展/god.jpg
-						dieAudios: ["ext:gry扩展/audio/die/god.mp3"],
+						// 不写img：自动使用 extension/kirito扩展/god.jpg
+						dieAudios: ["ext:kirito扩展/audio/die/god.mp3"],
 					}),
 				},
 				translate: {
@@ -723,7 +723,7 @@ export default function () {
 			author: "gry",
 			diskURL: "",
 			forumURL: "",
-			version: "1.3",
+			version: "1.4",
 		},
 		files: { character: ["god.jpg"], card: [], skill: [], audio: [] },
 	};

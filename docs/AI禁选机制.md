@@ -60,7 +60,7 @@ god: new Character({
     skills: ["gryjuejing", "grylonghun"],
     groupInGuozhan: "shu",
     isAiForbidden: true, // AI 禁选：AI 不选用，玩家可正常选择
-    dieAudios: ["ext:gry扩展/audio/die/god.mp3"],
+    dieAudios: ["ext:kirito扩展/audio/die/god.mp3"],
 }),
 ```
 
