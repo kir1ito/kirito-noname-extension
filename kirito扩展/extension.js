@@ -1,6 +1,8 @@
 import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
+// 扩展版本号：package与设置页展示共用，与info.json的version保持同步
+const VERSION = "1.6";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -14,6 +16,14 @@ export default function () {
 		precontent: function (config) {},
 		help: {},
 		config: {
+			// 版本信息：展示当前版本与最后在线更新时间（在线更新成功时记录到本地配置）
+			versionInfo: {
+				name: `当前版本：v${VERSION}\n最后更新：${lib.config["extension_kirito扩展_updateTime"] || "从未在线更新（手动安装）"}`,
+				clear: true,
+				onclick() {
+					alert(`当前版本：v${VERSION}\n最后在线更新：${lib.config["extension_kirito扩展_updateTime"] || "从未在线更新（手动安装）"}`);
+				},
+			},
 			// 在线更新：匿名多源降级（公共镜像优先，GitHub直连兜底）
 			checkUpdate: {
 				name: "检查并更新扩展",
@@ -95,6 +105,7 @@ export default function () {
 						if (remoteVersion) {
 							game.saveConfig(`extension_${name}_version`, remoteVersion);
 						}
+						game.saveConfig(`extension_${name}_updateTime`, new Date().toLocaleString());
 						alert("更新完成，重启游戏后生效");
 						if (confirm("是否立即重启游戏？")) {
 							game.reload();
@@ -705,7 +716,7 @@ export default function () {
 			author: "kirito",
 			diskURL: "",
 			forumURL: "",
-			version: "1.5",
+			version: VERSION,
 		},
 		files: { character: ["god.jpg"], card: [], skill: [], audio: [] },
 	};
