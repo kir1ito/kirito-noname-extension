@@ -182,8 +182,9 @@ export default function () {
 					/* ===== 龙魂（强化版，本体技能见 character/extra.js relonghun）=====
 					 * 原效果：花色转化+双张强化，全部保留
 					 * 新增："魂"计数持续累计不清空，计数为1或2的倍数时摸1+X张牌（X封顶2）
-					 * 计数≥15：杀/决斗指定目标后三选一（伤害+1/不可响应/拿一张牌）
-					 * 计数≥30：龙魂杀/无懈不可被响应；单张转化闪/无懈后获得当前回合角色一张牌 */
+					 * 计数≥12：杀/决斗指定目标后二选一（伤害+1/拿一张牌）
+					 * 计数≥24：龙魂杀/无懈不可被响应；单张转化闪/无懈后获得当前回合角色一张牌；
+					 * 龙魂转化使用的牌不计入使用次数；龙魂转化的【桃】自带酒效果（不占酒次数） */
 					grylonghun: {
 						audio: "relonghun",
 						// 移除防护（官方机制）：与绝境同理，防止被断肠等移除型效果剥离
@@ -391,7 +392,7 @@ export default function () {
 								return player.countCards("hes", { suit: "heart" }) > 0;
 							}
 						},
-						group: ["grylonghun_num", "grylonghun_discard", "grylonghun_turn", "grylonghun_choice", "grylonghun_direct", "grylonghun_single"],
+						group: ["grylonghun_num", "grylonghun_discard", "grylonghun_turn", "grylonghun_choice", "grylonghun_direct", "grylonghun_single", "grylonghun_nocount", "grylonghun_taojiu"],
 						subSkill: {
 							// 原效果：龙魂转化两张杀/桃时伤害/回复+1
 							num: {
@@ -445,15 +446,14 @@ export default function () {
 									}
 								},
 							},
-							// 新增：计数≥15——使用【杀】或【决斗】指定目标后三选一（逐目标询问，可放弃）：
-							// 1.此伤害+1（经customArgs逐目标覆写baseDamage）2.此牌不可响应（directHit）
-							// 3.获得该目标区域内一张牌（hej，无牌时该选项不出现）
+							// 新增：计数≥12——使用【杀】或【决斗】指定目标后二选一（逐目标询问，可放弃）：
+							// 1.此伤害+1（经customArgs逐目标覆写baseDamage）2.获得该目标区域内一张牌（hej，无牌时该选项不出现）
 							// 时机useCardToPlayered：早于效果结算与响应询问（写法参照本体铁骑）
 							choice: {
 								trigger: { player: "useCardToPlayered" },
 								logTarget: "target",
 								filter(event, player) {
-									if (player.countMark("grylonghun_mark") < 15) return false;
+									if (player.countMark("grylonghun_mark") < 12) return false;
 									if (!event.card || !["sha", "juedou"].includes(event.card.name)) return false;
 									return event.target && event.target != player && event.target.isIn();
 								},
@@ -464,14 +464,13 @@ export default function () {
 									if (canGain) {
 										controls.push("获得其区域内一张牌");
 									}
-									controls.push("此伤害+1", "此牌不可响应", "cancel2");
+									controls.push("此伤害+1", "cancel2");
 									const result = await player
 										.chooseControl(...controls)
 										.set("prompt", `〖龙魂〗：对${get.translation(target)}选择一项`)
-										.set("prompt2", "1.此伤害+1；2.此牌不可被响应；3.获得其区域内一张牌")
+										.set("prompt2", "1.此伤害+1；2.获得其区域内一张牌")
 										.set("ai", () => {
 											if (canGain && player.countCards("h") < 2) return "获得其区域内一张牌";
-											if (target.countCards("h") >= 3) return "此牌不可响应";
 											return "此伤害+1";
 										})
 										.forResult();
@@ -482,14 +481,12 @@ export default function () {
 										const parent = trigger.getParent();
 										const args = parent.customArgs[trigger.target.playerid] ?? (parent.customArgs[trigger.target.playerid] = {});
 										args.baseDamage = (typeof args.baseDamage == "number" ? args.baseDamage : parent.baseDamage) + 1;
-									} else if (event.cost_data == "此牌不可响应") {
-										trigger.getParent().directHit.add(trigger.target);
 									} else {
 										await player.gainPlayerCard(trigger.target, "hej", true);
 									}
 								},
 							},
-							// 新增：计数≥30——龙魂转化的【杀】不可被响应；转化的【无懈可击】不可被【无懈可击】响应
+							// 新增：计数≥24——龙魂转化的【杀】不可被响应；转化的【无懈可击】不可被【无懈可击】响应
 							// 杀：directHit.addArray（写法参照本体玉衡）；无懈：置card.storage.nowuxie
 							// （_wuxie全局技能过滤器的官方检查位）+ playernowuxie技能标签双保险
 							direct: {
@@ -497,7 +494,7 @@ export default function () {
 								forced: true,
 								popup: false,
 								filter(event, player) {
-									if (player.countMark("grylonghun_mark") < 30) return false;
+									if (player.countMark("grylonghun_mark") < 24) return false;
 									if ((get.sourceSkillFor(event) || event.skill) != "grylonghun") return false;
 									return event.card && ["sha", "wuxie"].includes(event.card.name);
 								},
@@ -513,11 +510,11 @@ export default function () {
 									playernowuxie: true,
 									skillTagFilter(player, tag, arg) {
 										if (tag != "playernowuxie") return;
-										return !!(arg && arg.name == "wuxie" && arg.storage && arg.storage.nowuxie && player.countMark("grylonghun_mark") >= 30);
+										return !!(arg && arg.name == "wuxie" && arg.storage && arg.storage.nowuxie && player.countMark("grylonghun_mark") >= 24);
 									},
 								},
 							},
-							// 新增：计数≥30——龙魂单张转化【闪】/【无懈可击】时，获得当前回合角色区域内一张牌
+							// 新增：计数≥24——龙魂单张转化【闪】/【无懈可击】时，获得当前回合角色区域内一张牌
 							// （与两张黑色牌的弃置效果并列：单张=获得归自己，两张黑色=弃置）
 							single: {
 								trigger: { player: ["useCardAfter", "respondAfter"] },
@@ -529,7 +526,7 @@ export default function () {
 									return event.name == "respond" ? 0.5 : false;
 								},
 								filter(event, player) {
-									if (player.countMark("grylonghun_mark") < 30) return false;
+									if (player.countMark("grylonghun_mark") < 24) return false;
 									if ((get.sourceSkillFor(event) || event.skill) != "grylonghun") return false;
 									if (!["shan", "wuxie"].includes(event.card.name)) return false;
 									if (!event.cards || event.cards.length != 1) return false;
@@ -538,6 +535,56 @@ export default function () {
 								},
 								async content(event, trigger, player) {
 									await player.gainPlayerCard(_status.currentPhase, "hej", true);
+								},
+							},
+							// 新增：计数≥24——龙魂转化使用的牌不计入使用次数（官方nocount模板写法：
+							// useCard1时机置addCount=false并退还getStat统计，此后再出【杀】等不再被次数上限拦截）
+							nocount: {
+								trigger: { player: "useCard1" },
+								forced: true,
+								popup: false,
+								firstDo: true,
+								charlotte: true,
+								filter(event, player) {
+									if (player.countMark("grylonghun_mark") < 24) return false;
+									if (event.addCount === false) return false;
+									return (get.sourceSkillFor(event) || event.skill) == "grylonghun";
+								},
+								async content(event, trigger, player) {
+									trigger.addCount = false;
+									const stat = player.getStat().card;
+									const name = trigger.card.name;
+									if (typeof stat[name] == "number" && stat[name] > 0) {
+										stat[name]--;
+									}
+									game.log(trigger.card, "不计入次数");
+								},
+							},
+							// 新增：计数≥24——龙魂转化的【桃】自带酒效果：storage.jiu累加+挂本体jiu技能
+							// （写法同本体【酒】伤害分支；下一张杀伤害+X由本体jiu在useCard1结算，用杀后/回合结束自动清除）
+							// 非使用【酒】牌，不占用【酒】的使用次数；与已饮酒效果按本体规则叠加
+							taojiu: {
+								trigger: { player: "useCard1" },
+								forced: true,
+								popup: false,
+								filter(event, player) {
+									if (player.countMark("grylonghun_mark") < 24) return false;
+									if (!event.card || event.card.name != "tao") return false;
+									return (get.sourceSkillFor(event) || event.skill) == "grylonghun";
+								},
+								async content(event, trigger, player) {
+									if (!player.storage.jiu) {
+										player.storage.jiu = 0;
+									}
+									player.storage.jiu += 1;
+									game.broadcastAll((target2) => {
+										target2.addSkill("jiu");
+										if (!target2.node.jiu && lib.config.jiu_effect) {
+											target2.node.jiu = ui.create.div(".playerjiu", target2.node.avatar);
+											target2.node.jiu2 = ui.create.div(".playerjiu", target2.node.avatar2);
+										}
+									});
+									game.log(player, "的〖龙魂〗转化的【桃】附带酒效果");
 								},
 							},
 						},
@@ -559,7 +606,7 @@ export default function () {
 					gryjuejing: "绝境",
 					gryjuejing_info: "锁定技。①你的手牌上限+2，你不会被翻面，且你的体力上限不会减少。②当你进入或脱离濒死状态时，你摸一张牌。③摸牌阶段，你额外摸X张牌。④你至其他角色的距离-X。⑤你每回合使用牌的次数上限+X（X为你已损失的体力值且至多为2）。⑥你的〖绝境〗和〖龙魂〗不能被移除或禁用。",
 					grylonghun: "龙魂",
-					grylonghun_info: "你可以将同花色的一至两张牌按下列规则使用或打出：红桃当【桃】，方块当火【杀】，梅花当【闪】，黑桃当【无懈可击】。若你以此法转化了两张：红色牌，则此牌回复值或伤害值+1；黑色牌，则你弃置当前回合角色一张牌。每当你发动〖龙魂〗，“魂”计数+1（计数持续累计，不会清空）。若计数为1或2的倍数，你摸1+X张牌（X为你已损失的体力值且至多为2）。“魂”计数达到15后：你使用【杀】或【决斗】指定目标后，你可以选择一项：1.此伤害+1；2.此牌不可被响应；3.获得该目标区域内一张牌（其区域内没有牌则不能选择此项）。“魂”计数达到30后：1.你转化发动的【杀】不可被响应，转化的【无懈可击】不可被【无懈可击】响应；2.你以单张牌转化【闪】或【无懈可击】后，获得当前回合角色区域内一张牌。",
+					grylonghun_info: "你可以将同花色的一至两张牌按下列规则使用或打出：红桃当【桃】，方块当火【杀】，梅花当【闪】，黑桃当【无懈可击】。若你以此法转化了两张：红色牌，则此牌回复值或伤害值+1；黑色牌，则你弃置当前回合角色一张牌。每当你发动〖龙魂〗，“魂”计数+1（计数持续累计，不会清空）。若计数为1或2的倍数，你摸1+X张牌（X为你已损失的体力值且至多为2）。“魂”计数达到12后：你使用【杀】或【决斗】指定目标后，你可以选择一项：1.此伤害+1；2.获得该目标区域内一张牌（其区域内没有牌则不能选择此项）。“魂”计数达到24后：1.你转化发动的【杀】不可被响应，转化的【无懈可击】不可被【无懈可击】响应；2.你以单张牌转化【闪】或【无懈可击】后，获得当前回合角色区域内一张牌；3.你转化发动使用的牌不计入使用次数；4.你转化发动的【桃】自带酒效果（与饮酒效果叠加，且不占用【酒】的使用次数）。",
 				},
 			},
 			intro: "",
