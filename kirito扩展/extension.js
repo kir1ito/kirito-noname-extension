@@ -14,17 +14,7 @@ export default function () {
 		precontent: function (config) {},
 		help: {},
 		config: {
-			// GitHub Token：私有仓库在线更新必需（细粒度PAT，仅本仓库Contents只读权限即可），只存本地游戏配置不随仓库分发
-			githubToken: {
-				name: "GitHub Token",
-				intro: "私有仓库更新用（可选）：GitHub → Settings → Developer settings → Fine-grained tokens，仅勾选本仓库 Contents:Read-only",
-				input: true,
-				init: "",
-				onblur() {
-					game.saveConfig("extension_kirito扩展_githubToken", this.innerHTML.replace(/<br>/g, "").trim());
-				},
-			},
-			// 在线更新：有Token走GitHub API（私有仓库可更新），无Token匿名多源降级（镜像优先，直连兜底）
+			// 在线更新：匿名多源降级（公共镜像优先，GitHub直连兜底）
 			checkUpdate: {
 				name: "检查并更新扩展",
 				intro: "从 GitHub 仓库 kir1ito/kirito-noname-extension 下载最新文件覆盖本地，完成后需重启生效",
@@ -37,7 +27,6 @@ export default function () {
 					}
 					const name = "kirito扩展";
 					const repo = "kir1ito/kirito-noname-extension";
-					const token = (lib.config["extension_kirito扩展_githubToken"] || "").replace(/<br>/g, "").trim();
 					// 更新文件清单：代码/配置/角色素材（仓库新增文件时需同步此处）
 					const fileList = ["extension.js", "info.json", "god.jpg", "audio/die/god.mp3"];
 					const localVersion = lib.extensionPack[name] && lib.extensionPack[name].version;
@@ -64,33 +53,14 @@ export default function () {
 					};
 					// 拉远端info.json的版本号
 					const fetchVersion = async () => {
-						if (token) {
-							const resp = await fetch(`https://api.github.com/repos/${repo}/contents/${encodePath("info.json")}?ref=main`, {
-								headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
-							});
-							if (!resp.ok) throw new Error(`API ${resp.status}`);
-							const data = await resp.json();
-							return JSON.parse(atob(data.content.replace(/\n/g, ""))).version;
-						}
 						const resp = await fetchRaw("info.json");
 						return (await resp.json()).version;
 					};
 					// 下载单个文件并覆盖写盘：文本写string，图片/音频等二进制写Uint8Array（game.writeFile均支持）
 					const downloadFile = async (file) => {
+						const resp = await fetchRaw(file);
 						const isText = /\.(js|json)$/.test(file);
-						let data;
-						if (token) {
-							const resp = await fetch(`https://api.github.com/repos/${repo}/contents/${encodePath(file)}?ref=main`, {
-								headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
-							});
-							if (!resp.ok) throw new Error(`${file}（API ${resp.status}）`);
-							const info = await resp.json();
-							const decoded = atob(info.content.replace(/\n/g, ""));
-							data = isText ? decoded : Uint8Array.from(decoded, (char) => char.charCodeAt(0));
-						} else {
-							const resp = await fetchRaw(file);
-							data = isText ? await resp.text() : new Uint8Array(await resp.arrayBuffer());
-						}
+						const data = isText ? await resp.text() : new Uint8Array(await resp.arrayBuffer());
 						const local = `extension/${name}/${file}`;
 						// 先建父目录（file=true跳过最后一段文件名），再按(数据,目录,文件名)写入
 						await game.promises.ensureDirectory(local, null, true);
@@ -111,14 +81,9 @@ export default function () {
 						alert(`当前已是最新版本（${localVersion}）`);
 						return;
 					}
-					let tip;
-					if (remoteVersion) {
-						tip = `发现新版本：${localVersion || "未知"} → ${remoteVersion}，是否更新？`;
-					} else if (!token && fetchError && fetchError.message.includes("404")) {
-						tip = "无法匿名访问仓库（当前为私有仓库）：请在上方填入 GitHub Token，或将仓库设为公开。\n是否仍尝试强制更新？";
-					} else {
-						tip = `无法获取远程版本信息（${fetchError ? fetchError.message : "网络错误"}），是否强制更新为最新版？`;
-					}
+					const tip = remoteVersion
+						? `发现新版本：${localVersion || "未知"} → ${remoteVersion}，是否更新？`
+						: `无法获取远程版本信息（${fetchError ? fetchError.message : "网络错误"}），是否强制更新为最新版？`;
 					if (!confirm(tip)) {
 						return;
 					}
@@ -135,7 +100,7 @@ export default function () {
 							game.reload();
 						}
 					} catch (e) {
-						alert(`更新失败：${e.message}\n私有仓库请确认上方 Token 有效（仅本仓库 Contents 只读权限即可）`);
+						alert(`更新失败：${e.message}，请检查网络后重试`);
 					}
 				},
 			},
@@ -737,10 +702,10 @@ export default function () {
 				},
 			},
 			intro: "",
-			author: "gry",
+			author: "kirito",
 			diskURL: "",
 			forumURL: "",
-			version: "1.4",
+			version: "1.5",
 		},
 		files: { character: ["god.jpg"], card: [], skill: [], audio: [] },
 	};
