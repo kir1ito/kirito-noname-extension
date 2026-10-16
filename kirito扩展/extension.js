@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "2.3";
+const VERSION = "2.4";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -138,6 +138,37 @@ export default function () {
 						"animation/shenmachao/SS_smc_dazhao8.png",
 						"animation/shenmachao/SS_smc_dazhao9.png",
 						"animation/shenmachao/SS_smc_dazhao10.png",
+						"animation/shenjiangwei/SS_Sjw_mask.atlas",
+						"animation/shenjiangwei/SS_Sjw_mask.png",
+						"animation/shenjiangwei/SS_Sjw_mask.skel",
+						"animation/shenjiangwei/SS_Sjw_mask2.png",
+						"animation/shenjiangwei/SS_Sjw_mask2_alpha.png",
+						"animation/shenjiangwei/SS_Sjw_mask_alpha.png",
+						"animation/shenjiangwei/SS_Sjw_skill1.atlas",
+						"animation/shenjiangwei/SS_Sjw_skill1.png",
+						"animation/shenjiangwei/SS_Sjw_skill1.skel",
+						"animation/shenjiangwei/SS_Sjw_skill12.png",
+						"animation/shenjiangwei/SS_Sjw_skill12_alpha.png",
+						"animation/shenjiangwei/SS_Sjw_skill13.png",
+						"animation/shenjiangwei/SS_Sjw_skill13_alpha.png",
+						"animation/shenjiangwei/SS_Sjw_skill14.png",
+						"animation/shenjiangwei/SS_Sjw_skill14_alpha.png",
+						"animation/shenjiangwei/SS_Sjw_skill15.png",
+						"animation/shenjiangwei/SS_Sjw_skill15_alpha.png",
+						"animation/shenjiangwei/SS_Sjw_skill16.png",
+						"animation/shenjiangwei/SS_Sjw_skill16_alpha.png",
+						"animation/shenjiangwei/SS_Sjw_skill17.png",
+						"animation/shenjiangwei/SS_Sjw_skill1_alpha.png",
+						"animation/shenjiangwei/SS_Sjw_skill2.atlas",
+						"animation/shenjiangwei/SS_Sjw_skill2.png",
+						"animation/shenjiangwei/SS_Sjw_skill2.skel",
+						"animation/shenjiangwei/SS_Sjw_skill22.png",
+						"animation/shenjiangwei/SS_Sjw_skill22_alpha.png",
+						"animation/shenjiangwei/SS_Sjw_skill23.png",
+						"animation/shenjiangwei/SS_Sjw_skill23_alpha.png",
+						"animation/shenjiangwei/SS_Sjw_skill24.png",
+						"animation/shenjiangwei/SS_Sjw_skill24_alpha.png",
+						"animation/shenjiangwei/SS_Sjw_skill2_alpha.png",
 						...spineFiles,
 					];
 					const localVersion = lib.extensionPack[name] && lib.extensionPack[name].version;
@@ -997,6 +1028,53 @@ export default function () {
 													}
 												}
 											};
+										}
+										// 接管神霈/回天释放演出（面具+神光，素材自带副本 animation/shenjiangwei/）。
+										// 仅当无名美化的手杀神姜维特效模块未开启时接管，防止与其覆写叠加导致动画播两次；
+										// dcdAnim 缺席时静默跳过演出，技能结算不受影响
+										if (!lib.config.extension_无名美化_shenjiangwei && lib.skill.mbshenpei && !lib.skill.mbshenpei._wssSJW) {
+											lib.skill.mbshenpei._wssSJW = true;
+											const sjwDir = "../../../kirito扩展/animation/shenjiangwei";
+											const playSjwAn = (skillName) =>
+												new Promise((resolve) => {
+													if (typeof window.dcdAnim == "undefined") {
+														resolve();
+														return;
+													}
+													dcdAnim.loadSpine(`${sjwDir}/SS_Sjw_mask`, "skel", () => {
+														const mask = dcdAnim.playSpine({ name: `${sjwDir}/SS_Sjw_mask`, action: "play2", loop: true });
+														dcdAnim.loadSpine(`${sjwDir}/${skillName}`, "skel", () => {
+															const main = dcdAnim.playSpine({ name: `${sjwDir}/${skillName}` });
+															if (main && main.oncomplete) {
+																main.oncomplete = () => {
+																	if (mask) {
+																		dcdAnim.stopSpine(mask);
+																	}
+																	resolve();
+																};
+															} else {
+																if (mask) {
+																	dcdAnim.stopSpine(mask);
+																}
+																resolve();
+															}
+														});
+													});
+												});
+											const wrapSJW = (skillName, animation) => {
+												if (!lib.skill[skillName] || lib.skill[skillName]._wssSJW) {
+													return;
+												}
+												lib.skill[skillName]._wssSJW = true;
+												const originContent = lib.skill[skillName].content;
+												lib.skill[skillName].content = async function (event, trigger, player) {
+													await playSjwAn(animation);
+													await originContent.apply(this, arguments);
+												};
+											};
+											// 神霈=skill2神光，衍生技回天=skill1
+											wrapSJW("mbshenpei", "SS_Sjw_skill2");
+											wrapSJW("mbhuitian", "SS_Sjw_skill1");
 										}
 									},
 								},
