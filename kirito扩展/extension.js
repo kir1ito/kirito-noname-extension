@@ -2,10 +2,384 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.3";
+const VERSION = "3.4";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
+	// 在线更新中心：点按钮弹出独立遮罩窗口（形态复刻十周年UI配置中心，非系统窗口）
+	// 流程：检测连通性（各源拉info.json测延迟）→ 通过后才可开始更新 → 进度条逐文件流式下载
+	// → 全部成功后最后写info.json（版本号）。任何一步失败：版本号与更新时间配置不变更（相当于还原），
+	// 已下载的文件保留，可直接重试（下次会重新下载全部文件）
+	const ktUpdateCenter = (() => {
+		const NAME = "kirito扩展";
+		const REPO = "kir1ito/kirito-noname-extension";
+		// 更新文件清单：代码/配置/角色素材（仓库新增文件时需同步此处）
+		const skinDir = "assets/dynamic/神马超/风霆啸野";
+		const spineFiles = [
+			"BeiJing.atlas", "BeiJing.png", "BeiJing.skel", "BeiJing2.png", "BeiJing3.png", "BeiJing4.png", "BeiJing5.png",
+			"XingXiang.atlas", "XingXiang.mp3", "XingXiang_1.mp3", "XingXiang.png", "XingXiang.skel",
+			"XingXiang2.png", "XingXiang3.png", "XingXiang4.png", "XingXiang5.png", "XingXiang6.png", "XingXiang7.png",
+			"XingXiang8.png", "XingXiang9.png", "XingXiang10.png", "XingXiang11.png", "XingXiang12.png", "XingXiang13.png", "XingXiang14.png",
+		].map((f) => `${skinDir}/${f}`);
+		const FILE_LIST = [
+			"extension.js",
+			"info.json",
+			"god.jpg",
+			"wushangshen.jpg",
+			"wushangshen_bar.css",
+			"image/wushangshen_bar/smc_jindutiao_di.png",
+			"image/wushangshen_bar/smc_jindutiao.png",
+			"image/wushangshen_bar/smc_jindutiao_suo.png",
+			"audio/die/god.mp3",
+			"audio/die/wushangshen.mp3",
+			"audio/skill/ktyuli1.mp3",
+			"audio/skill/ktyuli2.mp3",
+			"audio/skill/ktyuli3.mp3",
+			"audio/skill/ktyuli4.mp3",
+			"audio/skill/ktyuli5.mp3",
+			"audio/skill/ktyuli6.mp3",
+			"audio/skill/kttingwei1.mp3",
+			"audio/skill/kttingwei2.mp3",
+			"audio/skill/kttingwei3.mp3",
+			"audio/skill/kttingwei4.mp3",
+			"audio/skill/ktjimie1.mp3",
+			"audio/skill/ktjimie2.mp3",
+			"audio/skill/ktjimie3.mp3",
+			"audio/skill/ktjimie4.mp3",
+			"audio/skill/ktxinghun1.mp3",
+			"audio/skill/ktxinghun2.mp3",
+			"audio/skill/ktshenpei1.mp3",
+			"audio/skill/ktshenpei2.mp3",
+			"audio/skill/kthuitian1.mp3",
+			"audio/skill/kthuitian2.mp3",
+			"audio/skill/kthuitian3.mp3",
+			"audio/skill/kthuitian4.mp3",
+			"animation/shenmachao/Ss_smc_vfx_grogress.atlas",
+			"animation/shenmachao/Ss_smc_vfx_grogress.png",
+			"animation/shenmachao/Ss_smc_vfx_grogress.skel",
+			"animation/shenmachao/SS_smc_dazhao.atlas",
+			"animation/shenmachao/SS_smc_dazhao.png",
+			"animation/shenmachao/SS_smc_dazhao.skel",
+			"animation/shenmachao/SS_smc_dazhao2.png",
+			"animation/shenmachao/SS_smc_dazhao3.png",
+			"animation/shenmachao/SS_smc_dazhao4.png",
+			"animation/shenmachao/SS_smc_dazhao5.png",
+			"animation/shenmachao/SS_smc_dazhao6.png",
+			"animation/shenmachao/SS_smc_dazhao7.png",
+			"animation/shenmachao/SS_smc_dazhao8.png",
+			"animation/shenmachao/SS_smc_dazhao9.png",
+			"animation/shenmachao/SS_smc_dazhao10.png",
+			"animation/shenjiangwei/SS_Sjw_dead.atlas",
+			"animation/shenjiangwei/SS_Sjw_dead.png",
+			"animation/shenjiangwei/SS_Sjw_dead.skel",
+			"animation/shenjiangwei/SS_Sjw_dead2.png",
+			"animation/shenjiangwei/SS_Sjw_dead2_alpha.png",
+			"animation/shenjiangwei/SS_Sjw_dead3.png",
+			"animation/shenjiangwei/SS_Sjw_dead3_alpha.png",
+			"animation/shenjiangwei/SS_Sjw_dead4.png",
+			"animation/shenjiangwei/SS_Sjw_dead4_alpha.png",
+			"animation/shenjiangwei/SS_Sjw_dead_alpha.png",
+			"animation/shenjiangwei/SS_Sjw_mask.atlas",
+			"animation/shenjiangwei/SS_Sjw_mask.png",
+			"animation/shenjiangwei/SS_Sjw_mask.skel",
+			"animation/shenjiangwei/SS_Sjw_mask2.png",
+			"animation/shenjiangwei/SS_Sjw_mask2_alpha.png",
+			"animation/shenjiangwei/SS_Sjw_mask_alpha.png",
+			"animation/shenjiangwei/SS_Sjw_skill1.atlas",
+			"animation/shenjiangwei/SS_Sjw_skill1.png",
+			"animation/shenjiangwei/SS_Sjw_skill1.skel",
+			"animation/shenjiangwei/SS_Sjw_skill12.png",
+			"animation/shenjiangwei/SS_Sjw_skill12_alpha.png",
+			"animation/shenjiangwei/SS_Sjw_skill13.png",
+			"animation/shenjiangwei/SS_Sjw_skill13_alpha.png",
+			"animation/shenjiangwei/SS_Sjw_skill14.png",
+			"animation/shenjiangwei/SS_Sjw_skill14_alpha.png",
+			"animation/shenjiangwei/SS_Sjw_skill15.png",
+			"animation/shenjiangwei/SS_Sjw_skill15_alpha.png",
+			"animation/shenjiangwei/SS_Sjw_skill16.png",
+			"animation/shenjiangwei/SS_Sjw_skill16_alpha.png",
+			"animation/shenjiangwei/SS_Sjw_skill17.png",
+			"animation/shenjiangwei/SS_Sjw_skill1_alpha.png",
+			"animation/shenjiangwei/SS_Sjw_skill2.atlas",
+			"animation/shenjiangwei/SS_Sjw_skill2.png",
+			"animation/shenjiangwei/SS_Sjw_skill2.skel",
+			"animation/shenjiangwei/SS_Sjw_skill22.png",
+			"animation/shenjiangwei/SS_Sjw_skill22_alpha.png",
+			"animation/shenjiangwei/SS_Sjw_skill23.png",
+			"animation/shenjiangwei/SS_Sjw_skill23_alpha.png",
+			"animation/shenjiangwei/SS_Sjw_skill24.png",
+			"animation/shenjiangwei/SS_Sjw_skill24_alpha.png",
+			"animation/shenjiangwei/SS_Sjw_skill2_alpha.png",
+			...spineFiles,
+		];
+		// 匿名raw多源：公共镜像优先（国内直连可达），GitHub直连兜底（系统代理环境下可达）
+		const SOURCES = [
+			{ label: "gh-proxy.com 镜像", base: `https://gh-proxy.com/https://raw.githubusercontent.com/${REPO}/main/` },
+			{ label: "ghproxy.net 镜像", base: `https://ghproxy.net/https://raw.githubusercontent.com/${REPO}/main/` },
+			{ label: "GitHub 直连", base: `https://raw.githubusercontent.com/${REPO}/main/` },
+		];
+		const CSS = `
+.ktupd-overlay{position:fixed;left:0;top:0;right:0;bottom:0;z-index:998;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55)}
+.ktupd-dialog{position:relative;width:540px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box;padding:18px 24px 20px;border-radius:10px;color:#dfe6f3;background:linear-gradient(160deg,#232a3a,#141822);border:1px solid #3d4a63;box-shadow:0 10px 44px rgba(0,0,0,.65);font-size:14px;user-select:none}
+.ktupd-title{font-size:18px;font-weight:bold;color:#ffd76a;letter-spacing:1px;margin-bottom:10px}
+.ktupd-close{position:absolute;right:14px;top:12px;width:26px;height:26px;line-height:24px;text-align:center;border-radius:50%;cursor:pointer;color:#9aa7bd;border:1px solid #3d4a63;font-size:14px}
+.ktupd-close:hover{color:#fff;border-color:#8fa3c8}
+.ktupd-row{display:flex;justify-content:space-between;margin:5px 0;color:#c3cde0}
+.ktupd-row b{color:#eaf1ff;font-weight:normal}
+.ktupd-section{margin:12px 0 6px;padding-left:8px;border-left:3px solid #ffd76a;color:#ffd76a;font-weight:bold}
+.ktupd-btn{display:inline-block;padding:6px 18px;border-radius:6px;background:linear-gradient(180deg,#3f8cff,#2563eb);color:#fff;cursor:pointer;font-size:14px;margin-right:10px}
+.ktupd-btn:hover{filter:brightness(1.12)}
+.ktupd-btn[disabled]{opacity:.38;cursor:not-allowed;filter:none}
+.ktupd-btn.green{background:linear-gradient(180deg,#2fd06b,#16a34a)}
+.ktupd-src{font-size:13px;margin:4px 0;color:#9aa7bd}
+.ktupd-src.ok{color:#7ee2a8}
+.ktupd-src.bad{color:#ff8f8f}
+.ktupd-bar{height:14px;margin:8px 0 4px;border-radius:7px;background:#0b0e14;border:1px solid #3d4a63;overflow:hidden}
+.ktupd-fill{height:100%;width:0;border-radius:7px;background:linear-gradient(90deg,#f59e0b,#fbbf24);transition:width .15s}
+.ktupd-cur{font-size:12px;color:#9aa7bd;word-break:break-all;min-height:16px}
+.ktupd-status{font-size:13px;margin-top:10px;color:#c3cde0;min-height:18px}
+.ktupd-status.ok{color:#7ee2a8}
+.ktupd-status.err{color:#ff8f8f}
+`;
+		let overlay = null;
+		let abortCtrl = null;
+		let sourceOrder = null; // 连通性检测后的源顺序（可用优先，按延迟升序）
+		let remoteVersion = null;
+		const $ = {};
+		const encodePath = (file) => encodeURIComponent(NAME) + "/" + file.split("/").map(encodeURIComponent).join("/");
+		const fmtSize = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(2)} MB` : `${(n / 1024).toFixed(1)} KB`);
+		const localVersion = () => (lib.extensionPack[NAME] && lib.extensionPack[NAME].version) || "未知";
+		const injectCss = () => {
+			if (document.getElementById("ktupd-css")) return;
+			const style = document.createElement("style");
+			style.id = "ktupd-css";
+			style.textContent = CSS;
+			document.head.appendChild(style);
+		};
+		const el = (cls, parent, text) => {
+			const node = document.createElement("div");
+			node.className = cls;
+			if (text != null) node.textContent = text;
+			parent.appendChild(node);
+			return node;
+		};
+		const setStatus = (text, cls) => {
+			$.status.textContent = text;
+			$.status.className = `ktupd-status${cls ? ` ${cls}` : ""}`;
+		};
+		// 按钮是div（无原生disabled）：用属性驱动样式，onclick内用hasAttribute拦截
+		const setDisabled = (btn, val) => {
+			if (val) btn.setAttribute("disabled", "");
+			else btn.removeAttribute("disabled");
+		};
+		// 带超时的fetch
+		const fetchTimeout = (url, ms) => {
+			const ctrl = new AbortController();
+			const timer = setTimeout(() => ctrl.abort(), ms);
+			return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(timer));
+		};
+		// 单源连通性检测：GET info.json（顺带取远程版本号），8秒超时
+		const checkSource = async (src) => {
+			const t0 = Date.now();
+			try {
+				const resp = await fetchTimeout(src.base + encodePath("info.json"), 8000);
+				if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+				const json = await resp.json();
+				return { ok: true, ms: Date.now() - t0, version: json.version };
+			} catch (e) {
+				return { ok: false, ms: Date.now() - t0, error: e.name == "AbortError" ? "超时" : e.message };
+			}
+		};
+		async function checkConnectivity() {
+			remoteVersion = null;
+			setDisabled($.start, true);
+			setDisabled($.check, true);
+			setStatus("正在检测各下载源连通性…");
+			const results = await Promise.all(SOURCES.map(checkSource));
+			// 可用源优先、按延迟升序排列，更新时按此顺序降级
+			sourceOrder = SOURCES.map((src, i) => ({ src, res: results[i], idx: i })).sort((a, b) => (b.res.ok - a.res.ok) || (a.res.ms - b.res.ms));
+			sourceOrder.forEach(({ src, res, idx }) => {
+				const line = $.srcs[idx];
+				if (res.ok) {
+					line.className = "ktupd-src ok";
+					line.textContent = `✓ ${src.label} — ${res.ms}ms`;
+					if (!remoteVersion && res.version) remoteVersion = res.version;
+				} else {
+					line.className = "ktupd-src bad";
+					line.textContent = `✗ ${src.label} — 不可达（${res.error}，${res.ms}ms）`;
+				}
+			});
+			$.remote.textContent = remoteVersion ? `v${remoteVersion}` : "检测失败";
+			const anyOk = results.some((r) => r.ok);
+			if (anyOk) {
+				setDisabled($.start, false);
+				if (remoteVersion && remoteVersion == localVersion()) {
+					setStatus(`连通性检测通过。当前已是最新版本（v${localVersion()}），无需更新（仍可强制重装）`);
+				} else {
+					setStatus(`连通性检测通过，发现新版本：${localVersion()} → ${remoteVersion || "未知"}，可开始更新`);
+				}
+			} else {
+				setStatus("所有下载源均不可达，请检查网络（或系统代理）后重新检测", "err");
+			}
+			setDisabled($.check, false);
+		}
+		// 更新时按检测出的源顺序降级下载
+		const fetchRaw = async (file) => {
+			let lastError = null;
+			for (const { src } of sourceOrder) {
+				try {
+					const resp = await fetch(src.base + encodePath(file), { signal: abortCtrl.signal });
+					if (!resp.ok) throw new Error(`RAW ${resp.status}`);
+					return resp;
+				} catch (e) {
+					if (e.name == "AbortError") throw e;
+					lastError = e;
+				}
+			}
+			throw lastError || new Error("RAW 网络错误");
+		};
+		// 流式下载单文件：边收边回报字节进度
+		const downloadOne = async (file, onBytes) => {
+			const resp = await fetchRaw(file);
+			const size = Number(resp.headers.get("content-length")) || 0;
+			if (!resp.body || typeof resp.body.getReader != "function") {
+				const data = new Uint8Array(await resp.arrayBuffer());
+				onBytes(data.length, size || data.length);
+				return data;
+			}
+			const reader = resp.body.getReader();
+			const chunks = [];
+			let received = 0;
+			for (;;) {
+				const { done, value } = await reader.read();
+				if (done) break;
+				chunks.push(value);
+				received += value.length;
+				onBytes(received, size);
+			}
+			const data = new Uint8Array(received);
+			let off = 0;
+			for (const chunk of chunks) {
+				data.set(chunk, off);
+				off += chunk.length;
+			}
+			return data;
+		};
+		const writeFileTo = async (file, data) => {
+			const local = `extension/${NAME}/${file}`;
+			await game.promises.ensureDirectory(local, null, true);
+			const slash = local.lastIndexOf("/");
+			await new Promise((resolve, reject) =>
+				game.writeFile(data, local.slice(0, slash), local.slice(slash + 1), (err) => (err ? reject(err) : resolve()))
+			);
+		};
+		async function startUpdate() {
+			setDisabled($.check, true);
+			setDisabled($.start, true);
+			$.restart.style.display = "none";
+			abortCtrl = new AbortController();
+			const total = FILE_LIST.length;
+			// 总进度 =（已完成文件数 + 当前文件字节占比）/ 总文件数
+			const setProgress = (done, frac, file, received, size) => {
+				$.fill.style.width = `${Math.min(((done + frac) / total) * 100, 100).toFixed(1)}%`;
+				$.progress.textContent = `第 ${done + 1}/${total} 个 · ${fmtSize(received)}${size ? ` / ${fmtSize(size)}` : ""}`;
+				$.cur.textContent = file;
+			};
+			try {
+				setStatus("正在下载更新文件…");
+				let infoJsonBytes = null;
+				let infoJsonVersion = null;
+				for (let i = 0; i < total; i++) {
+					const file = FILE_LIST[i];
+					setProgress(i, 0, file, 0, 0);
+					const data = await downloadOne(file, (received, size) =>
+						setProgress(i, size ? Math.min(received / size, 0.99) : 0, file, received, size)
+					);
+					// 版本号文件暂存内存，其余文件立即写盘
+					if (file == "info.json") {
+						infoJsonBytes = data;
+						try {
+							infoJsonVersion = JSON.parse(new TextDecoder().decode(data)).version;
+						} catch {
+							infoJsonVersion = null;
+						}
+						continue;
+					}
+					await writeFileTo(file, /\.(js|json)$/.test(file) ? new TextDecoder().decode(data) : data);
+				}
+				// 全部下载写盘成功 → 最后一步才写版本号文件与本地配置
+				if (!infoJsonBytes) throw new Error("info.json 内容缺失");
+				await writeFileTo("info.json", new TextDecoder().decode(infoJsonBytes));
+				const finalVersion = infoJsonVersion || remoteVersion;
+				if (finalVersion) game.saveConfig(`extension_${NAME}_version`, finalVersion);
+				game.saveConfig(`extension_${NAME}_updateTime`, new Date().toLocaleString());
+				$.fill.style.width = "100%";
+				$.progress.textContent = `${total}/${total} 个文件全部完成`;
+				$.cur.textContent = "";
+				setStatus(`更新完成（v${finalVersion || "?"}），重启游戏后生效`, "ok");
+				$.restart.style.display = "";
+			} catch (e) {
+				const reason = e.name == "AbortError" ? "已手动中止" : e.message;
+				setStatus(`更新失败：${reason}。版本号未变更，已下载文件已保留，可直接重新开始更新`, "err");
+				setDisabled($.check, false);
+				setDisabled($.start, false);
+			} finally {
+				abortCtrl = null;
+			}
+		}
+		function open() {
+			// 仅 Electron/Node（含安卓端）具备写盘能力，浏览器端不支持
+			if (typeof game.writeFile != "function") {
+				alert("当前环境不支持在线更新，请在 PC 或安卓客户端中使用");
+				return;
+			}
+			if (overlay) return;
+			injectCss();
+			overlay = el("ktupd-overlay", document.body);
+			const dialog = el("ktupd-dialog", overlay);
+			el("ktupd-title", dialog, "kirito扩展 · 更新中心");
+			const close = () => {
+				if (abortCtrl && !confirm("更新进行中，关闭将中止本次更新（版本号不会变更）。确定关闭？")) return;
+				if (abortCtrl) abortCtrl.abort();
+				overlay.remove();
+				overlay = null;
+			};
+			const closeBtn = el("ktupd-close", dialog, "✕");
+			closeBtn.onclick = close;
+			overlay.onclick = (e) => {
+				if (e.target === overlay) close();
+			};
+			el("ktupd-row", dialog).innerHTML = `<span>当前版本</span><b>v${localVersion()}</b>`;
+			const rowRemote = el("ktupd-row", dialog);
+			rowRemote.innerHTML = "<span>远程版本</span>";
+			$.remote = document.createElement("b");
+			$.remote.textContent = "待检测";
+			rowRemote.appendChild($.remote);
+			el("ktupd-row", dialog).innerHTML = `<span>最后在线更新</span><b>${lib.config[`extension_${NAME}_updateTime`] || "从未（手动安装）"}</b>`;
+			el("ktupd-section", dialog, "① 检测连通性");
+			$.check = el("ktupd-btn", dialog, "检测连通性");
+			$.check.onclick = function () {
+				if (this.hasAttribute("disabled")) return;
+				checkConnectivity().catch((e) => setStatus(`检测出错：${e.message}`, "err"));
+			};
+			$.srcs = SOURCES.map((src) => el("ktupd-src", dialog, `● ${src.label} — 未检测`));
+			el("ktupd-section", dialog, "② 下载更新");
+			$.start = el("ktupd-btn green", dialog, "开始更新");
+			setDisabled($.start, true);
+			$.start.onclick = function () {
+				if (this.hasAttribute("disabled")) return;
+				startUpdate();
+			};
+			$.restart = el("ktupd-btn green", dialog, "立即重启游戏");
+			$.restart.style.display = "none";
+			$.restart.onclick = () => game.reload();
+			el("ktupd-bar", dialog).appendChild(($.fill = document.createElement("div"))).className = "ktupd-fill";
+			$.progress = el("ktupd-cur", dialog, "");
+			$.cur = el("ktupd-cur", dialog, "");
+			$.status = el("ktupd-status", dialog, "请先检测连通性，通过后才可开始更新");
+		}
+		return { open };
+	})();
 	return {
 		name: "kirito扩展",
 		editable: true,
@@ -91,192 +465,13 @@ export default function () {
 					alert(`当前版本：v${VERSION}\n最后在线更新：${lib.config["extension_kirito扩展_updateTime"] || "从未在线更新（手动安装）"}`);
 				},
 			},
-			// 在线更新：匿名多源降级（公共镜像优先，GitHub直连兜底）
+			// 在线更新：独立更新中心窗口（连通性检测→进度条下载→全部成功才写版本号，失败版本号不变）
 			checkUpdate: {
-				name: "检查并更新扩展",
-				intro: "从 GitHub 仓库 kir1ito/kirito-noname-extension 下载最新文件覆盖本地，完成后需重启生效",
+				name: "更新中心（独立窗口）",
+				intro: "从 GitHub 仓库 kir1ito/kirito-noname-extension 下载最新文件覆盖本地；先检测连通性，通过后才开始更新；全部文件下载成功才写入新版本号，中途出错版本号保持不变。完成后需重启游戏生效",
 				clear: true,
-				async onclick() {
-					// 仅 Electron/Node（含安卓端）具备写盘能力，浏览器端不支持
-					if (typeof game.writeFile != "function") {
-						alert("当前环境不支持在线更新，请在 PC 或安卓客户端中使用");
-						return;
-					}
-					const name = "kirito扩展";
-					const repo = "kir1ito/kirito-noname-extension";
-					// 更新文件清单：代码/配置/角色素材（仓库新增文件时需同步此处）
-					const skinDir = "assets/dynamic/神马超/风霆啸野";
-					const spineFiles = [
-						"BeiJing.atlas", "BeiJing.png", "BeiJing.skel", "BeiJing2.png", "BeiJing3.png", "BeiJing4.png", "BeiJing5.png",
-						"XingXiang.atlas", "XingXiang.mp3", "XingXiang_1.mp3", "XingXiang.png", "XingXiang.skel",
-						"XingXiang2.png", "XingXiang3.png", "XingXiang4.png", "XingXiang5.png", "XingXiang6.png", "XingXiang7.png",
-						"XingXiang8.png", "XingXiang9.png", "XingXiang10.png", "XingXiang11.png", "XingXiang12.png", "XingXiang13.png", "XingXiang14.png",
-					].map((f) => `${skinDir}/${f}`);
-					const fileList = [
-						"extension.js",
-						"info.json",
-						"god.jpg",
-						"wushangshen.jpg",
-						"wushangshen_bar.css",
-						"image/wushangshen_bar/smc_jindutiao_di.png",
-						"image/wushangshen_bar/smc_jindutiao.png",
-						"image/wushangshen_bar/smc_jindutiao_suo.png",
-						"audio/die/god.mp3",
-						"audio/die/wushangshen.mp3",
-						"audio/skill/ktyuli1.mp3",
-						"audio/skill/ktyuli2.mp3",
-						"audio/skill/ktyuli3.mp3",
-						"audio/skill/ktyuli4.mp3",
-						"audio/skill/ktyuli5.mp3",
-						"audio/skill/ktyuli6.mp3",
-						"audio/skill/kttingwei1.mp3",
-						"audio/skill/kttingwei2.mp3",
-						"audio/skill/kttingwei3.mp3",
-						"audio/skill/kttingwei4.mp3",
-						"audio/skill/ktjimie1.mp3",
-						"audio/skill/ktjimie2.mp3",
-						"audio/skill/ktjimie3.mp3",
-						"audio/skill/ktjimie4.mp3",
-						"audio/skill/ktxinghun1.mp3",
-						"audio/skill/ktxinghun2.mp3",
-						"audio/skill/ktshenpei1.mp3",
-						"audio/skill/ktshenpei2.mp3",
-						"audio/skill/kthuitian1.mp3",
-						"audio/skill/kthuitian2.mp3",
-						"audio/skill/kthuitian3.mp3",
-						"audio/skill/kthuitian4.mp3",
-						"animation/shenmachao/Ss_smc_vfx_grogress.atlas",
-						"animation/shenmachao/Ss_smc_vfx_grogress.png",
-						"animation/shenmachao/Ss_smc_vfx_grogress.skel",
-						"animation/shenmachao/SS_smc_dazhao.atlas",
-						"animation/shenmachao/SS_smc_dazhao.png",
-						"animation/shenmachao/SS_smc_dazhao.skel",
-						"animation/shenmachao/SS_smc_dazhao2.png",
-						"animation/shenmachao/SS_smc_dazhao3.png",
-						"animation/shenmachao/SS_smc_dazhao4.png",
-						"animation/shenmachao/SS_smc_dazhao5.png",
-						"animation/shenmachao/SS_smc_dazhao6.png",
-						"animation/shenmachao/SS_smc_dazhao7.png",
-						"animation/shenmachao/SS_smc_dazhao8.png",
-						"animation/shenmachao/SS_smc_dazhao9.png",
-						"animation/shenmachao/SS_smc_dazhao10.png",
-						"animation/shenjiangwei/SS_Sjw_dead.atlas",
-						"animation/shenjiangwei/SS_Sjw_dead.png",
-						"animation/shenjiangwei/SS_Sjw_dead.skel",
-						"animation/shenjiangwei/SS_Sjw_dead2.png",
-						"animation/shenjiangwei/SS_Sjw_dead2_alpha.png",
-						"animation/shenjiangwei/SS_Sjw_dead3.png",
-						"animation/shenjiangwei/SS_Sjw_dead3_alpha.png",
-						"animation/shenjiangwei/SS_Sjw_dead4.png",
-						"animation/shenjiangwei/SS_Sjw_dead4_alpha.png",
-						"animation/shenjiangwei/SS_Sjw_dead_alpha.png",
-						"animation/shenjiangwei/SS_Sjw_mask.atlas",
-						"animation/shenjiangwei/SS_Sjw_mask.png",
-						"animation/shenjiangwei/SS_Sjw_mask.skel",
-						"animation/shenjiangwei/SS_Sjw_mask2.png",
-						"animation/shenjiangwei/SS_Sjw_mask2_alpha.png",
-						"animation/shenjiangwei/SS_Sjw_mask_alpha.png",
-						"animation/shenjiangwei/SS_Sjw_skill1.atlas",
-						"animation/shenjiangwei/SS_Sjw_skill1.png",
-						"animation/shenjiangwei/SS_Sjw_skill1.skel",
-						"animation/shenjiangwei/SS_Sjw_skill12.png",
-						"animation/shenjiangwei/SS_Sjw_skill12_alpha.png",
-						"animation/shenjiangwei/SS_Sjw_skill13.png",
-						"animation/shenjiangwei/SS_Sjw_skill13_alpha.png",
-						"animation/shenjiangwei/SS_Sjw_skill14.png",
-						"animation/shenjiangwei/SS_Sjw_skill14_alpha.png",
-						"animation/shenjiangwei/SS_Sjw_skill15.png",
-						"animation/shenjiangwei/SS_Sjw_skill15_alpha.png",
-						"animation/shenjiangwei/SS_Sjw_skill16.png",
-						"animation/shenjiangwei/SS_Sjw_skill16_alpha.png",
-						"animation/shenjiangwei/SS_Sjw_skill17.png",
-						"animation/shenjiangwei/SS_Sjw_skill1_alpha.png",
-						"animation/shenjiangwei/SS_Sjw_skill2.atlas",
-						"animation/shenjiangwei/SS_Sjw_skill2.png",
-						"animation/shenjiangwei/SS_Sjw_skill2.skel",
-						"animation/shenjiangwei/SS_Sjw_skill22.png",
-						"animation/shenjiangwei/SS_Sjw_skill22_alpha.png",
-						"animation/shenjiangwei/SS_Sjw_skill23.png",
-						"animation/shenjiangwei/SS_Sjw_skill23_alpha.png",
-						"animation/shenjiangwei/SS_Sjw_skill24.png",
-						"animation/shenjiangwei/SS_Sjw_skill24_alpha.png",
-						"animation/shenjiangwei/SS_Sjw_skill2_alpha.png",
-						...spineFiles,
-					];
-					const localVersion = lib.extensionPack[name] && lib.extensionPack[name].version;
-					// API路径只编码每段，保留斜杠
-					const encodePath = (file) => encodeURIComponent(name) + "/" + file.split("/").map(encodeURIComponent).join("/");
-					// 匿名raw多源降级：公共镜像优先（国内直连可达），GitHub直连兜底（系统代理环境下可达）
-					const rawSources = [
-						`https://gh-proxy.com/https://raw.githubusercontent.com/${repo}/main/`,
-						`https://ghproxy.net/https://raw.githubusercontent.com/${repo}/main/`,
-						`https://raw.githubusercontent.com/${repo}/main/`,
-					];
-					const fetchRaw = async (file) => {
-						let lastError = null;
-						for (const source of rawSources) {
-							try {
-								const resp = await fetch(source + encodePath(file));
-								if (!resp.ok) throw new Error(`RAW ${resp.status}`);
-								return resp;
-							} catch (e) {
-								lastError = e;
-							}
-						}
-						throw lastError || new Error("RAW 网络错误");
-					};
-					// 拉远端info.json的版本号
-					const fetchVersion = async () => {
-						const resp = await fetchRaw("info.json");
-						return (await resp.json()).version;
-					};
-					// 下载单个文件并覆盖写盘：文本写string，图片/音频等二进制写Uint8Array（game.writeFile均支持）
-					const downloadFile = async (file) => {
-						const resp = await fetchRaw(file);
-						const isText = /\.(js|json)$/.test(file);
-						const data = isText ? await resp.text() : new Uint8Array(await resp.arrayBuffer());
-						const local = `extension/${name}/${file}`;
-						// 先建父目录（file=true跳过最后一段文件名），再按(数据,目录,文件名)写入
-						await game.promises.ensureDirectory(local, null, true);
-						const slash = local.lastIndexOf("/");
-						await new Promise((resolve, reject) =>
-							game.writeFile(data, local.slice(0, slash), local.slice(slash + 1), (err) => (err ? reject(err) : resolve()))
-						);
-					};
-					// 版本检查
-					let remoteVersion = null;
-					let fetchError = null;
-					try {
-						remoteVersion = await fetchVersion();
-					} catch (e) {
-						fetchError = e;
-					}
-					if (remoteVersion && remoteVersion == localVersion) {
-						alert(`当前已是最新版本（${localVersion}）`);
-						return;
-					}
-					const tip = remoteVersion
-						? `发现新版本：${localVersion || "未知"} → ${remoteVersion}，是否更新？`
-						: `无法获取远程版本信息（${fetchError ? fetchError.message : "网络错误"}），是否强制更新为最新版？`;
-					if (!confirm(tip)) {
-						return;
-					}
-					// 逐文件下载覆盖
-					try {
-						for (const file of fileList) {
-							await downloadFile(file);
-						}
-						if (remoteVersion) {
-							game.saveConfig(`extension_${name}_version`, remoteVersion);
-						}
-						game.saveConfig(`extension_${name}_updateTime`, new Date().toLocaleString());
-						alert("更新完成，重启游戏后生效");
-						if (confirm("是否立即重启游戏？")) {
-							game.reload();
-						}
-					} catch (e) {
-						alert(`更新失败：${e.message}，请检查网络后重试`);
-					}
+				onclick() {
+					ktUpdateCenter.open();
 				},
 			},
 		},
@@ -334,7 +529,7 @@ export default function () {
 				skill: {
 					/* ===== 绝境（强化版，本体技能见 character/extra.js xinjuejing）=====
 					 * 原效果：手牌上限+2；进入/脱离濒死摸一张牌
-					 * 新增：①附不会翻面、体力上限不可被扣除；摸牌阶段+X；至其他角色距离-X；每回合用牌上限+X；绝境/龙魂/驭雳不可被移除或禁用
+					 * 新增：①附不会翻面、体力上限不可被扣除；摸牌阶段+X；至其他角色距离-X；每回合用牌上限+X；绝境/龙魂/驭雳/霆威不可被移除或禁用
 					 * X = getDamagedHp() 已损失体力值（不封顶） */
 					gryjuejing: {
 						audio: "xinjuejing",
@@ -395,7 +590,7 @@ export default function () {
 							},
 							},
 							// 新增⑥：技能守护——当前角色拥有的所有技能均不可被禁用或封锁
-						 // 移除防护由 fixed: true 承担（绝境/龙魂/驭雳）；禁用（disableSkill，铁骑/止息类）与
+						 // 移除防护由 fixed: true 承担（绝境/龙魂/驭雳/霆威）；禁用（disableSkill，铁骑/止息类）与
 							// 封锁（get.is.blocked，skillBlocker体系）在 init 中包一层拦截
 							guard: {
 								charlotte: true,
@@ -1238,6 +1433,8 @@ export default function () {
 						},
 						kttingwei: {
 							audio: "ext:kirito扩展/audio/skill:4",
+							// 移除防护：与绝境/龙魂/驭雳同列，removeSkill 对 fixed 技能直接拒绝
+							fixed: true,
 							logAudio: event =>
 								typeof event == "number"
 									? `ext:kirito扩展/audio/skill/kttingwei${event}.mp3`
