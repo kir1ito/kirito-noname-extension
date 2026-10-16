@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "2.6";
+const VERSION = "2.7";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -137,8 +137,6 @@ export default function () {
 						"audio/skill/ktjimie2.mp3",
 						"audio/skill/ktjimie3.mp3",
 						"audio/skill/ktjimie4.mp3",
-						"audio/skill/kttiantao1.mp3",
-						"audio/skill/kttiantao2.mp3",
 						"audio/skill/ktxinghun1.mp3",
 						"audio/skill/ktxinghun2.mp3",
 						"audio/skill/ktshenpei1.mp3",
@@ -910,7 +908,7 @@ export default function () {
 								}
 								// 运行时过滤候选池：技能本体已注册且有描述文案才进列表，防止源包未加载时选到空技能
 								// 后六项为自带的 kt 前缀复刻技能（见技能区注释），不依赖本体手杀武将包
-								const pool = ["gryjuejing", "grylonghun", "ktyuli", "kttingwei", "ktjimie", "kttiantao", "ktxinghun", "ktshenpei"].filter(
+								const pool = ["gryjuejing", "grylonghun", "ktyuli", "kttingwei", "ktjimie", "ktxinghun", "ktshenpei"].filter(
 									(skill) => lib.skill[skill] && lib.translate[skill + "_info"]
 								);
 								if (pool.length) {
@@ -1597,80 +1595,6 @@ export default function () {
 							},
 							ai: { combo: "kttingwei" },
 						},
-						kttiantao: {
-							audio: "ext:kirito扩展/audio/skill:2",
-							trigger: {
-								player: "phaseJieshuBegin",
-							},
-							forced: true,
-							async content(event, trigger, player) {
-								const position = ["h", "e", "j"];
-								const map = { h: "手牌区", e: "装备区", j: "判定区" };
-								let list = position.map(i => map[i]);
-								let result;
-								result = await player
-									.chooseControl({ controls: list })
-									.set("prompt", `###${get.translation(event.name)}：选择一个区域并弃置其中所有牌###然后选择弃置任意名其他角色对应区域内的各一张牌。`)
-									.set("ai", (event, player) => {
-										const targets = game.filterPlayer(current => current !== player);
-										const { position, controls } = get.event();
-										const list = {};
-										for (const pos of position) {
-											let info = targets
-												.filter(target => target.countDiscardableCards(player, pos))
-												.reduce((sum, target) => {
-													const eff = get.effect(target, { name: "guohe_copy", position: pos }, player, player);
-													return eff > 0 ? sum + eff : sum;
-												}, 0);
-											list[pos] = info - (pos === "j" ? -1 : 1) * get.value(player.getDiscardableCards(player, pos));
-										}
-										let choice = Object.entries(list).sort((a, b) => b[1] - a[1])[0];
-										return { h: "手牌区", e: "装备区", j: "判定区" }[choice[0]];
-									})
-									.set("position", position)
-									.forResult();
-								if (!result?.control || result.control === "cancel2") {
-									return;
-								}
-								const pos = { 手牌区: "h", 装备区: "e", 判定区: "j" }[result.control];
-								let doneList = new Map();
-								result = await player.modedDiscard(player.getCards(pos)).forResult();
-								if (result?.cards?.length) {
-									doneList.set(player, result.cards);
-								}
-								if (game.hasPlayer(current => current != player && current.hasDiscardableCards(player, pos))) {
-									result = await player
-										.chooseTarget({
-											prompt: `天涛：选择任意名其他角色，弃置其${{ h: "手牌区", e: "装备区", j: "判定区" }[pos]}内的一张牌`,
-											filterTarget(card, player, target) {
-												return player != target && target.hasDiscardableCards(player, get.event().pos);
-											},
-											selectTarget: [1, Infinity],
-											ai(target) {
-												const { pos, player } = get.event();
-												return get.effect(target, { name: "guohe_copy", position: pos }, player, player);
-											},
-											forced: true,
-										})
-										.set("pos", pos)
-										.forResult();
-									if (result?.bool && result.targets?.length) {
-										const targets = result.targets;
-										player.line(targets);
-										for (const target of targets) {
-											result = await player.discardPlayerCard({ target, position: pos, forced: true }).forResult();
-											if (result?.bool && result.links?.length) {
-												doneList.set(target, result.links);
-											}
-										}
-									}
-								}
-								if ([...doneList.keys()].length) {
-									const targets = [...doneList.entries()].filter(([_, cards]) => !cards.some(card => get.name(card) === "sha")).map(([target]) => target);
-									await game.doAsyncInOrder(targets.sortBySeat(), async target => target.loseHp());
-								}
-							},
-						},
 						ktxinghun: {
 							audio: "ext:kirito扩展/audio/skill:2",
 							enable: "phaseUse",
@@ -1920,15 +1844,13 @@ export default function () {
 					grylonghun: "龙魂",
 					grylonghun_info: "你可以将同花色的一至两张牌按下列规则使用或打出：红桃当【桃】，方块当火【杀】，梅花当【闪】，黑桃当【无懈可击】。若你以此法转化了两张：红色牌，则此牌回复值或伤害值+1；黑色牌，则你弃置当前回合角色一张牌。每当你以此法使用或打出牌，“魂”计数+X（单张牌+1，两张牌+2，计数持续累计，不会清空）。若计数为1或2的倍数，你摸一张牌。“魂”计数达到12后：你使用【杀】或【决斗】指定目标后，你可以选择一项：1.此伤害+1；2.获得该目标区域内一张牌（其区域内没有牌则不能选择此项）。“魂”计数达到24后：1.你转化发动的【杀】不可被响应，转化的【无懈可击】不可被【无懈可击】响应；2.你以单张牌转化【闪】或【无懈可击】后，获得当前回合角色区域内一张牌；3.你转化发动使用的牌不计入使用次数；4.你转化发动的【桃】自带酒效果（与饮酒效果叠加，且不占用【酒】的使用次数）。",
 					grytouying: "投影",
-					grytouying_info: "锁定技。游戏开始时，你从下列技能中挑选任意个技能加入本局游戏（可多选），然后失去此技能：〖绝境〗〖龙魂〗（龙神赵云）；〖驭雳〗〖霆威〗〖寂灭〗（手杀神马超）；〖天涛〗〖星魂〗〖神霈〗（手杀神姜维）。",
+					grytouying_info: "锁定技。游戏开始时，你从下列技能中挑选任意个技能加入本局游戏（可多选），然后失去此技能：〖绝境〗〖龙魂〗（龙神赵云）；〖驭雳〗〖霆威〗〖寂灭〗（手杀神马超）；〖星魂〗〖神霈〗（手杀神姜维）。",
 					ktyuli: "驭雳",
 					ktyuli_info: "锁定技。①你造成的伤害改为雷电伤害，已是雷电伤害则伤害+1；②你受到雷电伤害时，防止之并摸等量牌。",
 					kttingwei: "霆威",
 					kttingwei_info: "你使用【杀】指定目标后，可获得4枚“霆”标记并选择一名目标角色，其选择任意项并令你弃等量的“霆”标记：1.非锁定技失效至其下个回合结束；2.交给你一张装备牌；3.此牌对其造成伤害+1；4.随机弃两张牌。若其均未选择，其横置。",
 					ktjimie: "寂灭",
 					ktjimie_info: `限定技，出牌阶段结束时，你可以弃6枚“霆”标记，对一名角色造成等于其体力上限的伤害。然后当你${get.poptip("ktyuli")}的两项均执行后，此技能视为未发动过。`,
-					kttiantao: "天涛",
-					kttiantao_info: "锁定技，结束阶段，你选择一个区域并弃置其中所有牌，然后依次弃置任意名其他角色相同区域各一张牌，因此弃置牌且未弃置【杀】的角色失去1点体力。",
 					ktxinghun: "星魂",
 					ktxinghun_info: "出牌阶段限一次，你可以观看牌堆顶五张牌，用任意张手牌与其中的等量张牌进行交换并任意排序，然后你令一名其他角色展示你的手牌与牌堆顶的共计五张牌，你对其依次使用其中的【杀】。",
 					ktshenpei: "神霈",
