@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.1";
+const VERSION = "3.2";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -334,7 +334,7 @@ export default function () {
 				skill: {
 					/* ===== 绝境（强化版，本体技能见 character/extra.js xinjuejing）=====
 					 * 原效果：手牌上限+2；进入/脱离濒死摸一张牌
-					 * 新增：①附不会翻面、体力上限不可被扣除；摸牌阶段+X；至其他角色距离-X；每回合用牌上限+X；绝境/龙魂不可被移除或禁用
+					 * 新增：①附不会翻面、体力上限不可被扣除；摸牌阶段+X；至其他角色距离-X；每回合用牌上限+X；绝境/龙魂/驭雳不可被移除或禁用
 					 * X = getDamagedHp() 已损失体力值（不封顶） */
 					gryjuejing: {
 						audio: "xinjuejing",
@@ -395,7 +395,7 @@ export default function () {
 							},
 							},
 							// 新增⑥：技能守护——当前角色拥有的所有技能均不可被禁用或封锁
-							// 移除防护由 fixed: true 承担（仅绝境/龙魂）；禁用（disableSkill，铁骑/止息类）与
+						 // 移除防护由 fixed: true 承担（绝境/龙魂/驭雳）；禁用（disableSkill，铁骑/止息类）与
 							// 封锁（get.is.blocked，skillBlocker体系）在 init 中包一层拦截
 							guard: {
 								charlotte: true,
@@ -1142,6 +1142,8 @@ export default function () {
 						 * "霆"标记沿用独立名 kttingwei，与本体标记互不干扰 */
 						ktyuli: {
 							audio: "ext:kirito扩展/audio/skill:6",
+							// 移除防护：与绝境/龙魂同列，removeSkill 对 fixed 技能直接拒绝
+							fixed: true,
 							forced: true,
 							trigger: {
 								source: "damageBegin1",
@@ -1859,7 +1861,7 @@ export default function () {
 				},
 				translate: {
 					gryjuejing: "绝境",
-					gryjuejing_info: "锁定技。①你的手牌上限+2，你不会被翻面，且你的体力上限不会减少。②当你进入或脱离濒死状态时，你摸两张牌。③摸牌阶段，你额外摸X张牌。④你至其他角色的距离-X。⑤你每回合使用牌的次数上限+X（X为你已损失的体力值）。⑥你的所有技能均不会被禁用或封锁，且〖绝境〗和〖龙魂〗不能被移除。",
+					gryjuejing_info: "锁定技。①你的手牌上限+2，你不会被翻面，且你的体力上限不会减少。②当你进入或脱离濒死状态时，你摸两张牌。③摸牌阶段，你额外摸X张牌。④你至其他角色的距离-X。⑤你每回合使用牌的次数上限+X（X为你已损失的体力值）。⑥你的所有技能均不会被禁用或封锁，且〖绝境〗〖龙魂〗和〖驭雳〗不能被移除。",
 					grylonghun: "龙魂",
 					grylonghun_info: "你可以将同花色的一至两张牌按下列规则使用或打出：红桃当【桃】，方块当火【杀】，梅花当【闪】，黑桃当【无懈可击】。若你以此法转化了两张：红色牌，则此牌回复值或伤害值+1；黑色牌，则你弃置当前回合角色一张牌。每当你以此法使用或打出牌，“魂”计数+X（单张牌+1，两张牌+2，计数持续累计，不会清空）。若计数为1或2的倍数，你摸一张牌。“魂”计数达到12后：你使用【杀】或【决斗】指定目标后，你可以选择一项：1.此伤害+1；2.获得该目标区域内一张牌（其区域内没有牌则不能选择此项）。“魂”计数达到24后：1.你转化发动的【杀】不可被响应，转化的【无懈可击】不可被【无懈可击】响应；2.你以单张牌转化【闪】或【无懈可击】后，获得当前回合角色区域内一张牌；3.你转化发动使用的牌不计入使用次数；4.你转化发动的【桃】自带酒效果（与饮酒效果叠加，且不占用【酒】的使用次数）。",
 					grytouying: "投影",
