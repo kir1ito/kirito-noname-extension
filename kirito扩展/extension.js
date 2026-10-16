@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "2.8";
+const VERSION = "2.9";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -108,7 +108,7 @@ export default function () {
 					const skinDir = "assets/dynamic/神马超/风霆啸野";
 					const spineFiles = [
 						"BeiJing.atlas", "BeiJing.png", "BeiJing.skel", "BeiJing2.png", "BeiJing3.png", "BeiJing4.png", "BeiJing5.png",
-						"XingXiang.atlas", "XingXiang.mp3", "XingXiang.png", "XingXiang.skel",
+						"XingXiang.atlas", "XingXiang.mp3", "XingXiang_1.mp3", "XingXiang.png", "XingXiang.skel",
 						"XingXiang2.png", "XingXiang3.png", "XingXiang4.png", "XingXiang5.png", "XingXiang6.png", "XingXiang7.png",
 						"XingXiang8.png", "XingXiang9.png", "XingXiang10.png", "XingXiang11.png", "XingXiang12.png", "XingXiang13.png", "XingXiang14.png",
 					].map((f) => `${skinDir}/${f}`);
@@ -958,7 +958,8 @@ export default function () {
 											}
 											const numEl = powerCon.querySelector(".jimieNum");
 											const barArea = powerCon.querySelector(".jimiePowerBarArea");
-											const num = player.countMark("tingwei");
+											// 兼容两种标记名：克隆技能加 kttingwei，本体原版霆威加 tingwei
+											const num = player.countMark("kttingwei") + player.countMark("tingwei");
 											if (typeof window.dcdAnim != "undefined") {
 												if (num >= FULL_NUM) {
 													if (!player.storage._fullPowerAnim) {
@@ -993,7 +994,7 @@ export default function () {
 											powerCon.classList.add("jimiePower");
 											const num = document.createElement("span");
 											num.classList.add("jimieNum");
-											num.innerHTML = player.countMark("tingwei") || 0;
+											num.innerHTML = player.countMark("kttingwei") + player.countMark("tingwei") || 0;
 											powerCon.appendChild(num);
 											const barArea = document.createElement("div");
 											barArea.classList.add("jimiePowerBarArea");
