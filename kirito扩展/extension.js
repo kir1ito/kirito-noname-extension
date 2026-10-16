@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "1.7";
+const VERSION = "1.8";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -14,6 +14,8 @@ export default function () {
 		content: function (config, pack) {},
 		prepare: function () {},
 		precontent: function (config) {
+			// 无上神专属"寂灭"进度条样式：复刻自无名美化手杀神马超模块，类名一致（见 grytouying_bar）
+			lib.init.css(lib.assetURL + "extension/kirito扩展", "wushangshen_bar");
 			// 十周年UI动皮别名：把无上神映射到手杀神马超的动皮（风霆啸野骨骼动画+动态背景）。
 			// 十周年UI初始化时会整体重建 dynamicSkin 表，且与本扩展的加载顺序不定，
 			// 故轮询等待其表就绪后注入别名，注入成功即停止；未安装十周年UI时15秒后静默放弃
@@ -59,7 +61,17 @@ export default function () {
 					const name = "kirito扩展";
 					const repo = "kir1ito/kirito-noname-extension";
 					// 更新文件清单：代码/配置/角色素材（仓库新增文件时需同步此处）
-					const fileList = ["extension.js", "info.json", "god.jpg", "wushangshen.jpg", "audio/die/god.mp3"];
+					const fileList = [
+						"extension.js",
+						"info.json",
+						"god.jpg",
+						"wushangshen.jpg",
+						"wushangshen_bar.css",
+						"image/wushangshen_bar/smc_jindutiao_di.png",
+						"image/wushangshen_bar/smc_jindutiao.png",
+						"image/wushangshen_bar/smc_jindutiao_suo.png",
+						"audio/die/god.mp3",
+					];
 					const localVersion = lib.extensionPack[name] && lib.extensionPack[name].version;
 					// API路径只编码每段，保留斜杠
 					const encodePath = (file) => encodeURIComponent(name) + "/" + file.split("/").map(encodeURIComponent).join("/");
@@ -754,41 +766,131 @@ export default function () {
 							trigger: { player: "enterGame", global: "phaseBefore" },
 							forced: true,
 							locked: true,
+							group: ["grytouying_bar"],
 							filter(event, player) {
 								return event.name != "phase" || game.phaseNumber == 0;
 							},
 							async content(event, trigger, player) {
+								// 常驻"寂灭"进度条：无论是否选择马超系技能都显示（见 grytouying_bar）
+								if (lib._wssJimieBar) {
+									lib._wssJimieBar.create(player);
+								}
 								// 运行时过滤候选池：技能本体已注册且有描述文案才进列表，防止源包未加载时选到空技能
 								const pool = ["gryjuejing", "grylonghun", "yuli", "tingwei", "jimie", "mbtiantao", "mbxinghun", "mbshenpei"].filter(
 									(skill) => lib.skill[skill] && lib.translate[skill + "_info"]
 								);
-								if (!pool.length) {
-									return;
-								}
-								const list = pool.map((skill) => [
-									skill,
-									`<div class="popup text" style="width:calc(100% - 10px);display:inline-block"><div class="skill">【${get.translation(skill)}】</div><div>${lib.translate[skill + "_info"]}</div></div>`,
-								]);
-								const result = await player
-									.chooseButton({
-										createDialog: ["投影：挑选任意个技能加入本局游戏", [list, "textbutton"]],
-										selectButton: [1, list.length],
-										forced: true,
-										ai(button) {
-											const info = get.info(button.link);
-											if (!info || info.ai?.neg || info.ai?.combo) {
-												return 0;
-											}
-											return 1 + Math.random();
-										},
-									})
-									.forResult();
-								if (result?.bool && result.links?.length) {
-									game.log(player, "获得了技能", "#g" + result.links.map((skill) => `【${get.translation(skill)}】`).join(""));
-									await player.addSkills(result.links);
+								if (pool.length) {
+									const list = pool.map((skill) => [
+										skill,
+										`<div class="popup text" style="width:calc(100% - 10px);display:inline-block"><div class="skill">【${get.translation(skill)}】</div><div>${lib.translate[skill + "_info"]}</div></div>`,
+									]);
+									const result = await player
+										.chooseButton({
+											createDialog: ["投影：挑选任意个技能加入本局游戏", [list, "textbutton"]],
+											selectButton: [1, list.length],
+											forced: true,
+											ai(button) {
+												const info = get.info(button.link);
+												if (!info || info.ai?.neg || info.ai?.combo) {
+													return 0;
+												}
+												return 1 + Math.random();
+											},
+										})
+										.forResult();
+									if (result?.bool && result.links?.length) {
+										game.log(player, "获得了技能", "#g" + result.links.map((skill) => `【${get.translation(skill)}】`).join(""));
+										await player.addSkills(result.links);
+									}
 								}
 								// 挑选完成后失去投影自身（投影不在绝境守护名单内，可正常移除）
 								player.removeSkill("grytouying");
+							},
+							subSkill: {
+								// 无上神专属"寂灭"进度条：复刻无名美化·手杀神马超模块的 createJimiePower/updateJimieNum
+								// DOM结构与类名（jimiePower系）完全沿用，样式见 wushangshen_bar.css：
+								// 无名美化模块开启时，其覆写的〖霆威〗〖寂灭〗内容会直接驱动本条（含满格特效与锁图标）；
+								// 未开启时由下方的标记增减拦截负责刷新计数与进度，锁图标保持隐藏
+								bar: {
+									charlotte: true,
+									silent: true,
+									init() {
+										if (lib._wssJimieBarInstalled) {
+											return;
+										}
+										lib._wssJimieBarInstalled = true;
+										const FULL_NUM = 8;
+										// 刷新进度条：计数数字/clip-path填充/满8格循环特效（特效依赖无名美化的dcdAnim，缺席则只涨进度）
+										const update = (player) => {
+											const powerCon = player.querySelector(".jimiePower");
+											if (!powerCon) {
+												return;
+											}
+											const numEl = powerCon.querySelector(".jimieNum");
+											const barArea = powerCon.querySelector(".jimiePowerBarArea");
+											const num = player.countMark("tingwei");
+											if (typeof window.dcdAnim != "undefined") {
+												if (num >= FULL_NUM) {
+													if (!player.storage._fullPowerAnim) {
+														player.storage._fullPowerAnim = dcdAnim.playSpine(
+															{ name: "../../../无名美化/animation/shenmachao/Ss_smc_vfx_grogress", loop: true },
+															{ parent: barArea }
+														);
+													}
+												} else if (player.storage._fullPowerAnim) {
+													dcdAnim.stopSpine(player.storage._fullPowerAnim);
+													player.storage._fullPowerAnim = null;
+												}
+											}
+											if (numEl) {
+												numEl.innerHTML = num;
+											}
+											if (barArea) {
+												const percent = Math.min(100, (num / FULL_NUM) * 100);
+												barArea.style.clipPath = `inset(${100 - percent}% 0 0 0)`;
+											}
+										};
+										// 创建进度条：仅本地玩家使用无上神时显示；已存在则跳过
+										const create = (player) => {
+											if (game.me !== player || (player.name !== "wushangshen" && player.name2 !== "wushangshen")) {
+												return;
+											}
+											if (player.querySelector(".jimiePower")) {
+												return;
+											}
+											const powerCon = document.createElement("div");
+											powerCon.classList.add("jimiePower");
+											const num = document.createElement("span");
+											num.classList.add("jimieNum");
+											num.innerHTML = player.countMark("tingwei") || 0;
+											powerCon.appendChild(num);
+											const barArea = document.createElement("div");
+											barArea.classList.add("jimiePowerBarArea");
+											const lock = document.createElement("img");
+											lock.classList.add("jimieLock");
+											lock.src = "extension/kirito扩展/image/wushangshen_bar/smc_jindutiao_suo.png";
+											powerCon.appendChild(barArea);
+											powerCon.appendChild(lock);
+											player.appendChild(powerCon);
+											update(player);
+										};
+										lib._wssJimieBar = { create, update };
+										// 拦截标记增减：霆标记变动即刷新（不依赖无名美化是否开启；
+										// countMark 为纯存储读取，不会回调本拦截，无递归风险）
+										const watchMark = (method) => {
+											const origin = Player.prototype[method];
+											Player.prototype[method] = function (name) {
+												const result = origin.apply(this, arguments);
+												if (name == "tingwei") {
+													update(this);
+												}
+												return result;
+											};
+										};
+										watchMark("addMark");
+										watchMark("removeMark");
+									},
+								},
 							},
 						},
 				},
