@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "2.1";
+const VERSION = "2.2";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -44,15 +44,31 @@ export default function () {
 					mirror();
 				});
 			}
-			// 十周年UI动皮别名：把无上神映射到手杀神马超的动皮（风霆啸野骨骼动画+动态背景）。
-			// 十周年UI初始化时会整体重建 dynamicSkin 表，且与本扩展的加载顺序不定，
-			// 故轮询等待其表就绪后注入别名，注入成功即停止；未安装十周年UI时15秒后静默放弃
+			// 十周年UI动皮配置：素材与配置完全自持（assets/dynamic/神马超/风霆啸野 为十周年UI同名动皮的完整副本）。
+			// 十周年UI播放器以 extension/十周年UI/assets/dynamic/ 为基址拼接皮肤name，
+			// 故用 ../../../ 回溯到本扩展目录；十周年UI初始化会整体重建 dynamicSkin 表且与本扩展加载顺序不定，
+			// 故轮询等待其表就绪后注入，注入成功即停止；未安装十周年UI时15秒后静默放弃（仅失去动皮，其余功能不受影响）
 			const install = () => {
-				if (!window.decadeUI || !decadeUI.dynamicSkin || !decadeUI.dynamicSkin.mb_shen_machao) {
+				if (!window.decadeUI || !decadeUI.dynamicSkin) {
 					return false;
 				}
 				if (!decadeUI.dynamicSkin.wushangshen) {
-					decadeUI.dynamicSkin.wushangshen = decadeUI.dynamicSkin.mb_shen_machao;
+					const skinDir = "../../../kirito扩展/assets/dynamic/神马超/风霆啸野";
+					decadeUI.dynamicSkin.wushangshen = {
+						风霆啸野: {
+							name: `${skinDir}/XingXiang`,
+							x: [0, 1.1],
+							y: [0, 0.25],
+							scale: 0.4,
+							angle: 0,
+							beijing: {
+								name: `${skinDir}/BeiJing`,
+								scale: 0.3,
+								x: [0, 0.4],
+								y: [0, 0.5],
+							},
+						},
+					};
 				}
 				return true;
 			};
@@ -89,6 +105,13 @@ export default function () {
 					const name = "kirito扩展";
 					const repo = "kir1ito/kirito-noname-extension";
 					// 更新文件清单：代码/配置/角色素材（仓库新增文件时需同步此处）
+					const skinDir = "assets/dynamic/神马超/风霆啸野";
+					const spineFiles = [
+						"BeiJing.atlas", "BeiJing.png", "BeiJing.skel", "BeiJing2.png", "BeiJing3.png", "BeiJing4.png", "BeiJing5.png",
+						"XingXiang.atlas", "XingXiang.mp3", "XingXiang.png", "XingXiang.skel",
+						"XingXiang2.png", "XingXiang3.png", "XingXiang4.png", "XingXiang5.png", "XingXiang6.png", "XingXiang7.png",
+						"XingXiang8.png", "XingXiang9.png", "XingXiang10.png", "XingXiang11.png", "XingXiang12.png", "XingXiang13.png", "XingXiang14.png",
+					].map((f) => `${skinDir}/${f}`);
 					const fileList = [
 						"extension.js",
 						"info.json",
@@ -99,6 +122,11 @@ export default function () {
 						"image/wushangshen_bar/smc_jindutiao.png",
 						"image/wushangshen_bar/smc_jindutiao_suo.png",
 						"audio/die/god.mp3",
+						"audio/die/wushangshen.mp3",
+						"animation/shenmachao/Ss_smc_vfx_grogress.atlas",
+						"animation/shenmachao/Ss_smc_vfx_grogress.png",
+						"animation/shenmachao/Ss_smc_vfx_grogress.skel",
+						...spineFiles,
 					];
 					const localVersion = lib.extensionPack[name] && lib.extensionPack[name].version;
 					// API路径只编码每段，保留斜杠
@@ -210,8 +238,8 @@ export default function () {
 						groupInGuozhan: "qun",
 						// AI 禁选：AI 不选用此武将，玩家仍可正常选择
 						isAiForbidden: true,
-						// 复用本体手杀神马超的阵亡语音（audio/die/mb_shen_machao.mp3）
-						dieAudios: ["mb_shen_machao"],
+						// 阵亡语音为自带副本（手杀神马超阵亡语音，audio/die/wushangshen.mp3）
+						dieAudios: ["ext:kirito扩展/audio/die/wushangshen.mp3"],
 					}),
 				},
 				translate: {
@@ -860,8 +888,9 @@ export default function () {
 											if (typeof window.dcdAnim != "undefined") {
 												if (num >= FULL_NUM) {
 													if (!player.storage._fullPowerAnim) {
+														// 满力特效为自带副本（animation/shenmachao/），路径经 dcdAnim 基址回溯本扩展目录
 														player.storage._fullPowerAnim = dcdAnim.playSpine(
-															{ name: "../../../无名美化/animation/shenmachao/Ss_smc_vfx_grogress", loop: true },
+															{ name: "../../../kirito扩展/animation/shenmachao/Ss_smc_vfx_grogress", loop: true },
 															{ parent: barArea }
 														);
 													}
