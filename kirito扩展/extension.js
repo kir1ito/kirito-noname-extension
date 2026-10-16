@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "1.8";
+const VERSION = "1.9";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -872,6 +872,9 @@ export default function () {
 											powerCon.appendChild(barArea);
 											powerCon.appendChild(lock);
 											player.appendChild(powerCon);
+											// 原左移-18px会压住武将名（无上神名字在头像左侧竖排），再向左挪出名字区域；
+											// 内联样式仅作用于本条，不影响无名美化给手杀神马超创建的同名元素
+											powerCon.style.left = "-40px";
 											update(player);
 										};
 										lib._wssJimieBar = { create, update };
