@@ -17,10 +17,11 @@ jobs:
       - uses: actions/checkout@v4
 
       # 用 Python zipfile 打包：对中文条目名写入 UTF-8(EFS) 标志，游戏内 JSZip 解压不乱码
+      # 同时生成 version.txt（内容=info.json的version），更新器以它为远程版本号权威来源
       - name: 打包 kirito扩展 为 zip
         run: |
           python3 - <<'EOF'
-          import os, zipfile
+          import json, os, zipfile
           count = 0
           with zipfile.ZipFile("kirito-extension.zip", "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
               for root, dirs, files in os.walk("kirito扩展"):
@@ -28,7 +29,10 @@ jobs:
                       p = os.path.join(root, f)
                       z.write(p, p)
                       count += 1
-          print(f"打包完成：{count} 个文件")
+          version = json.load(open("kirito扩展/info.json", encoding="utf-8"))["version"]
+          with open("version.txt", "w", encoding="utf-8") as f:
+              f.write(version)
+          print(f"打包完成：{count} 个文件，版本 {version}")
           EOF
 
       - name: 创建或更新 latest Release
@@ -39,5 +43,7 @@ jobs:
             gh release create latest --title "kirito扩展 自动打包" \
             --notes "main 分支 push 自动打包，供客户端「更新中心」下载解压覆盖" \
             --target "$GITHUB_SHA"
+          # 先传压缩包、后传version.txt：version.txt就位即代表本次打包完整可用
           gh release upload latest kirito-extension.zip --clobber
-          echo "已上传 kirito-extension.zip（commit $GITHUB_SHA）"
+          gh release upload latest version.txt --clobber
+          echo "已上传 kirito-extension.zip + version.txt（commit $GITHUB_SHA）"

@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.6";
+const VERSION = "3.7";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -57,7 +57,11 @@ div.ktupd-status.err{color:#ff8f8f}
 		const $ = {};
 		const encodePath = (file) => encodeURIComponent(NAME) + "/" + file.split("/").map(encodeURIComponent).join("/");
 		const rawUrlOf = (src, file) => src.prefix + RAW_BASE + encodePath(file);
-		const zipUrlOf = (src) => `${src.prefix}https://github.com/${REPO}/releases/latest/download/${ZIP_NAME}`;
+		const relUrlOf = (src, asset) => `${src.prefix}https://github.com/${REPO}/releases/latest/download/${asset}`;
+		const zipUrlOf = (src) => relUrlOf(src, ZIP_NAME);
+		// 远程版本号权威来源：Release资产version.txt（工作流打包时与zip同批生成、在zip之后上传）
+		// 避免"代码已推到main、压缩包还没打完"窗口期里显示新版本号却下到旧压缩包
+		const VER_NAME = "version.txt";
 		const fmtSize = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(2)} MB` : `${(n / 1024).toFixed(1)} KB`);
 		const localVersion = () => (lib.extensionPack[NAME] && lib.extensionPack[NAME].version) || "未知";
 		const injectCss = () => {
@@ -101,6 +105,18 @@ div.ktupd-status.err{color:#ff8f8f}
 				return { ok: false, ms: Date.now() - t0, error: e.name == "AbortError" ? "超时" : e.message };
 			}
 		};
+		// 拉Release的version.txt作为远程版本号（按连通性排序的源依次尝试）
+		const fetchReleaseVersion = async () => {
+			for (const { src } of sourceOrder) {
+				try {
+					const resp = await fetch(relUrlOf(src, VER_NAME));
+					if (!resp.ok) continue;
+					const text = (await resp.text()).trim();
+					if (text) return text;
+				} catch {}
+			}
+			return null;
+		};
 		async function checkConnectivity() {
 			remoteVersion = null;
 			setDisabled($.start, true);
@@ -114,14 +130,27 @@ div.ktupd-status.err{color:#ff8f8f}
 				if (res.ok) {
 					line.className = "ktupd-src ok";
 					line.textContent = `✓ ${src.label} — ${res.ms}ms`;
-					if (!remoteVersion && res.version) remoteVersion = res.version;
 				} else {
 					line.className = "ktupd-src bad";
 					line.textContent = `✗ ${src.label} — 不可达（${res.error}，${res.ms}ms）`;
 				}
 			});
-			$.remote.textContent = remoteVersion ? `v${remoteVersion}` : "检测失败";
 			const anyOk = results.some((r) => r.ok);
+			if (anyOk) {
+				// 远程版本号以Release资产version.txt为准（与压缩包同批生成，不存在时间窗）
+				setStatus("正在获取 Release 版本号…");
+				remoteVersion = await fetchReleaseVersion();
+				if (remoteVersion) {
+					$.remote.textContent = `v${remoteVersion}`;
+				} else {
+					// 兜底：Release版本号获取失败时退回代码库info.json版本，并标注来源
+					const raw = results.find((r) => r.ok && r.version);
+					remoteVersion = raw ? raw.version : null;
+					$.remote.textContent = remoteVersion ? `v${remoteVersion}（代码库）` : "检测失败";
+				}
+			} else {
+				$.remote.textContent = "检测失败";
+			}
 			if (anyOk) {
 				setDisabled($.start, false);
 				if (remoteVersion && remoteVersion == localVersion()) {
@@ -153,6 +182,13 @@ div.ktupd-status.err{color:#ff8f8f}
 				$.progress.textContent = `下载中 · ${fmtSize(received)}${size ? ` / ${fmtSize(size)}` : ""}`;
 			};
 			try {
+				// 下载前重新取一次Release版本号，缩小检测与下载之间的时间窗
+				setStatus("正在获取最新 Release 信息…");
+				const releaseVersion = await fetchReleaseVersion();
+				if (releaseVersion) {
+					remoteVersion = releaseVersion;
+					$.remote.textContent = `v${remoteVersion}`;
+				}
 				setStatus("正在下载更新压缩包…");
 				let data = null;
 				let lastError = null;
@@ -229,7 +265,12 @@ div.ktupd-status.err{color:#ff8f8f}
 				$.fill.style.width = "100%";
 				$.progress.textContent = `${entries.length} 个文件全部完成`;
 				$.cur.textContent = "";
-				setStatus(`更新完成（v${finalVersion || "?"}），重启游戏后生效`, "ok");
+				// 实际安装的版本以压缩包内info.json为准；与Release标注不一致说明撞上了打包窗口，如实提示
+				if (remoteVersion && infoJsonVersion && infoJsonVersion !== remoteVersion) {
+					setStatus(`更新完成（实际安装 v${infoJsonVersion}，Release标注 v${remoteVersion} 不一致——刚才下到的是上一批打包，稍后可再更新一次）`, "ok");
+				} else {
+					setStatus(`更新完成（v${finalVersion || "?"}），重启游戏后生效`, "ok");
+				}
 				$.restart.style.display = "";
 			} catch (e) {
 				const reason = e.name == "AbortError" ? "已手动中止" : e.message;
