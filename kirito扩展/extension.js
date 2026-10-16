@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "2.0";
+const VERSION = "2.1";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -16,6 +16,34 @@ export default function () {
 		precontent: function (config) {
 			// 无上神专属"寂灭"进度条样式：复刻自无名美化手杀神马超模块，类名一致（见 grytouying_bar）
 			lib.init.css(lib.assetURL + "extension/kirito扩展", "wushangshen_bar");
+			// 立绘镜像：十周年UI头像/技能特效/MVP结算页等消费方会直接请求本体 image/character/<武将>.jpg，
+			// 不读扩展目录（404导致结算页大头像空白）。启动时把扩展根目录的立绘镜像过去，已存在则跳过
+			if (typeof game.writeFile == "function") {
+				["wushangshen.jpg", "god.jpg"].forEach((file) => {
+					const mirror = async () => {
+						const target = `image/character/${file}`;
+						try {
+							if ((await fetch(`${lib.assetURL}${target}`)).ok) {
+								return;
+							}
+							const resp = await fetch(`${lib.assetURL}extension/kirito扩展/${file}`);
+							if (!resp.ok) {
+								return;
+							}
+							const data = new Uint8Array(await resp.arrayBuffer());
+							await game.promises.ensureDirectory(target, null, true);
+							const slash = target.lastIndexOf("/");
+							await new Promise((resolve, reject) =>
+								game.writeFile(data, target.slice(0, slash), target.slice(slash + 1), (err) => (err ? reject(err) : resolve()))
+							);
+							console.log(`kirito扩展：已镜像立绘到 ${target}`);
+						} catch (e) {
+							console.warn(`kirito扩展：镜像立绘 ${target} 失败`, e);
+						}
+					};
+					mirror();
+				});
+			}
 			// 十周年UI动皮别名：把无上神映射到手杀神马超的动皮（风霆啸野骨骼动画+动态背景）。
 			// 十周年UI初始化时会整体重建 dynamicSkin 表，且与本扩展的加载顺序不定，
 			// 故轮询等待其表就绪后注入别名，注入成功即停止；未安装十周年UI时15秒后静默放弃
