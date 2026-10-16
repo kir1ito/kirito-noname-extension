@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.5";
+const VERSION = "3.6";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -13,110 +13,16 @@ export default function () {
 	const ktUpdateCenter = (() => {
 		const NAME = "kirito扩展";
 		const REPO = "kir1ito/kirito-noname-extension";
-		// 更新文件清单：代码/配置/角色素材（仓库新增文件时需同步此处）
-		const skinDir = "assets/dynamic/神马超/风霆啸野";
-		const spineFiles = [
-			"BeiJing.atlas", "BeiJing.png", "BeiJing.skel", "BeiJing2.png", "BeiJing3.png", "BeiJing4.png", "BeiJing5.png",
-			"XingXiang.atlas", "XingXiang.mp3", "XingXiang_1.mp3", "XingXiang.png", "XingXiang.skel",
-			"XingXiang2.png", "XingXiang3.png", "XingXiang4.png", "XingXiang5.png", "XingXiang6.png", "XingXiang7.png",
-			"XingXiang8.png", "XingXiang9.png", "XingXiang10.png", "XingXiang11.png", "XingXiang12.png", "XingXiang13.png", "XingXiang14.png",
-		].map((f) => `${skinDir}/${f}`);
-		const FILE_LIST = [
-			"extension.js",
-			"info.json",
-			"god.jpg",
-			"wushangshen.jpg",
-			"wushangshen_bar.css",
-			"image/wushangshen_bar/smc_jindutiao_di.png",
-			"image/wushangshen_bar/smc_jindutiao.png",
-			"image/wushangshen_bar/smc_jindutiao_suo.png",
-			"audio/die/god.mp3",
-			"audio/die/wushangshen.mp3",
-			"audio/skill/ktyuli1.mp3",
-			"audio/skill/ktyuli2.mp3",
-			"audio/skill/ktyuli3.mp3",
-			"audio/skill/ktyuli4.mp3",
-			"audio/skill/ktyuli5.mp3",
-			"audio/skill/ktyuli6.mp3",
-			"audio/skill/kttingwei1.mp3",
-			"audio/skill/kttingwei2.mp3",
-			"audio/skill/kttingwei3.mp3",
-			"audio/skill/kttingwei4.mp3",
-			"audio/skill/ktjimie1.mp3",
-			"audio/skill/ktjimie2.mp3",
-			"audio/skill/ktjimie3.mp3",
-			"audio/skill/ktjimie4.mp3",
-			"audio/skill/ktxinghun1.mp3",
-			"audio/skill/ktxinghun2.mp3",
-			"audio/skill/ktshenpei1.mp3",
-			"audio/skill/ktshenpei2.mp3",
-			"audio/skill/kthuitian1.mp3",
-			"audio/skill/kthuitian2.mp3",
-			"audio/skill/kthuitian3.mp3",
-			"audio/skill/kthuitian4.mp3",
-			"animation/shenmachao/Ss_smc_vfx_grogress.atlas",
-			"animation/shenmachao/Ss_smc_vfx_grogress.png",
-			"animation/shenmachao/Ss_smc_vfx_grogress.skel",
-			"animation/shenmachao/SS_smc_dazhao.atlas",
-			"animation/shenmachao/SS_smc_dazhao.png",
-			"animation/shenmachao/SS_smc_dazhao.skel",
-			"animation/shenmachao/SS_smc_dazhao2.png",
-			"animation/shenmachao/SS_smc_dazhao3.png",
-			"animation/shenmachao/SS_smc_dazhao4.png",
-			"animation/shenmachao/SS_smc_dazhao5.png",
-			"animation/shenmachao/SS_smc_dazhao6.png",
-			"animation/shenmachao/SS_smc_dazhao7.png",
-			"animation/shenmachao/SS_smc_dazhao8.png",
-			"animation/shenmachao/SS_smc_dazhao9.png",
-			"animation/shenmachao/SS_smc_dazhao10.png",
-			"animation/shenjiangwei/SS_Sjw_dead.atlas",
-			"animation/shenjiangwei/SS_Sjw_dead.png",
-			"animation/shenjiangwei/SS_Sjw_dead.skel",
-			"animation/shenjiangwei/SS_Sjw_dead2.png",
-			"animation/shenjiangwei/SS_Sjw_dead2_alpha.png",
-			"animation/shenjiangwei/SS_Sjw_dead3.png",
-			"animation/shenjiangwei/SS_Sjw_dead3_alpha.png",
-			"animation/shenjiangwei/SS_Sjw_dead4.png",
-			"animation/shenjiangwei/SS_Sjw_dead4_alpha.png",
-			"animation/shenjiangwei/SS_Sjw_dead_alpha.png",
-			"animation/shenjiangwei/SS_Sjw_mask.atlas",
-			"animation/shenjiangwei/SS_Sjw_mask.png",
-			"animation/shenjiangwei/SS_Sjw_mask.skel",
-			"animation/shenjiangwei/SS_Sjw_mask2.png",
-			"animation/shenjiangwei/SS_Sjw_mask2_alpha.png",
-			"animation/shenjiangwei/SS_Sjw_mask_alpha.png",
-			"animation/shenjiangwei/SS_Sjw_skill1.atlas",
-			"animation/shenjiangwei/SS_Sjw_skill1.png",
-			"animation/shenjiangwei/SS_Sjw_skill1.skel",
-			"animation/shenjiangwei/SS_Sjw_skill12.png",
-			"animation/shenjiangwei/SS_Sjw_skill12_alpha.png",
-			"animation/shenjiangwei/SS_Sjw_skill13.png",
-			"animation/shenjiangwei/SS_Sjw_skill13_alpha.png",
-			"animation/shenjiangwei/SS_Sjw_skill14.png",
-			"animation/shenjiangwei/SS_Sjw_skill14_alpha.png",
-			"animation/shenjiangwei/SS_Sjw_skill15.png",
-			"animation/shenjiangwei/SS_Sjw_skill15_alpha.png",
-			"animation/shenjiangwei/SS_Sjw_skill16.png",
-			"animation/shenjiangwei/SS_Sjw_skill16_alpha.png",
-			"animation/shenjiangwei/SS_Sjw_skill17.png",
-			"animation/shenjiangwei/SS_Sjw_skill1_alpha.png",
-			"animation/shenjiangwei/SS_Sjw_skill2.atlas",
-			"animation/shenjiangwei/SS_Sjw_skill2.png",
-			"animation/shenjiangwei/SS_Sjw_skill2.skel",
-			"animation/shenjiangwei/SS_Sjw_skill22.png",
-			"animation/shenjiangwei/SS_Sjw_skill22_alpha.png",
-			"animation/shenjiangwei/SS_Sjw_skill23.png",
-			"animation/shenjiangwei/SS_Sjw_skill23_alpha.png",
-			"animation/shenjiangwei/SS_Sjw_skill24.png",
-			"animation/shenjiangwei/SS_Sjw_skill24_alpha.png",
-			"animation/shenjiangwei/SS_Sjw_skill2_alpha.png",
-			...spineFiles,
-		];
-		// 匿名raw多源：公共镜像优先（国内直连可达），GitHub直连兜底（系统代理环境下可达）
+		// 更新包：GitHub Actions 在 push 时自动把 kirito扩展/ 打成 zip 挂到 latest Release，
+		// 更新器只下载这一个压缩包再本地解压覆盖，新增文件无需维护清单
+		const ZIP_NAME = "kirito-extension.zip";
+		const RAW_BASE = `https://raw.githubusercontent.com/${REPO}/main/`;
+		// 匿名多源：公共镜像优先（国内直连可达），GitHub直连兜底（系统代理环境下可达）
+		// raw源用于小文件（info.json的连通性检测/版本号），release源用于更新压缩包
 		const SOURCES = [
-			{ label: "gh-proxy.com 镜像", base: `https://gh-proxy.com/https://raw.githubusercontent.com/${REPO}/main/` },
-			{ label: "ghproxy.net 镜像", base: `https://ghproxy.net/https://raw.githubusercontent.com/${REPO}/main/` },
-			{ label: "GitHub 直连", base: `https://raw.githubusercontent.com/${REPO}/main/` },
+			{ label: "gh-proxy.com 镜像", prefix: "https://gh-proxy.com/" },
+			{ label: "ghproxy.net 镜像", prefix: "https://ghproxy.net/" },
+			{ label: "GitHub 直连", prefix: "" },
 		];
 		// 本体全局reset为 div{position:absolute;width:80%;left:10%}，会击穿未显式覆盖的属性，
 		// 故先整域复位，再用同优先级的 div.ktupd-* 规则按源顺序逐项覆写
@@ -150,6 +56,8 @@ div.ktupd-status.err{color:#ff8f8f}
 		let remoteVersion = null;
 		const $ = {};
 		const encodePath = (file) => encodeURIComponent(NAME) + "/" + file.split("/").map(encodeURIComponent).join("/");
+		const rawUrlOf = (src, file) => src.prefix + RAW_BASE + encodePath(file);
+		const zipUrlOf = (src) => `${src.prefix}https://github.com/${REPO}/releases/latest/download/${ZIP_NAME}`;
 		const fmtSize = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(2)} MB` : `${(n / 1024).toFixed(1)} KB`);
 		const localVersion = () => (lib.extensionPack[NAME] && lib.extensionPack[NAME].version) || "未知";
 		const injectCss = () => {
@@ -185,7 +93,7 @@ div.ktupd-status.err{color:#ff8f8f}
 		const checkSource = async (src) => {
 			const t0 = Date.now();
 			try {
-				const resp = await fetchTimeout(src.base + encodePath("info.json"), 8000);
+				const resp = await fetchTimeout(rawUrlOf(src, "info.json"), 8000);
 				if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 				const json = await resp.json();
 				return { ok: true, ms: Date.now() - t0, version: json.version };
@@ -226,48 +134,6 @@ div.ktupd-status.err{color:#ff8f8f}
 			}
 			setDisabled($.check, false);
 		}
-		// 更新时按检测出的源顺序降级下载
-		const fetchRaw = async (file) => {
-			let lastError = null;
-			for (const { src } of sourceOrder) {
-				try {
-					const resp = await fetch(src.base + encodePath(file), { signal: abortCtrl.signal });
-					if (!resp.ok) throw new Error(`RAW ${resp.status}`);
-					return resp;
-				} catch (e) {
-					if (e.name == "AbortError") throw e;
-					lastError = e;
-				}
-			}
-			throw lastError || new Error("RAW 网络错误");
-		};
-		// 流式下载单文件：边收边回报字节进度
-		const downloadOne = async (file, onBytes) => {
-			const resp = await fetchRaw(file);
-			const size = Number(resp.headers.get("content-length")) || 0;
-			if (!resp.body || typeof resp.body.getReader != "function") {
-				const data = new Uint8Array(await resp.arrayBuffer());
-				onBytes(data.length, size || data.length);
-				return data;
-			}
-			const reader = resp.body.getReader();
-			const chunks = [];
-			let received = 0;
-			for (;;) {
-				const { done, value } = await reader.read();
-				if (done) break;
-				chunks.push(value);
-				received += value.length;
-				onBytes(received, size);
-			}
-			const data = new Uint8Array(received);
-			let off = 0;
-			for (const chunk of chunks) {
-				data.set(chunk, off);
-				off += chunk.length;
-			}
-			return data;
-		};
 		const writeFileTo = async (file, data) => {
 			const local = `extension/${NAME}/${file}`;
 			await game.promises.ensureDirectory(local, null, true);
@@ -281,49 +147,93 @@ div.ktupd-status.err{color:#ff8f8f}
 			setDisabled($.start, true);
 			$.restart.style.display = "none";
 			abortCtrl = new AbortController();
-			const total = FILE_LIST.length;
-			// 总进度 =（已完成文件数 + 当前文件字节占比）/ 总文件数
-			const setProgress = (done, frac, file, received, size) => {
-				$.fill.style.width = `${Math.min(((done + frac) / total) * 100, 100).toFixed(1)}%`;
-				$.progress.textContent = `第 ${done + 1}/${total} 个 · ${fmtSize(received)}${size ? ` / ${fmtSize(size)}` : ""}`;
-				$.cur.textContent = file;
+			// ① 下载压缩包：按连通性检测出的源顺序降级，流式字节进度
+			const setZipProgress = (received, size) => {
+				$.fill.style.width = `${Math.min(size ? (received / size) * 100 : 0, 99).toFixed(1)}%`;
+				$.progress.textContent = `下载中 · ${fmtSize(received)}${size ? ` / ${fmtSize(size)}` : ""}`;
 			};
 			try {
-				setStatus("正在下载更新文件…");
+				setStatus("正在下载更新压缩包…");
+				let data = null;
+				let lastError = null;
+				for (const { src } of sourceOrder) {
+					try {
+						const resp = await fetch(zipUrlOf(src), { signal: abortCtrl.signal });
+						if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+						const size = Number(resp.headers.get("content-length")) || 0;
+						if (!resp.body || typeof resp.body.getReader != "function") {
+							data = new Uint8Array(await resp.arrayBuffer());
+							break;
+						}
+						const reader = resp.body.getReader();
+						const chunks = [];
+						let received = 0;
+						for (;;) {
+							const { done, value } = await reader.read();
+							if (done) break;
+							chunks.push(value);
+							received += value.length;
+							setZipProgress(received, size);
+						}
+						data = new Uint8Array(received);
+						let off = 0;
+						for (const chunk of chunks) {
+							data.set(chunk, off);
+							off += chunk.length;
+						}
+						break;
+					} catch (e) {
+						if (e.name == "AbortError") throw e;
+						lastError = e;
+					}
+				}
+				if (!data) throw lastError || new Error("压缩包下载失败");
+				// ② 解压并逐条写盘：info.json（版本号）暂存内存，其余立即覆盖，全部成功才最后写版本号
+				setStatus(`下载完成（${fmtSize(data.length)}），正在解压覆盖…`);
+				const zip = await new Promise((resolve) => get.zip(resolve));
+				zip.load(data);
+				const folder = `${NAME}/`;
+				const entries = Object.keys(zip.files)
+					.map((key) => zip.files[key])
+					.filter((entry) => !entry.dir && !(entry.options && entry.options.dir) && !/[\\/]$/.test(entry.name));
+				const stray = entries.find((entry) => !entry.name.startsWith(folder));
+				if (stray) throw new Error(`压缩包内出现意外条目：${stray.name}`);
+				if (!entries.length) throw new Error("压缩包内容为空");
 				let infoJsonBytes = null;
 				let infoJsonVersion = null;
-				for (let i = 0; i < total; i++) {
-					const file = FILE_LIST[i];
-					setProgress(i, 0, file, 0, 0);
-					const data = await downloadOne(file, (received, size) =>
-						setProgress(i, size ? Math.min(received / size, 0.99) : 0, file, received, size)
-					);
-					// 版本号文件暂存内存，其余文件立即写盘
-					if (file == "info.json") {
-						infoJsonBytes = data;
+				let done = 0;
+				for (const entry of entries) {
+					const rel = entry.name.slice(folder.length);
+					$.fill.style.width = `${((done / entries.length) * 100).toFixed(1)}%`;
+					$.progress.textContent = `解压覆盖中 · ${done + 1}/${entries.length}`;
+					$.cur.textContent = rel;
+					const bytes = entry.asUint8Array();
+					done++;
+					if (rel == "info.json") {
+						infoJsonBytes = bytes;
 						try {
-							infoJsonVersion = JSON.parse(new TextDecoder().decode(data)).version;
+							infoJsonVersion = JSON.parse(new TextDecoder().decode(bytes)).version;
 						} catch {
 							infoJsonVersion = null;
 						}
 						continue;
 					}
-					await writeFileTo(file, /\.(js|json)$/.test(file) ? new TextDecoder().decode(data) : data);
+					await writeFileTo(rel, /\.(js|json)$/.test(rel) ? new TextDecoder().decode(bytes) : bytes);
 				}
-				// 全部下载写盘成功 → 最后一步才写版本号文件与本地配置
-				if (!infoJsonBytes) throw new Error("info.json 内容缺失");
+				// 全部覆盖成功 → 最后一步才写版本号文件与本地配置
+				if (!infoJsonBytes) throw new Error("压缩包中缺少 info.json");
 				await writeFileTo("info.json", new TextDecoder().decode(infoJsonBytes));
 				const finalVersion = infoJsonVersion || remoteVersion;
 				if (finalVersion) game.saveConfig(`extension_${NAME}_version`, finalVersion);
 				game.saveConfig(`extension_${NAME}_updateTime`, new Date().toLocaleString());
 				$.fill.style.width = "100%";
-				$.progress.textContent = `${total}/${total} 个文件全部完成`;
+				$.progress.textContent = `${entries.length} 个文件全部完成`;
 				$.cur.textContent = "";
 				setStatus(`更新完成（v${finalVersion || "?"}），重启游戏后生效`, "ok");
 				$.restart.style.display = "";
 			} catch (e) {
 				const reason = e.name == "AbortError" ? "已手动中止" : e.message;
-				setStatus(`更新失败：${reason}。版本号未变更，已下载文件已保留，可直接重新开始更新`, "err");
+				setStatus(`更新失败：${reason}。版本号未变更，可直接重新开始更新`, "err");
 				setDisabled($.check, false);
 				setDisabled($.start, false);
 			} finally {
@@ -471,7 +381,7 @@ div.ktupd-status.err{color:#ff8f8f}
 			// 在线更新：独立更新中心窗口（连通性检测→进度条下载→全部成功才写版本号，失败版本号不变）
 			checkUpdate: {
 				name: "更新中心（独立窗口）",
-				intro: "从 GitHub 仓库 kir1ito/kirito-noname-extension 下载最新文件覆盖本地；先检测连通性，通过后才开始更新；全部文件下载成功才写入新版本号，中途出错版本号保持不变。完成后需重启游戏生效",
+				intro: "从 GitHub Releases 下载自动打包的整包压缩包并解压覆盖本地；先检测连通性，通过后才开始更新；解压覆盖全部成功才写入新版本号，中途出错版本号保持不变。完成后需重启游戏生效",
 				clear: true,
 				onclick() {
 					ktUpdateCenter.open();

@@ -1,0 +1,43 @@
+name: 自动打包扩展
+
+# push 到 main 时把 kirito扩展/ 打成 zip，挂到 latest Release（同名资产覆盖）
+# 客户端更新器固定下载 releases/latest/download/kirito-extension.zip
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 用 Python zipfile 打包：对中文条目名写入 UTF-8(EFS) 标志，游戏内 JSZip 解压不乱码
+      - name: 打包 kirito扩展 为 zip
+        run: |
+          python3 - <<'EOF'
+          import os, zipfile
+          count = 0
+          with zipfile.ZipFile("kirito-extension.zip", "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
+              for root, dirs, files in os.walk("kirito扩展"):
+                  for f in sorted(files):
+                      p = os.path.join(root, f)
+                      z.write(p, p)
+                      count += 1
+          print(f"打包完成：{count} 个文件")
+          EOF
+
+      - name: 创建或更新 latest Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view latest >/dev/null 2>&1 || \
+            gh release create latest --title "kirito扩展 自动打包" \
+            --notes "main 分支 push 自动打包，供客户端「更新中心」下载解压覆盖" \
+            --target "$GITHUB_SHA"
+          gh release upload latest kirito-extension.zip --clobber
+          echo "已上传 kirito-extension.zip（commit $GITHUB_SHA）"
