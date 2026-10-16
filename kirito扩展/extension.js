@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "1.6";
+const VERSION = "1.7";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -13,7 +13,28 @@ export default function () {
 		arenaReady: function () {},
 		content: function (config, pack) {},
 		prepare: function () {},
-		precontent: function (config) {},
+		precontent: function (config) {
+			// 十周年UI动皮别名：把无上神映射到手杀神马超的动皮（风霆啸野骨骼动画+动态背景）。
+			// 十周年UI初始化时会整体重建 dynamicSkin 表，且与本扩展的加载顺序不定，
+			// 故轮询等待其表就绪后注入别名，注入成功即停止；未安装十周年UI时15秒后静默放弃
+			const install = () => {
+				if (!window.decadeUI || !decadeUI.dynamicSkin || !decadeUI.dynamicSkin.mb_shen_machao) {
+					return false;
+				}
+				if (!decadeUI.dynamicSkin.wushangshen) {
+					decadeUI.dynamicSkin.wushangshen = decadeUI.dynamicSkin.mb_shen_machao;
+				}
+				return true;
+			};
+			if (!install()) {
+				const timer = setInterval(() => {
+					if (install()) {
+						clearInterval(timer);
+					}
+				}, 500);
+				setTimeout(() => clearInterval(timer), 15000);
+			}
+		},
 		help: {},
 		config: {
 			// 版本信息：展示当前版本与最后在线更新时间（在线更新成功时记录到本地配置）
@@ -38,7 +59,7 @@ export default function () {
 					const name = "kirito扩展";
 					const repo = "kir1ito/kirito-noname-extension";
 					// 更新文件清单：代码/配置/角色素材（仓库新增文件时需同步此处）
-					const fileList = ["extension.js", "info.json", "god.jpg", "audio/die/god.mp3"];
+					const fileList = ["extension.js", "info.json", "god.jpg", "wushangshen.jpg", "audio/die/god.mp3"];
 					const localVersion = lib.extensionPack[name] && lib.extensionPack[name].version;
 					// API路径只编码每段，保留斜杠
 					const encodePath = (file) => encodeURIComponent(name) + "/" + file.split("/").map(encodeURIComponent).join("/");
@@ -136,9 +157,29 @@ export default function () {
 						// 不写img：自动使用 extension/kirito扩展/god.jpg
 						dieAudios: ["ext:kirito扩展/audio/die/god.mp3"],
 					}),
+					// 以手杀神马超(mb_shen_machao)为主本：立绘/阵亡语音/皮肤/动皮/特效均复用其素材
+					// 立绘=extension/kirito扩展/wushangshen.jpg（本体 image/character/mb_shen_machao.jpg 的副本）
+					// 动皮经 precontent 注入十周年UI别名表（wushangshen → mb_shen_machao 的"风霆啸野"）
+					wushangshen: new Character({
+						sex: "male",
+						group: "shen",
+						hp: 4,
+						maxHp: 4,
+						hujia: 0,
+						skills: ["grytouying"],
+						groupInGuozhan: "qun",
+						// AI 禁选：AI 不选用此武将，玩家仍可正常选择
+						isAiForbidden: true,
+						// 复用本体手杀神马超的阵亡语音（audio/die/mb_shen_machao.mp3）
+						dieAudios: ["mb_shen_machao"],
+					}),
 				},
 				translate: {
 					god: "龙神赵云",
+					wushangshen: "无上神",
+				},
+				characterIntro: {
+					wushangshen: "kirito的自制的无上神武将",
 				},
 			},
 			card: {
@@ -704,12 +745,60 @@ export default function () {
 								},
 							},
 						},
+						/* ===== 投影（无上神专属）=====
+						 * 游戏开始时从技能池中挑选任意个技能加入本局游戏，然后失去此技能
+						 * 候选池：绝境/龙魂（龙神赵云）+ 驭雳/霆威/寂灭（手杀神马超）+ 天涛/星魂/神霈（手杀神姜维）
+						 * 时机写法（enterGame+phaseBefore）与挑选界面（chooseButton+textbutton列表）
+						 * 参照本体潜龙 offline_longxuexuanhuang.js lxqianlong */
+						grytouying: {
+							trigger: { player: "enterGame", global: "phaseBefore" },
+							forced: true,
+							locked: true,
+							filter(event, player) {
+								return event.name != "phase" || game.phaseNumber == 0;
+							},
+							async content(event, trigger, player) {
+								// 运行时过滤候选池：技能本体已注册且有描述文案才进列表，防止源包未加载时选到空技能
+								const pool = ["gryjuejing", "grylonghun", "yuli", "tingwei", "jimie", "mbtiantao", "mbxinghun", "mbshenpei"].filter(
+									(skill) => lib.skill[skill] && lib.translate[skill + "_info"]
+								);
+								if (!pool.length) {
+									return;
+								}
+								const list = pool.map((skill) => [
+									skill,
+									`<div class="popup text" style="width:calc(100% - 10px);display:inline-block"><div class="skill">【${get.translation(skill)}】</div><div>${lib.translate[skill + "_info"]}</div></div>`,
+								]);
+								const result = await player
+									.chooseButton({
+										createDialog: ["投影：挑选任意个技能加入本局游戏", [list, "textbutton"]],
+										selectButton: [1, list.length],
+										forced: true,
+										ai(button) {
+											const info = get.info(button.link);
+											if (!info || info.ai?.neg || info.ai?.combo) {
+												return 0;
+											}
+											return 1 + Math.random();
+										},
+									})
+									.forResult();
+								if (result?.bool && result.links?.length) {
+									game.log(player, "获得了技能", "#g" + result.links.map((skill) => `【${get.translation(skill)}】`).join(""));
+									await player.addSkills(result.links);
+								}
+								// 挑选完成后失去投影自身（投影不在绝境守护名单内，可正常移除）
+								player.removeSkill("grytouying");
+							},
+						},
 				},
 				translate: {
 					gryjuejing: "绝境",
 					gryjuejing_info: "锁定技。①你的手牌上限+2，你不会被翻面，且你的体力上限不会减少。②当你进入或脱离濒死状态时，你摸两张牌。③摸牌阶段，你额外摸X张牌。④你至其他角色的距离-X。⑤你每回合使用牌的次数上限+X（X为你已损失的体力值）。⑥你的〖绝境〗和〖龙魂〗不能被移除或禁用。",
 					grylonghun: "龙魂",
 					grylonghun_info: "你可以将同花色的一至两张牌按下列规则使用或打出：红桃当【桃】，方块当火【杀】，梅花当【闪】，黑桃当【无懈可击】。若你以此法转化了两张：红色牌，则此牌回复值或伤害值+1；黑色牌，则你弃置当前回合角色一张牌。每当你以此法使用或打出牌，“魂”计数+X（单张牌+1，两张牌+2，计数持续累计，不会清空）。若计数为1或2的倍数，你摸一张牌。“魂”计数达到12后：你使用【杀】或【决斗】指定目标后，你可以选择一项：1.此伤害+1；2.获得该目标区域内一张牌（其区域内没有牌则不能选择此项）。“魂”计数达到24后：1.你转化发动的【杀】不可被响应，转化的【无懈可击】不可被【无懈可击】响应；2.你以单张牌转化【闪】或【无懈可击】后，获得当前回合角色区域内一张牌；3.你转化发动使用的牌不计入使用次数；4.你转化发动的【桃】自带酒效果（与饮酒效果叠加，且不占用【酒】的使用次数）。",
+					grytouying: "投影",
+					grytouying_info: "锁定技。游戏开始时，你从下列技能中挑选任意个技能加入本局游戏（可多选），然后失去此技能：〖绝境〗〖龙魂〗（龙神赵云）；〖驭雳〗〖霆威〗〖寂灭〗（手杀神马超）；〖天涛〗〖星魂〗〖神霈〗（手杀神姜维）。",
 				},
 			},
 			intro: "",
@@ -718,6 +807,6 @@ export default function () {
 			forumURL: "",
 			version: VERSION,
 		},
-		files: { character: ["god.jpg"], card: [], skill: [], audio: [] },
+		files: { character: ["god.jpg", "wushangshen.jpg"], card: [], skill: [], audio: [] },
 	};
 }
