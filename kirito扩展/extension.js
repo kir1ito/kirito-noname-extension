@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "2.7";
+const VERSION = "2.8";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -394,8 +394,8 @@ export default function () {
 								trigger.num += juejingX(player);
 							},
 							},
-							// 新增⑥：技能守护——绝境/龙魂（含子技能）不可被禁用或封锁
-							// 移除防护由 fixed: true 承担；禁用（disableSkill，铁骑/止息类）与
+							// 新增⑥：技能守护——当前角色拥有的所有技能均不可被禁用或封锁
+							// 移除防护由 fixed: true 承担（仅绝境/龙魂）；禁用（disableSkill，铁骑/止息类）与
 							// 封锁（get.is.blocked，skillBlocker体系）在 init 中包一层拦截
 							guard: {
 								charlotte: true,
@@ -405,32 +405,30 @@ export default function () {
 										return;
 									}
 									lib._grySkillGuardInstalled = true;
-									const isProtectedSkill = (skill) =>
-										skill === "gryjuejing" ||
-										skill === "grylonghun" ||
-										skill.startsWith("gryjuejing_") ||
-										skill.startsWith("grylonghun_");
 									// 注意：此处必须直查 player.skills 底层数组而非 hasSkill——
 								// hasSkill 的求值链(filterSkills→get.is.blocked)会回调本守护造成无限递归，
 								// 当敌方挂上技能封锁器(如于吉〖缠怨〗体力≤1时)即触发死循环卡死游戏
 								const hasJuejing = (player) => player && Array.isArray(player.skills) && player.skills.includes("gryjuejing");
-									// 拦截禁用：铁骑/止息类效果经 disableSkill 写入 disabledSkills，此处对持有绝境者拒绝写入受保护技能
+									// 拦截禁用：铁骑/止息类效果经 disableSkill 写入 disabledSkills，
+									// 对持有绝境者，其当前拥有的所有技能一律拒绝写入禁用名单
 									const originDisableSkill = Player.prototype.disableSkill;
 									Player.prototype.disableSkill = function (reason, skills) {
 										if (hasJuejing(this)) {
-											if (typeof skills == "string" && isProtectedSkill(skills)) {
-												return this;
-											}
-											if (Array.isArray(skills)) {
-												skills = skills.filter((skill) => !isProtectedSkill(skill));
+											if (typeof skills == "string") {
+												if (this.skills.includes(skills)) {
+													return this;
+												}
+											} else if (Array.isArray(skills)) {
+												skills = skills.filter((skill) => !this.skills.includes(skill));
 											}
 										}
 										return originDisableSkill.call(this, reason, skills);
 									};
-								// 拦截封锁：skillBlocker 体系经 get.is.blocked 判定技能被封锁，此处对持有绝境者的受保护技能直接放行
+								// 拦截封锁：skillBlocker 体系经 get.is.blocked 判定技能被封锁，
+								// 对持有绝境者，其当前拥有的所有技能一律视为未被封锁
 								const originBlocked = get.is.blocked;
 								get.is.blocked = function (skill, player) {
-									if (isProtectedSkill(skill) && hasJuejing(player)) {
+									if (hasJuejing(player) && player.skills.includes(skill)) {
 										return false;
 									}
 									return originBlocked.call(this, skill, player);
@@ -1441,13 +1439,13 @@ export default function () {
 												}
 												const mark = player.countMark("kttingwei");
 												let value = 1;
-												if (mark >= 5) {
+												if (mark >= 7) {
 													value += 7;
-												} else if (mark === 4) {
+												} else if (mark === 6) {
 													value += 4;
-												} else if (mark === 3) {
+												} else if (mark === 5) {
 													value += 2.5;
-												} else if (mark === 2) {
+												} else if (mark === 4) {
 													value += 1.5;
 												}
 												if (_status.currentPhase === player) {
@@ -1561,13 +1559,13 @@ export default function () {
 							limited: true,
 							skillAnimation: true,
 							filter(_event, player) {
-								return player.countMark("kttingwei") >= 6;
+								return player.countMark("kttingwei") >= 8;
 							},
 							async cost(event, trigger, player) {
 								event.result = await player
 									.chooseTarget({
 										prompt: get.prompt(event.skill),
-										prompt2: "弃置6枚“霆”标记，对一名角色造成等于其体力上限的伤害",
+										prompt2: "弃置8枚“霆”标记，对一名角色造成等于其体力上限的伤害",
 										ai(target) {
 											const player = get.player();
 											return get.damageEffect(target, player, player);
@@ -1581,7 +1579,7 @@ export default function () {
 									await lib._wssJimieBar.playDazhao();
 								}
 								player.awakenSkill("ktjimie");
-								player.removeMark("kttingwei", 6);
+								player.removeMark("kttingwei", 8);
 								const target = event.targets[0];
 								await target.damage({ num: target.maxHp });
 								player.setStorage("ktyuli", [], true);
@@ -1840,7 +1838,7 @@ export default function () {
 				},
 				translate: {
 					gryjuejing: "绝境",
-					gryjuejing_info: "锁定技。①你的手牌上限+2，你不会被翻面，且你的体力上限不会减少。②当你进入或脱离濒死状态时，你摸两张牌。③摸牌阶段，你额外摸X张牌。④你至其他角色的距离-X。⑤你每回合使用牌的次数上限+X（X为你已损失的体力值）。⑥你的〖绝境〗和〖龙魂〗不能被移除或禁用。",
+					gryjuejing_info: "锁定技。①你的手牌上限+2，你不会被翻面，且你的体力上限不会减少。②当你进入或脱离濒死状态时，你摸两张牌。③摸牌阶段，你额外摸X张牌。④你至其他角色的距离-X。⑤你每回合使用牌的次数上限+X（X为你已损失的体力值）。⑥你的所有技能均不会被禁用或封锁，且〖绝境〗和〖龙魂〗不能被移除。",
 					grylonghun: "龙魂",
 					grylonghun_info: "你可以将同花色的一至两张牌按下列规则使用或打出：红桃当【桃】，方块当火【杀】，梅花当【闪】，黑桃当【无懈可击】。若你以此法转化了两张：红色牌，则此牌回复值或伤害值+1；黑色牌，则你弃置当前回合角色一张牌。每当你以此法使用或打出牌，“魂”计数+X（单张牌+1，两张牌+2，计数持续累计，不会清空）。若计数为1或2的倍数，你摸一张牌。“魂”计数达到12后：你使用【杀】或【决斗】指定目标后，你可以选择一项：1.此伤害+1；2.获得该目标区域内一张牌（其区域内没有牌则不能选择此项）。“魂”计数达到24后：1.你转化发动的【杀】不可被响应，转化的【无懈可击】不可被【无懈可击】响应；2.你以单张牌转化【闪】或【无懈可击】后，获得当前回合角色区域内一张牌；3.你转化发动使用的牌不计入使用次数；4.你转化发动的【桃】自带酒效果（与饮酒效果叠加，且不占用【酒】的使用次数）。",
 					grytouying: "投影",
@@ -1850,7 +1848,7 @@ export default function () {
 					kttingwei: "霆威",
 					kttingwei_info: "你使用【杀】指定目标后，可获得4枚“霆”标记并选择一名目标角色，其选择任意项并令你弃等量的“霆”标记：1.非锁定技失效至其下个回合结束；2.交给你一张装备牌；3.此牌对其造成伤害+1；4.随机弃两张牌。若其均未选择，其横置。",
 					ktjimie: "寂灭",
-					ktjimie_info: `限定技，出牌阶段结束时，你可以弃6枚“霆”标记，对一名角色造成等于其体力上限的伤害。然后当你${get.poptip("ktyuli")}的两项均执行后，此技能视为未发动过。`,
+					ktjimie_info: `限定技，出牌阶段结束时，你可以弃8枚“霆”标记，对一名角色造成等于其体力上限的伤害。然后当你${get.poptip("ktyuli")}的两项均执行后，此技能视为未发动过。`,
 					ktxinghun: "星魂",
 					ktxinghun_info: "出牌阶段限一次，你可以观看牌堆顶五张牌，用任意张手牌与其中的等量张牌进行交换并任意排序，然后你令一名其他角色展示你的手牌与牌堆顶的共计五张牌，你对其依次使用其中的【杀】。",
 					ktshenpei: "神霈",
