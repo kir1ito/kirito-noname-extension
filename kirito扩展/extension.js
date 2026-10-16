@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "2.9";
+const VERSION = "3.0";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1018,11 +1018,15 @@ export default function () {
 														{ name: "../../../kirito扩展/animation/shenmachao/SS_smc_dazhao" },
 														{ x: [0, 0.5], y: [0, 0.5] }
 													);
-													if (anim && anim.oncomplete) {
+													if (anim) {
+														// 无条件挂完成回调（oncomplete 属性初始可能为空、播放中被调用，不能据此判断）
 														anim.oncomplete = () => {
+															anim.oncomplete = null;
 															dcdAnim.stopSpine(anim);
 															resolve();
 														};
+														// 兜底：播放器迟迟不回调时按时长放行，避免卡住结算
+														setTimeout(resolve, 8000);
 													} else {
 														resolve();
 													}
@@ -1038,13 +1042,24 @@ export default function () {
 													const mask = dcdAnim.playSpine({ name: "../../../kirito扩展/animation/shenjiangwei/SS_Sjw_mask", action: "play2", loop: true });
 													dcdAnim.loadSpine(`../../../kirito扩展/animation/shenjiangwei/${skillName}`, "skel", () => {
 														const main = dcdAnim.playSpine({ name: `../../../kirito扩展/animation/shenjiangwei/${skillName}` });
-														if (main && main.oncomplete) {
+														if (main) {
+															// 同 playDazhao：无条件挂完成回调 + 超时兜底
 															main.oncomplete = () => {
+																main.oncomplete = null;
 																if (mask) {
 																	dcdAnim.stopSpine(mask);
 																}
 																resolve();
 															};
+															setTimeout(() => {
+																if (main.oncomplete) {
+																	main.oncomplete = null;
+																	if (mask) {
+																		dcdAnim.stopSpine(mask);
+																	}
+																	resolve();
+																}
+															}, 8000);
 														} else {
 															if (mask) {
 																dcdAnim.stopSpine(mask);
