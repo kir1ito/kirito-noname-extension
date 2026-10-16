@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.0";
+const VERSION = "3.1";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -410,10 +410,15 @@ export default function () {
 								// 当敌方挂上技能封锁器(如于吉〖缠怨〗体力≤1时)即触发死循环卡死游戏
 								const hasJuejing = (player) => player && Array.isArray(player.skills) && player.skills.includes("gryjuejing");
 									// 拦截禁用：铁骑/止息类效果经 disableSkill 写入 disabledSkills，
-									// 对持有绝境者，其当前拥有的所有技能一律拒绝写入禁用名单
+									// 对持有绝境者，其当前拥有的所有技能一律拒绝写入禁用名单。
+									// 例外：觉醒/限定技消耗走 awakenSkill → disableSkill("<技能>_awake")，
+									// 属于正常结算流程必须放行，否则寂灭/神霈用过一次后不会失效
 									const originDisableSkill = Player.prototype.disableSkill;
 									Player.prototype.disableSkill = function (reason, skills) {
 										if (hasJuejing(this)) {
+											if (typeof reason == "string" && reason.endsWith("_awake")) {
+												return originDisableSkill.call(this, reason, skills);
+											}
 											if (typeof skills == "string") {
 												if (this.skills.includes(skills)) {
 													return this;
