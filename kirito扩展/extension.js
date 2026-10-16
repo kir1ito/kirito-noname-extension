@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "2.2";
+const VERSION = "2.3";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -126,6 +126,18 @@ export default function () {
 						"animation/shenmachao/Ss_smc_vfx_grogress.atlas",
 						"animation/shenmachao/Ss_smc_vfx_grogress.png",
 						"animation/shenmachao/Ss_smc_vfx_grogress.skel",
+						"animation/shenmachao/SS_smc_dazhao.atlas",
+						"animation/shenmachao/SS_smc_dazhao.png",
+						"animation/shenmachao/SS_smc_dazhao.skel",
+						"animation/shenmachao/SS_smc_dazhao2.png",
+						"animation/shenmachao/SS_smc_dazhao3.png",
+						"animation/shenmachao/SS_smc_dazhao4.png",
+						"animation/shenmachao/SS_smc_dazhao5.png",
+						"animation/shenmachao/SS_smc_dazhao6.png",
+						"animation/shenmachao/SS_smc_dazhao7.png",
+						"animation/shenmachao/SS_smc_dazhao8.png",
+						"animation/shenmachao/SS_smc_dazhao9.png",
+						"animation/shenmachao/SS_smc_dazhao10.png",
 						...spineFiles,
 					];
 					const localVersion = lib.extensionPack[name] && lib.extensionPack[name].version;
@@ -946,6 +958,46 @@ export default function () {
 										};
 										watchMark("addMark");
 										watchMark("removeMark");
+										// 接管寂灭释放演出：动画素材为自带副本（animation/shenmachao/SS_smc_dazhao）。
+										// 仅当无名美化的手杀神马超模块未开启时接管（其开启时会自行覆写寂灭内容，
+										// 我们再包一层会与它叠加导致动画播两次）；dcdAnim 即十周年UI动画系统(decadeUI.animation)，
+										// 缺席时静默跳过演出，技能结算不受影响
+										if (!lib.config.extension_无名美化_mbshenmachao && lib.skill.jimie && !lib.skill.jimie._wssDazhao) {
+											lib.skill.jimie._wssDazhao = true;
+											const originJimieContent = lib.skill.jimie.content;
+											const playDazhao = () =>
+												new Promise((resolve) => {
+													if (typeof window.dcdAnim == "undefined") {
+														resolve();
+														return;
+													}
+													dcdAnim.loadSpine("../../../kirito扩展/animation/shenmachao/SS_smc_dazhao", "skel", () => {
+														const anim = dcdAnim.playSpine(
+															{ name: "../../../kirito扩展/animation/shenmachao/SS_smc_dazhao" },
+															{ x: [0, 0.5], y: [0, 0.5] }
+														);
+														if (anim && anim.oncomplete) {
+															anim.oncomplete = () => {
+																dcdAnim.stopSpine(anim);
+																resolve();
+															};
+														} else {
+															resolve();
+														}
+													});
+												});
+											lib.skill.jimie.content = async function (event, trigger, player) {
+												await playDazhao();
+												await originJimieContent.apply(this, arguments);
+												if (lib._wssJimieBar) {
+													lib._wssJimieBar.update(player);
+													const lock = player.querySelector && player.querySelector(".jimieLock");
+													if (lock) {
+														lock.style.display = "block";
+													}
+												}
+											};
+										}
 									},
 								},
 							},
