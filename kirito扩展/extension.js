@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.4";
+const VERSION = "3.5";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -118,28 +118,31 @@ export default function () {
 			{ label: "ghproxy.net 镜像", base: `https://ghproxy.net/https://raw.githubusercontent.com/${REPO}/main/` },
 			{ label: "GitHub 直连", base: `https://raw.githubusercontent.com/${REPO}/main/` },
 		];
+		// 本体全局reset为 div{position:absolute;width:80%;left:10%}，会击穿未显式覆盖的属性，
+		// 故先整域复位，再用同优先级的 div.ktupd-* 规则按源顺序逐项覆写
 		const CSS = `
-.ktupd-overlay{position:fixed;left:0;top:0;right:0;bottom:0;z-index:998;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55)}
-.ktupd-dialog{position:relative;width:540px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box;padding:18px 24px 20px;border-radius:10px;color:#dfe6f3;background:linear-gradient(160deg,#232a3a,#141822);border:1px solid #3d4a63;box-shadow:0 10px 44px rgba(0,0,0,.65);font-size:14px;user-select:none}
-.ktupd-title{font-size:18px;font-weight:bold;color:#ffd76a;letter-spacing:1px;margin-bottom:10px}
-.ktupd-close{position:absolute;right:14px;top:12px;width:26px;height:26px;line-height:24px;text-align:center;border-radius:50%;cursor:pointer;color:#9aa7bd;border:1px solid #3d4a63;font-size:14px}
-.ktupd-close:hover{color:#fff;border-color:#8fa3c8}
-.ktupd-row{display:flex;justify-content:space-between;margin:5px 0;color:#c3cde0}
-.ktupd-row b{color:#eaf1ff;font-weight:normal}
-.ktupd-section{margin:12px 0 6px;padding-left:8px;border-left:3px solid #ffd76a;color:#ffd76a;font-weight:bold}
-.ktupd-btn{display:inline-block;padding:6px 18px;border-radius:6px;background:linear-gradient(180deg,#3f8cff,#2563eb);color:#fff;cursor:pointer;font-size:14px;margin-right:10px}
-.ktupd-btn:hover{filter:brightness(1.12)}
-.ktupd-btn[disabled]{opacity:.38;cursor:not-allowed;filter:none}
-.ktupd-btn.green{background:linear-gradient(180deg,#2fd06b,#16a34a)}
-.ktupd-src{font-size:13px;margin:4px 0;color:#9aa7bd}
-.ktupd-src.ok{color:#7ee2a8}
-.ktupd-src.bad{color:#ff8f8f}
-.ktupd-bar{height:14px;margin:8px 0 4px;border-radius:7px;background:#0b0e14;border:1px solid #3d4a63;overflow:hidden}
-.ktupd-fill{height:100%;width:0;border-radius:7px;background:linear-gradient(90deg,#f59e0b,#fbbf24);transition:width .15s}
-.ktupd-cur{font-size:12px;color:#9aa7bd;word-break:break-all;min-height:16px}
-.ktupd-status{font-size:13px;margin-top:10px;color:#c3cde0;min-height:18px}
-.ktupd-status.ok{color:#7ee2a8}
-.ktupd-status.err{color:#ff8f8f}
+.ktupd-overlay div{position:static;width:auto;left:auto;margin:0;padding:0;box-sizing:border-box;text-shadow:none;font-family:inherit}
+.ktupd-overlay{position:fixed;left:0;top:0;right:0;bottom:0;width:auto;z-index:998;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55)}
+div.ktupd-dialog{position:relative;display:block;width:540px;max-width:92vw;max-height:88vh;overflow-y:auto;padding:18px 24px 20px;border-radius:10px;color:#dfe6f3;background:linear-gradient(160deg,#232a3a,#141822);border:1px solid #3d4a63;box-shadow:0 10px 44px rgba(0,0,0,.65);font-size:14px;font-family:"Microsoft YaHei","PingFang SC",sans-serif;text-align:left;line-height:1.5;user-select:none}
+div.ktupd-title{font-size:18px;font-weight:bold;color:#ffd76a;letter-spacing:1px;margin-bottom:10px}
+div.ktupd-close{position:absolute;right:14px;top:12px;width:26px;height:26px;line-height:24px;text-align:center;border-radius:50%;cursor:pointer;color:#9aa7bd;border:1px solid #3d4a63;font-size:14px}
+div.ktupd-close:hover{color:#fff;border-color:#8fa3c8}
+div.ktupd-row{display:flex;justify-content:space-between;margin:5px 0;color:#c3cde0}
+div.ktupd-row b{color:#eaf1ff;font-weight:normal}
+div.ktupd-section{margin:12px 0 6px;padding-left:8px;border-left:3px solid #ffd76a;color:#ffd76a;font-weight:bold}
+div.ktupd-btn{display:inline-block;padding:6px 18px;border-radius:6px;background:linear-gradient(180deg,#3f8cff,#2563eb);color:#fff;cursor:pointer;font-size:14px;margin-right:10px}
+div.ktupd-btn:hover{filter:brightness(1.12)}
+div.ktupd-btn[disabled]{opacity:.38;cursor:not-allowed;filter:none}
+div.ktupd-btn.green{background:linear-gradient(180deg,#2fd06b,#16a34a)}
+div.ktupd-src{font-size:13px;margin:4px 0;color:#9aa7bd}
+div.ktupd-src.ok{color:#7ee2a8}
+div.ktupd-src.bad{color:#ff8f8f}
+div.ktupd-bar{height:14px;margin:8px 0 4px;border-radius:7px;background:#0b0e14;border:1px solid #3d4a63;overflow:hidden}
+div.ktupd-fill{height:100%;width:0;border-radius:7px;background:linear-gradient(90deg,#f59e0b,#fbbf24);transition:width .15s}
+div.ktupd-cur{font-size:12px;color:#9aa7bd;word-break:break-all;min-height:16px}
+div.ktupd-status{font-size:13px;margin-top:10px;color:#c3cde0;min-height:18px}
+div.ktupd-status.ok{color:#7ee2a8}
+div.ktupd-status.err{color:#ff8f8f}
 `;
 		let overlay = null;
 		let abortCtrl = null;
@@ -1345,10 +1348,8 @@ export default function () {
 								player: "damageBegin4",
 							},
 							filter(event, player, name) {
-								if (name == "damageBegin1") {
-									return !event.hasNature("thunder");
-								}
-								return event.hasNature("thunder");
+								// 已是雷电伤害也要触发（damageBegin1），进content的else分支执行伤害+1
+								return name == "damageBegin1" || event.hasNature("thunder");
 							},
 							logAudio(event, player, name) {
 								switch (name) {
