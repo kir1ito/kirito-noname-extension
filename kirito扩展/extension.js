@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.11";
+const VERSION = "3.12";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1966,8 +1966,32 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 								content: "mark",
 							},
 							subSkill: {
+								// 完整定义（引擎fengyin的克隆）：此前用 inherit:"fengyin" 的写法未将
+								// kttingwei_fengyin 注册进 lib.skill，惩罚目标携带幻影ID后
+								// skillBlocker 解引用 undefined 直接报错
 								fengyin: {
-									inherit: "fengyin",
+									init(player, skill) {
+										player.addSkillBlocker(skill);
+										player.addTip(skill, "非锁定技失效");
+									},
+									onremove(player, skill) {
+										player.removeSkillBlocker(skill);
+										player.removeTip(skill);
+									},
+									charlotte: true,
+									skillBlocker(skill, player) {
+										return !!lib.skill[skill] && !lib.skill[skill].persevereSkill && !lib.skill[skill].charlotte && !get.is.locked(skill, player);
+									},
+									mark: true,
+									intro: {
+										content(storage, player, skill) {
+											const list = player.getSkills(null, false, false).filter((i) => !!lib.skill[i] && lib.skill.kttingwei_fengyin.skillBlocker(i, player));
+											if (list.length) {
+												return "失效技能：" + get.translation(list);
+											}
+											return "无失效技能";
+										},
+									},
 								},
 							},
 						},
