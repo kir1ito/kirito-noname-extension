@@ -2,31 +2,92 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.7";
+const VERSION = "3.8";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
+	// 绝境⑥/神体③共用守护：持有任一守护技能者，其所有技能不可被禁用/封锁，且不会被翻面、体力上限不会减少
+	// （"特殊技能不会被移除"由各技能自身的 fixed: true 承担）。两技能共用同一套拦截器，先加载者安装、后到者直接复用
+	const installGrySkillGuard = () => {
+		if (lib._grySkillGuardInstalled) {
+			return;
+		}
+		lib._grySkillGuardInstalled = true;
+		// 注意：此处必须直查 player.skills 底层数组而非 hasSkill——
+		// hasSkill 的求值链(filterSkills→get.is.blocked)会回调本守护造成无限递归，
+		// 当敌方挂上技能封锁器(如于吉〖缠怨〗体力≤1时)即触发死循环卡死游戏
+		const hasGuard = (player) =>
+			player &&
+			Array.isArray(player.skills) &&
+			(player.skills.includes("gryjuejing") || player.skills.includes("gryshenti"));
+		// 日志里报守护技能名：优先报绝境
+		const guardName = (player) => (player.skills.includes("gryjuejing") ? "〖绝境〗" : "〖神体〗");
+		// 拦截禁用：铁骑/止息类效果经 disableSkill 写入 disabledSkills，
+		// 对持有守护技能者，其当前拥有的所有技能一律拒绝写入禁用名单。
+		// 例外：觉醒/限定技消耗走 awakenSkill → disableSkill("<技能>_awake")，
+		// 属于正常结算流程必须放行，否则寂灭/神霈用过一次后不会失效
+		const originDisableSkill = Player.prototype.disableSkill;
+		Player.prototype.disableSkill = function (reason, skills) {
+			if (hasGuard(this)) {
+				if (typeof reason == "string" && reason.endsWith("_awake")) {
+					return originDisableSkill.call(this, reason, skills);
+				}
+				if (typeof skills == "string") {
+					if (this.skills.includes(skills)) {
+						return this;
+					}
+				} else if (Array.isArray(skills)) {
+					skills = skills.filter((skill) => !this.skills.includes(skill));
+				}
+			}
+			return originDisableSkill.call(this, reason, skills);
+		};
+		// 拦截封锁：skillBlocker 体系经 get.is.blocked 判定技能被封锁，
+		// 对持有守护技能者，其当前拥有的所有技能一律视为未被封锁
+		const originBlocked = get.is.blocked;
+		get.is.blocked = function (skill, player) {
+			if (hasGuard(player) && player.skills.includes(skill)) {
+				return false;
+			}
+			return originBlocked.call(this, skill, player);
+		};
+		// 拦截翻面：①附加效果——不会被翻面；仅拦截"翻成面朝下"，已翻面时允许翻回
+		const originTurnOver = Player.prototype.turnOver;
+		Player.prototype.turnOver = function (bool) {
+			const faceDown = bool === true || (bool === void 0 && !this.isTurnedOver());
+			if (faceDown && hasGuard(this)) {
+				game.log(this, "的", guardName(this), "防止了翻面");
+				const next = game.createEvent("turnOver");
+				next.player = this;
+				next.setContent("emptyEvent");
+				return next;
+			}
+			return originTurnOver.call(this, bool);
+		};
+		// 拦截体力上限扣除：①附加效果——体力上限只能增不能减（gainMaxHp不受影响）
+		const originLoseMaxHp = Player.prototype.loseMaxHp;
+		Player.prototype.loseMaxHp = function () {
+			if (hasGuard(this)) {
+				game.log(this, "的", guardName(this), "防止了体力上限的扣除");
+				const next = game.createEvent("loseMaxHp");
+				next.player = this;
+				next.num = 0;
+				next.setContent("emptyEvent");
+				return next;
+			}
+			return originLoseMaxHp.apply(this, arguments);
+		};
+	};
+	// 投影默认候选池：本扩展全部可选技能（可在扩展设置的「投影技能池管理」中增删，存于配置 touyingPool）
+	const DEFAULT_TOUYING_POOL = ["gryjuejing", "grylonghun", "gryshenti", "ktyuli", "kttingwei", "ktjimie", "ktxinghun", "ktshenpei"];
 	// 在线更新中心：点按钮弹出独立遮罩窗口（形态复刻十周年UI配置中心，非系统窗口）
 	// 流程：检测连通性（各源拉info.json测延迟）→ 通过后才可开始更新 → 进度条逐文件流式下载
 	// → 全部成功后最后写info.json（版本号）。任何一步失败：版本号与更新时间配置不变更（相当于还原），
 	// 已下载的文件保留，可直接重试（下次会重新下载全部文件）
-	const ktUpdateCenter = (() => {
-		const NAME = "kirito扩展";
-		const REPO = "kir1ito/kirito-noname-extension";
-		// 更新包：GitHub Actions 在 push 时自动把 kirito扩展/ 打成 zip 挂到 latest Release，
-		// 更新器只下载这一个压缩包再本地解压覆盖，新增文件无需维护清单
-		const ZIP_NAME = "kirito-extension.zip";
-		const RAW_BASE = `https://raw.githubusercontent.com/${REPO}/main/`;
-		// 匿名多源：公共镜像优先（国内直连可达），GitHub直连兜底（系统代理环境下可达）
-		// raw源用于小文件（info.json的连通性检测/版本号），release源用于更新压缩包
-		const SOURCES = [
-			{ label: "gh-proxy.com 镜像", prefix: "https://gh-proxy.com/" },
-			{ label: "ghproxy.net 镜像", prefix: "https://ghproxy.net/" },
-			{ label: "GitHub 直连", prefix: "" },
-		];
 		// 本体全局reset为 div{position:absolute;width:80%;left:10%}，会击穿未显式覆盖的属性，
-		// 故先整域复位，再用同优先级的 div.ktupd-* 规则按源顺序逐项覆写
-		const CSS = `
+		// 故先整域复位，再用同优先级的 div.ktupd-* 规则按源顺序逐项覆写。
+		// 更新中心与投影技能池管理两个弹窗共用这套样式
+		const KT_CSS = `
 .ktupd-overlay div{position:static;width:auto;left:auto;margin:0;padding:0;box-sizing:border-box;text-shadow:none;font-family:inherit}
 .ktupd-overlay{position:fixed;left:0;top:0;right:0;bottom:0;width:auto;z-index:998;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55)}
 div.ktupd-dialog{position:relative;display:block;width:540px;max-width:92vw;max-height:88vh;overflow-y:auto;padding:18px 24px 20px;border-radius:10px;color:#dfe6f3;background:linear-gradient(160deg,#232a3a,#141822);border:1px solid #3d4a63;box-shadow:0 10px 44px rgba(0,0,0,.65);font-size:14px;font-family:"Microsoft YaHei","PingFang SC",sans-serif;text-align:left;line-height:1.5;user-select:none}
@@ -49,7 +110,43 @@ div.ktupd-cur{font-size:12px;color:#9aa7bd;word-break:break-all;min-height:16px}
 div.ktupd-status{font-size:13px;margin-top:10px;color:#c3cde0;min-height:18px}
 div.ktupd-status.ok{color:#7ee2a8}
 div.ktupd-status.err{color:#ff8f8f}
+div.ktupd-hint{font-size:12px;color:#9aa7bd;margin:6px 0}
+div.ktupd-chips{margin:6px 0;max-height:130px;overflow-y:auto}
+div.ktupd-chip{display:inline-block;padding:3px 8px;margin:2px 6px 2px 0;border-radius:4px;background:#2c3547;color:#eaf1ff;font-size:12px;cursor:pointer;border:1px solid #3d4a63}
+div.ktupd-chip:hover{border-color:#ff8f8f;color:#ff8f8f}
+input.ktupd-search{display:block;width:100%;padding:6px 10px;margin:6px 0;border-radius:6px;border:1px solid #3d4a63;background:#0b0e14;color:#eaf1ff;font-size:13px;outline:none;text-align:left;box-sizing:border-box}
+input.ktupd-search:focus{border-color:#3f8cff}
+div.ktupd-list{max-height:280px;overflow-y:auto;border-top:1px solid #3d4a63}
+div.ktupd-item{display:flex;justify-content:space-between;align-items:center;padding:5px 4px;border-bottom:1px solid #232a3a;font-size:13px;color:#c3cde0}
+div.ktupd-item:hover{background:#1c2331}
+div.ktupd-item span.owner{color:#7f8ca3;font-size:12px;margin-left:6px}
+div.ktupd-add{padding:2px 10px;margin-left:8px;border-radius:4px;background:linear-gradient(180deg,#3f8cff,#2563eb);color:#fff;cursor:pointer;font-size:12px;white-space:nowrap}
+div.ktupd-add:hover{filter:brightness(1.15)}
+div.ktupd-add.off{background:#2c3547;color:#7f8ca3;cursor:not-allowed;filter:none}
+div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 `;
+		// 弹窗样式只注入一次，更新中心与技能池管理共用
+		const ktInjectCss = () => {
+			if (document.getElementById("ktupd-css")) return;
+			const style = document.createElement("style");
+			style.id = "ktupd-css";
+			style.textContent = KT_CSS;
+			document.head.appendChild(style);
+		};
+		const ktUpdateCenter = (() => {
+		const NAME = "kirito扩展";
+		const REPO = "kir1ito/kirito-noname-extension";
+		// 更新包：GitHub Actions 在 push 时自动把 kirito扩展/ 打成 zip 挂到 latest Release，
+		// 更新器只下载这一个压缩包再本地解压覆盖，新增文件无需维护清单
+		const ZIP_NAME = "kirito-extension.zip";
+		const RAW_BASE = `https://raw.githubusercontent.com/${REPO}/main/`;
+		// 匿名多源：公共镜像优先（国内直连可达），GitHub直连兜底（系统代理环境下可达）
+		// raw源用于小文件（info.json的连通性检测/版本号），release源用于更新压缩包
+		const SOURCES = [
+			{ label: "gh-proxy.com 镜像", prefix: "https://gh-proxy.com/" },
+			{ label: "ghproxy.net 镜像", prefix: "https://ghproxy.net/" },
+			{ label: "GitHub 直连", prefix: "" },
+		];
 		let overlay = null;
 		let abortCtrl = null;
 		let sourceOrder = null; // 连通性检测后的源顺序（可用优先，按延迟升序）
@@ -62,14 +159,6 @@ div.ktupd-status.err{color:#ff8f8f}
 		// 远程版本号权威来源：Release资产version.txt（工作流打包时与zip同批生成、在zip之后上传）
 		// 避免"代码已推到main、压缩包还没打完"窗口期里显示新版本号却下到旧压缩包
 		const VER_NAME = "version.txt";
-		const fmtSize = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(2)} MB` : `${(n / 1024).toFixed(1)} KB`);
-		const localVersion = () => (lib.extensionPack[NAME] && lib.extensionPack[NAME].version) || "未知";
-		const injectCss = () => {
-			if (document.getElementById("ktupd-css")) return;
-			const style = document.createElement("style");
-			style.id = "ktupd-css";
-			style.textContent = CSS;
-			document.head.appendChild(style);
 		};
 		const el = (cls, parent, text) => {
 			const node = document.createElement("div");
@@ -288,7 +377,7 @@ div.ktupd-status.err{color:#ff8f8f}
 				return;
 			}
 			if (overlay) return;
-			injectCss();
+			ktInjectCss();
 			overlay = el("ktupd-overlay", document.body);
 			const dialog = el("ktupd-dialog", overlay);
 			el("ktupd-title", dialog, "kirito扩展 · 更新中心");
@@ -331,6 +420,137 @@ div.ktupd-status.err{color:#ff8f8f}
 			$.progress = el("ktupd-cur", dialog, "");
 			$.cur = el("ktupd-cur", dialog, "");
 			$.status = el("ktupd-status", dialog, "请先检测连通性，通过后才可开始更新");
+		}
+		return { open };
+	})();
+	// 投影技能池管理：扩展设置里点按钮弹出的遮罩窗口（与更新中心共用KT_CSS样式）
+	// 池子存于配置 extension_kirito扩展_touyingPool（数组），投影发动时读取；
+	// 未配置过时用默认池 DEFAULT_TOUYING_POOL；上限20个；改动即时保存
+	const ktPoolManager = (() => {
+		const KEY = "extension_kirito扩展_touyingPool";
+		const MAX = 20;
+		// 本扩展自有技能（多不在任何武将技能列表上，作为搜索候选的固定补充）
+		const OWN_SKILLS = [...DEFAULT_TOUYING_POOL, "kthuitian"];
+		let overlay = null;
+		const $ = {};
+		// 候选全集：本体+已开启扩展所有武将的技能 + 本扩展自有技能（跳过投影自身与无名条目）
+		const buildCandidates = () => {
+			const map = new Map();
+			for (const cname in lib.character) {
+				const info = lib.character[cname];
+				if (!info || !Array.isArray(info.skills)) continue;
+				for (const skill of info.skills) {
+					if (typeof skill != "string" || skill == "grytouying" || map.has(skill) || skill.includes("#")) continue;
+					if (!lib.skill[skill] || !lib.translate[skill] || !lib.translate[skill + "_info"]) continue;
+					map.set(skill, get.translation(cname) || cname);
+				}
+			}
+			for (const skill of OWN_SKILLS) {
+				if (!map.has(skill) && lib.skill[skill] && lib.translate[skill] && lib.translate[skill + "_info"]) {
+					map.set(skill, "kirito扩展");
+				}
+			}
+			return map;
+		};
+		const getPool = () => {
+			const saved = lib.config[KEY];
+			return Array.isArray(saved) ? saved.filter((skill) => typeof skill == "string") : [];
+		};
+		const savePool = (pool) => game.saveConfig(KEY, pool);
+		const el = (cls, parent, text) => {
+			const node = document.createElement("div");
+			node.className = cls;
+			if (text != null) node.textContent = text;
+			parent.appendChild(node);
+			return node;
+		};
+		function render() {
+			const pool = getPool();
+			const candidates = buildCandidates();
+			// 已选池：标签列表，点标签=移除
+			$.chips.innerHTML = "";
+			$.count.textContent = `${pool.length}/${MAX}`;
+			if (!pool.length) {
+				el("ktupd-empty", $.chips, "池子为空：游戏内投影将没有可选技能，点下方「恢复默认」可一键还原");
+			}
+			for (const skill of pool) {
+				const chip = el("ktupd-chip", $.chips, `【${lib.translate[skill] || skill}】✕`);
+				chip.title = "点击移除";
+				chip.onclick = () => {
+					savePool(getPool().filter((s) => s != skill));
+					render();
+				};
+			}
+			// 搜索结果：按技能名/ID/所属武将过滤
+			$.list.innerHTML = "";
+			const query = ($.search.value || "").trim().toLowerCase();
+			let shown = 0;
+			for (const [skill, owner] of candidates) {
+				if (query && !skill.toLowerCase().includes(query) && !(lib.translate[skill] || "").toLowerCase().includes(query) && !owner.toLowerCase().includes(query)) {
+					continue;
+				}
+				if (shown >= 40) {
+					el("ktupd-empty", $.list, "结果过多，仅显示前40条，请换个更精确的关键词");
+					break;
+				}
+				shown++;
+				const item = el("ktupd-item", $.list);
+				const left = el("div", item);
+				left.innerHTML = `<b style="color:#eaf1ff">【${lib.translate[skill]}】</b><span class="owner">${owner}</span>`;
+				left.style.cssText = "flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
+				const inPool = pool.includes(skill);
+				const full = pool.length >= MAX;
+				const btn = el(`ktupd-add${inPool || full ? " off" : ""}`, item, inPool ? "已添加" : full ? "已满" : "+ 添加");
+				if (!inPool && !full) {
+					btn.onclick = () => {
+						const next = getPool();
+						if (next.length >= MAX || next.includes(skill)) return;
+						next.push(skill);
+						savePool(next);
+						render();
+					};
+				}
+			}
+			if (!shown) {
+				el("ktupd-empty", $.list, "没有匹配的技能");
+			}
+		}
+		function open() {
+			if (overlay) return;
+			ktInjectCss();
+			overlay = el("ktupd-overlay", document.body);
+			const dialog = el("ktupd-dialog", overlay);
+			el("ktupd-title", dialog, "投影技能池管理");
+			const close = () => {
+				overlay.remove();
+				overlay = null;
+			};
+			const closeBtn = el("ktupd-close", dialog, "✕");
+			closeBtn.onclick = close;
+			overlay.onclick = (e) => {
+				if (e.target === overlay) close();
+			};
+			const hintRow = el("ktupd-row", dialog);
+			hintRow.innerHTML = "<span>已选技能</span>";
+			$.count = document.createElement("b");
+			$.count.textContent = "0/20";
+			hintRow.appendChild($.count);
+			el("ktupd-hint", dialog, "点下方标签移除技能；在搜索框中按技能名/ID/武将名筛选后点「+ 添加」加入（上限20个）。改动即时保存，对下一局生效");
+			$.chips = el("ktupd-chips", dialog);
+			$.search = document.createElement("input");
+			$.search.className = "ktupd-search";
+			$.search.placeholder = "搜索：技能名 / 技能ID / 武将名（本体与已开启扩展的全部武将）";
+			$.search.oninput = () => render();
+			dialog.appendChild($.search);
+			$.list = el("ktupd-list", dialog);
+			const footer = el("div", dialog);
+			footer.style.cssText = "margin-top:12px";
+			const resetBtn = el("ktupd-btn", footer, "恢复默认（本扩展全部技能）");
+			resetBtn.onclick = () => {
+				savePool(DEFAULT_TOUYING_POOL.slice());
+				render();
+			};
+			render();
 		}
 		return { open };
 	})();
@@ -426,6 +646,15 @@ div.ktupd-status.err{color:#ff8f8f}
 				clear: true,
 				onclick() {
 					ktUpdateCenter.open();
+				},
+			},
+			// 投影技能池：管理无上神〖投影〗局内可选的技能（默认本扩展全部技能，可增删，上限20）
+			touyingPool: {
+				name: "投影技能池管理（增加/排除）",
+				intro: "管理〖投影〗游戏开始时可挑选的技能池：默认为本扩展全部技能；可搜索添加本体及已开启扩展武将的所有技能（上限20个），点标签排除不需要的技能。改动即时保存，下一局生效",
+				clear: true,
+				onclick() {
+					ktPoolManager.open();
 				},
 			},
 		},
@@ -550,77 +779,57 @@ div.ktupd-status.err{color:#ff8f8f}
 								charlotte: true,
 								silent: true,
 								init() {
-									if (lib._grySkillGuardInstalled) {
-										return;
-									}
-									lib._grySkillGuardInstalled = true;
-									// 注意：此处必须直查 player.skills 底层数组而非 hasSkill——
-								// hasSkill 的求值链(filterSkills→get.is.blocked)会回调本守护造成无限递归，
-								// 当敌方挂上技能封锁器(如于吉〖缠怨〗体力≤1时)即触发死循环卡死游戏
-								const hasJuejing = (player) => player && Array.isArray(player.skills) && player.skills.includes("gryjuejing");
-									// 拦截禁用：铁骑/止息类效果经 disableSkill 写入 disabledSkills，
-									// 对持有绝境者，其当前拥有的所有技能一律拒绝写入禁用名单。
-									// 例外：觉醒/限定技消耗走 awakenSkill → disableSkill("<技能>_awake")，
-									// 属于正常结算流程必须放行，否则寂灭/神霈用过一次后不会失效
-									const originDisableSkill = Player.prototype.disableSkill;
-									Player.prototype.disableSkill = function (reason, skills) {
-										if (hasJuejing(this)) {
-											if (typeof reason == "string" && reason.endsWith("_awake")) {
-												return originDisableSkill.call(this, reason, skills);
-											}
-											if (typeof skills == "string") {
-												if (this.skills.includes(skills)) {
-													return this;
-												}
-											} else if (Array.isArray(skills)) {
-												skills = skills.filter((skill) => !this.skills.includes(skill));
-											}
-										}
-										return originDisableSkill.call(this, reason, skills);
-									};
-								// 拦截封锁：skillBlocker 体系经 get.is.blocked 判定技能被封锁，
-								// 对持有绝境者，其当前拥有的所有技能一律视为未被封锁
-								const originBlocked = get.is.blocked;
-								get.is.blocked = function (skill, player) {
-									if (hasJuejing(player) && player.skills.includes(skill)) {
-										return false;
-									}
-									return originBlocked.call(this, skill, player);
-								};
-								// 拦截翻面：绝境①附加效果——不会被翻面；仅拦截"翻成面朝下"，已翻面时允许翻回
-								const originTurnOver = Player.prototype.turnOver;
-								Player.prototype.turnOver = function (bool) {
-									const faceDown = bool === true || (bool === void 0 && !this.isTurnedOver());
-									if (faceDown && hasJuejing(this)) {
-										game.log(this, "的〖绝境〗防止了翻面");
-										const next = game.createEvent("turnOver");
-										next.player = this;
-										next.setContent("emptyEvent");
-										return next;
-									}
-									return originTurnOver.call(this, bool);
-								};
-								// 拦截体力上限扣除：绝境①附加效果——体力上限只能增不能减（gainMaxHp不受影响）
-								const originLoseMaxHp = Player.prototype.loseMaxHp;
-								Player.prototype.loseMaxHp = function () {
-									if (hasJuejing(this)) {
-										game.log(this, "的〖绝境〗防止了体力上限的扣除");
-										const next = game.createEvent("loseMaxHp");
-										next.player = this;
-										next.num = 0;
-										next.setContent("emptyEvent");
-										return next;
-									}
-									return originLoseMaxHp.apply(this, arguments);
-								};
+									// 守护拦截器为绝境⑥/神体③共用（见模块顶部的 installGrySkillGuard），只装一次
+									installGrySkillGuard();
 								},
 							},
 						},
 					},
+					/* ===== 神体（自定义技能，绝境①②⑥的独立复制版，绝境本身不受影响）=====
+					 * ①手牌上限+2、不会翻面、体力上限不会减少；②进入/脱离濒死状态摸两张牌；③所有技能不被禁用/封锁
+					 * 语音与绝境一致（xinjuejing）；守护拦截器与绝境共用（见 installGrySkillGuard） */
+					gryshenti: {
+						audio: "xinjuejing",
+						// 移除防护（官方机制）：与绝境同理，removeSkill 对 fixed 技能直接拒绝
+						fixed: true,
+						mod: {
+							maxHandcard(player, num) {
+								return 2 + num;
+							},
+						},
+						trigger: { player: ["dying", "dyingAfter"] },
+						forced: true,
+						async content(event, trigger, player) {
+							await player.draw(2);
+						},
+						ai: {
+							effect: {
+								target(card, player, target) {
+									if (target.getHp() > 1) {
+										return;
+									}
+									if (get.tag(card, "damage") || get.tag(card, "loseHp")) {
+										return [1, 1];
+									}
+								},
+							},
+						},
+						group: ["gryshenti_guard"],
+						subSkill: {
+							guard: {
+								charlotte: true,
+								silent: true,
+								init() {
+									// 守护拦截器为绝境⑥/神体③共用（见 installGrySkillGuard），只装一次
 					/* ===== 龙魂（强化版，本体技能见 character/extra.js relonghun）=====
 					 * 原效果：花色转化+双张强化，全部保留
 					 * 新增："魂"计数持续累计不清空（单张牌发动+1，两张牌发动+2），计数为1或2的倍数时摸一张牌
 					 * 计数≥12：杀/决斗指定目标后二选一（伤害+1/拿一张牌）
+									installGrySkillGuard();
+								},
+							},
+						},
+					},
 					 * 计数≥24：龙魂杀/无懈不可被响应；单张转化闪/无懈后获得当前回合角色一张牌；
 					 * 龙魂转化使用的牌不计入使用次数；龙魂转化的【桃】自带酒效果（不占酒次数） */
 					grylonghun: {
@@ -1058,10 +1267,12 @@ div.ktupd-status.err{color:#ff8f8f}
 								if (lib._wssJimieBar) {
 									lib._wssJimieBar.create(player);
 								}
-								// 运行时过滤候选池：技能本体已注册且有描述文案才进列表，防止源包未加载时选到空技能
-								// 后六项为自带的 kt 前缀复刻技能（见技能区注释），不依赖本体手杀武将包
-								const pool = ["gryjuejing", "grylonghun", "ktyuli", "kttingwei", "ktjimie", "ktxinghun", "ktshenpei"].filter(
-									(skill) => lib.skill[skill] && lib.translate[skill + "_info"]
+								// 候选池：可在扩展设置「投影技能池管理」中增删（存于配置 touyingPool），
+								// 未配置时用默认池（DEFAULT_TOUYING_POOL，本扩展全部可选技能）。
+								// 运行时再过滤：技能本体已注册且有描述文案才进列表，防止源包未加载或配置残留失效技能
+								const saved = lib.config["extension_kirito扩展_touyingPool"];
+								const pool = (Array.isArray(saved) && saved.length ? saved : DEFAULT_TOUYING_POOL).filter(
+									(skill) => skill != "grytouying" && lib.skill[skill] && lib.translate[skill + "_info"]
 								);
 								if (pool.length) {
 									const list = pool.map((skill) => [
@@ -1073,6 +1284,8 @@ div.ktupd-status.err{color:#ff8f8f}
 											createDialog: ["投影：挑选任意个技能加入本局游戏", [list, "textbutton"]],
 											selectButton: [1, list.length],
 											forced: true,
+											// 引擎原生全选/反选按钮（ui.create.buttonChooseAll，依赖选项"启用全选/反选按钮"，默认开启）
+											allowChooseAll: true,
 											ai(button) {
 												const info = get.info(button.link);
 												if (!info || info.ai?.neg || info.ai?.combo) {
@@ -2011,10 +2224,12 @@ div.ktupd-status.err{color:#ff8f8f}
 				translate: {
 					gryjuejing: "绝境",
 					gryjuejing_info: "锁定技。①你的手牌上限+2，你不会被翻面，且你的体力上限不会减少。②当你进入或脱离濒死状态时，你摸两张牌。③摸牌阶段，你额外摸X张牌。④你至其他角色的距离-X。⑤你每回合使用牌的次数上限+X（X为你已损失的体力值）。⑥你的所有技能均不会被禁用或封锁，特殊技能不会被移除。",
+					gryshenti: "神体",
+					gryshenti_info: "锁定技。①你的手牌上限+2，你不会被翻面，且你的体力上限不会减少。②当你进入或脱离濒死状态时，你摸两张牌。③你的所有技能均不会被禁用或封锁，特殊技能不会被移除。",
 					grylonghun: "龙魂",
 					grylonghun_info: "你可以将同花色的一至两张牌按下列规则使用或打出：红桃当【桃】，方块当火【杀】，梅花当【闪】，黑桃当【无懈可击】。若你以此法转化了两张：红色牌，则此牌回复值或伤害值+1；黑色牌，则你弃置当前回合角色一张牌。每当你以此法使用或打出牌，“魂”计数+X（单张牌+1，两张牌+2，计数持续累计，不会清空）。若计数为1或2的倍数，你摸一张牌。“魂”计数达到12后：你使用【杀】或【决斗】指定目标后，你可以选择一项：1.此伤害+1；2.获得该目标区域内一张牌（其区域内没有牌则不能选择此项）。“魂”计数达到24后：1.你转化发动的【杀】不可被响应，转化的【无懈可击】不可被【无懈可击】响应；2.你以单张牌转化【闪】或【无懈可击】后，获得当前回合角色区域内一张牌；3.你转化发动使用的牌不计入使用次数；4.你转化发动的【桃】自带酒效果（与饮酒效果叠加，且不占用【酒】的使用次数）。",
 					grytouying: "投影",
-					grytouying_info: "锁定技。游戏开始时，你从下列技能中挑选任意个技能加入本局游戏（可多选），然后失去此技能：〖绝境〗〖龙魂〗（龙神赵云）；〖驭雳〗〖霆威〗〖寂灭〗（手杀神马超）；〖星魂〗〖神霈〗（手杀神姜维）。",
+					grytouying_info: "锁定技。游戏开始时，你从技能池中挑选任意个技能加入本局游戏（可多选），挑选完成后失去此技能。技能池默认为本扩展全部技能，可在扩展设置的「投影技能池管理」中增加或排除。",
 					ktyuli: "驭雳",
 					ktyuli_info: "锁定技。①你造成的伤害改为雷电伤害，已是雷电伤害则伤害+1；②你受到雷电伤害时，防止之并摸等量牌。",
 					kttingwei: "霆威",
