@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.8";
+const VERSION = "3.9";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -564,33 +564,45 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		precontent: function (config) {
 			// 无上神专属"寂灭"进度条样式：复刻自无名美化手杀神马超模块，类名一致（见 grytouying_bar）
 			lib.init.css(lib.assetURL + "extension/kirito扩展", "wushangshen_bar");
-			// 立绘镜像：十周年UI头像/技能特效/MVP结算页等消费方会直接请求本体 image/character/<武将>.jpg，
-			// 不读扩展目录（404导致结算页大头像空白）。启动时把扩展根目录的立绘镜像过去，已存在则跳过
-			if (typeof game.writeFile == "function") {
-				["wushangshen.jpg", "god.jpg"].forEach((file) => {
-					const mirror = async () => {
-						const target = `image/character/${file}`;
-						try {
-							if ((await fetch(`${lib.assetURL}${target}`)).ok) {
-								return;
-							}
-							const resp = await fetch(`${lib.assetURL}extension/kirito扩展/${file}`);
-							if (!resp.ok) {
-								return;
-							}
-							const data = new Uint8Array(await resp.arrayBuffer());
-							await game.promises.ensureDirectory(target, null, true);
-							const slash = target.lastIndexOf("/");
-							await new Promise((resolve, reject) =>
-								game.writeFile(data, target.slice(0, slash), target.slice(slash + 1), (err) => (err ? reject(err) : resolve()))
-							);
-							console.log(`kirito扩展：已镜像立绘到 ${target}`);
-						} catch (e) {
-							console.warn(`kirito扩展：镜像立绘 ${target} 失败`, e);
+			// 资产镜像：走本体FS抽象（readFile/writeFile），PC/安卓通用。
+			// 不用fetch的原因：①部分安卓webview下对资源URL的fetch不可靠；②旧版"存在即跳过"，
+			// 历史中断留下的0字节文件会被永远跳过——结算头像空白即此因，现校验非空可自愈
+			if (typeof game.writeFile == "function" && game.promises && typeof game.promises.readFile == "function") {
+				const copyFile = async (from, to) => {
+					try {
+						const existing = await game.promises.readFile(to);
+						if (existing && existing.byteLength > 0) {
+							return;
 						}
-					};
-					mirror();
-				});
+					} catch {}
+					try {
+						const data = await game.promises.readFile(from);
+						if (!data || !data.byteLength) {
+							return;
+						}
+						const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+						await game.promises.ensureDirectory(to, null, true);
+						const slash = to.lastIndexOf("/");
+						await new Promise((resolve, reject) =>
+							game.writeFile(bytes, to.slice(0, slash), to.slice(slash + 1), (err) => (err ? reject(err) : resolve()))
+						);
+						console.log(`kirito扩展：已镜像 ${to}`);
+					} catch (e) {
+						console.warn(`kirito扩展：镜像 ${to} 失败`, e);
+					}
+				};
+				// (1) 立绘：十周年UI头像/限定技大字特效/MVP结算页等消费方直接请求本体 image/character/<武将>.jpg，
+				// 不读扩展目录（404导致结算大头像空白）
+				copyFile("extension/kirito扩展/wushangshen.jpg", "image/character/wushangshen.jpg");
+				copyFile("extension/kirito扩展/god.jpg", "image/character/god.jpg");
+				// (2) 限定技大字背景：太虚幻境版 decadeUI.effect.skill 读 extension/十周年UI/assets/image/bg_xianding_<势力>.png，
+				// 本地十周年UI裁剪包无 assets/image/ 目录——shen 404后兜底qun也404，onload永不触发，整段特效（大字+立绘+底盘）不渲染。
+				// 十周年UI自带 image/ui/misc/ 下仅有 wei/shu/wu/qun 四张（shen无官方素材，用qun占位），全部镜像补齐
+				for (const camp of ["wei", "shu", "wu", "qun"]) {
+					copyFile(`extension/十周年UI/image/ui/misc/bg_xianding_${camp}.png`, `extension/十周年UI/assets/image/bg_xianding_${camp}.png`);
+				}
+				copyFile("extension/十周年UI/image/ui/misc/bg_xianding_qun.png", "extension/十周年UI/assets/image/bg_xianding_shen.png");
+				copyFile("extension/十周年UI/image/ui/misc/bg_xianding_qun.png", "extension/十周年UI/image/ui/misc/bg_xianding_shen.png");
 			}
 			// 十周年UI动皮配置：素材与配置完全自持（assets/dynamic/神马超/风霆啸野 为十周年UI同名动皮的完整副本）。
 			// 十周年UI播放器以 extension/十周年UI/assets/dynamic/ 为基址拼接皮肤name，
