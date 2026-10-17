@@ -22,11 +22,16 @@ jobs:
         run: |
           python3 - <<'EOF'
           import hashlib, json, os, zipfile
+          # 仓库杂物不进更新包（.bak备份/.md文档/隐藏文件等）
+          EXCLUDE_EXT = (".bak", ".pyc", ".tmp")
+          EXCLUDE_NAME = ("README.md", ".gitignore", ".DS_Store")
           count = 0
           manifest = {}
           with zipfile.ZipFile("kirito-extension.zip", "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
               for root, dirs, files in os.walk("kirito扩展"):
                   for f in sorted(files):
+                      if f in EXCLUDE_NAME or f.endswith(EXCLUDE_EXT) or f.startswith("."):
+                          continue
                       p = os.path.join(root, f)
                       z.write(p, p)
                       with open(p, "rb") as fh:

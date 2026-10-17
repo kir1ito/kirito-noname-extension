@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.18";
+const VERSION = "3.19";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -107,7 +107,7 @@ div.ktupd-src.bad{color:#ff8f8f}
 div.ktupd-bar{height:14px;margin:8px 0 4px;border-radius:7px;background:#0b0e14;border:1px solid #3d4a63;overflow:hidden}
 div.ktupd-fill{height:100%;width:0;border-radius:7px;background:linear-gradient(90deg,#f59e0b,#fbbf24);transition:width .15s}
 div.ktupd-cur{font-size:12px;color:#9aa7bd;word-break:break-all;min-height:16px}
-div.ktupd-status{font-size:13px;margin-top:10px;color:#c3cde0;min-height:18px}
+div.ktupd-status{font-size:13px;margin-top:10px;color:#c3cde0;min-height:18px;white-space:pre-wrap}
 div.ktupd-status.ok{color:#7ee2a8}
 div.ktupd-status.err{color:#ff8f8f}
 div.ktupd-hint{font-size:12px;color:#9aa7bd;margin:6px 0}
@@ -179,6 +179,21 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		const setDisabled = (btn, val) => {
 			if (val) btn.setAttribute("disabled", "");
 			else btn.removeAttribute("disabled");
+		};
+		// 错误全量展开：安卓端cordova的FileError只有code没有message，写成功时回调的还是ProgressEvent，
+		// 直接取e.message会显示"undefined"——把类型/name/message/code/stack全拼出来（状态栏pre-wrap显示堆栈）
+		const FILE_ERR_NAMES = { 1: "文件/目录不存在", 2: "安全限制", 3: "已中止", 4: "不可读", 5: "编码错误", 6: "不允许修改", 7: "状态无效", 8: "语法错误", 9: "非法修改", 10: "超出配额", 11: "类型不匹配", 12: "路径冲突" };
+		const fmtErr = (e) => {
+			if (e && e.name == "AbortError") return "已手动中止";
+			if (e == null) return String(e);
+			const parts = [];
+			if (typeof e == "object") parts.push((e.constructor && e.constructor.name) || "object");
+			if (e.message != null && e.message !== "") parts.push(`message=${e.message}`);
+			if (e.name != null) parts.push(`name=${e.name}`);
+			if (e.code != null && e.code !== "") parts.push(`code=${e.code}${FILE_ERR_NAMES[e.code] ? `（${FILE_ERR_NAMES[e.code]}）` : ""}`);
+			if (e.stack) parts.push(`stack=${String(e.stack).slice(0, 700)}`);
+			if (!parts.length) parts.push(String(e));
+			return parts.join("，");
 		};
 		// 带超时的fetch
 		const fetchTimeout = (url, ms) => {
@@ -264,7 +279,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				const seconds = (Date.now() - t0) / 1000;
 				return { ok: true, speed: received / Math.max(seconds, 0.05) };
 			} catch (e) {
-				return { ok: false, speed: 0, error: e.name == "AbortError" ? "超时" : e.message };
+				return { ok: false, speed: 0, error: e.name == "AbortError" ? "超时" : fmtErr(e) };
 			} finally {
 				clearTimeout(timer);
 			}
@@ -323,10 +338,17 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		}
 		const writeFileTo = async (file, data) => {
 			const local = `extension/${NAME}/${file}`;
-			await game.promises.ensureDirectory(local, null, true);
 			const slash = local.lastIndexOf("/");
+			const dir = slash > 0 ? local.slice(0, slash) : local;
+			// 目录创建不能用ensureDirectory：cordova版不等目录建完就回调（安卓首次写新目录必竞态失败），
+			// node版对根下嵌套新目录也会抛错——两端实现真正的createDir都会等目录建好才回调
+			await new Promise((resolve, reject) => game.createDir(dir, resolve, reject));
 			await new Promise((resolve, reject) =>
-				game.writeFile(data, local.slice(0, slash), local.slice(slash + 1), (err) => (err ? reject(err) : resolve()))
+				game.writeFile(data, dir, local.slice(slash + 1), (err) => {
+					// 安卓端cordova写成功时回调的是ProgressEvent（truthy），只有真失败才是FileError；node端成功回调null
+					if (!err || (typeof ProgressEvent != "undefined" && err instanceof ProgressEvent)) resolve();
+					else reject(err);
+				})
 			);
 		};
 		async function startUpdate() {
@@ -334,6 +356,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			setDisabled($.start, true);
 			$.restart.style.display = "none";
 			abortCtrl = new AbortController();
+			let curFile = ""; // 出错时定位：空=下载阶段，非空=解压覆盖该文件时
 			// ① 下载压缩包：按连通性检测出的源顺序降级，流式字节进度
 			const setZipProgress = (received, size) => {
 				$.fill.style.width = `${Math.min(size ? (received / size) * 100 : 0, 99).toFixed(1)}%`;
@@ -437,6 +460,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				let done = 0;
 				for (const entry of entries) {
 					const rel = entry.name.slice(folder.length);
+					curFile = rel;
 					$.fill.style.width = `${((done / entries.length) * 100).toFixed(1)}%`;
 					$.progress.textContent = `解压覆盖中 · ${done + 1}/${entries.length}`;
 					$.cur.textContent = rel;
@@ -475,8 +499,8 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				}
 				$.restart.style.display = "";
 			} catch (e) {
-				const reason = e.name == "AbortError" ? "已手动中止" : e.message;
-				setStatus(`更新失败：${reason}。版本号未变更，可直接重新开始更新`, "err");
+				const where = curFile ? `（出错于 ${curFile}）` : "（下载阶段）";
+				setStatus(`更新失败${where}：${fmtErr(e)}\n版本号未变更，可直接重新开始更新`, "err");
 				setDisabled($.check, false);
 				setDisabled($.start, false);
 			} finally {
@@ -487,9 +511,10 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		async function startIncremental() {
 			setDisabled($.check, true);
 			setDisabled($.start, true);
-			setDisabled($.inc, true);
-			$.restart.style.display = "none";
-			abortCtrl = new AbortController();
+		setDisabled($.inc, true);
+		$.restart.style.display = "none";
+		abortCtrl = new AbortController();
+		let curFile = "";
 			try {
 				setStatus("正在获取最新 Release 清单…");
 				const releaseVersion = await fetchReleaseVersion();
@@ -540,6 +565,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					$.fill.style.width = `${((done / order.length) * 100).toFixed(1)}%`;
 					$.progress.textContent = `增量下载 · ${done + 1}/${order.length}`;
 					$.cur.textContent = file;
+					curFile = file;
 					const bytes = await downloadRaw(file);
 					done++;
 					await writeFileTo(file, /\.(js|json)$/.test(file) ? new TextDecoder().decode(bytes) : bytes);
@@ -555,8 +581,8 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				setStatus(`增量更新完成（v${finalVersion || "?"}），重启游戏后生效`, "ok");
 				$.restart.style.display = "";
 			} catch (e) {
-				const reason = e.name == "AbortError" ? "已手动中止" : e.message;
-				setStatus(`增量更新失败：${reason}。版本号未变更，可重试或改用全量更新`, "err");
+				const where = curFile ? `（出错于 ${curFile}）` : "（清单/基准阶段）";
+				setStatus(`增量更新失败${where}：${fmtErr(e)}\n版本号未变更，可重试或改用全量更新`, "err");
 				setDisabled($.check, false);
 				setDisabled($.start, false);
 				setDisabled($.inc, false);
@@ -597,7 +623,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			$.check = el("ktupd-btn", dialog, "检测连通性");
 			$.check.onclick = function () {
 				if (this.hasAttribute("disabled")) return;
-				checkConnectivity().catch((e) => setStatus(`检测出错：${e.message}`, "err"));
+				checkConnectivity().catch((e) => setStatus(`检测出错：${fmtErr(e)}`, "err"));
 			};
 			$.srcs = SOURCES.map((src) => el("ktupd-src", dialog, `● ${src.label} — 未检测`));
 			el("ktupd-section", dialog, "② 下载更新");
