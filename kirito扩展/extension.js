@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.13";
+const VERSION = "3.14";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -140,11 +140,15 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		// 更新器只下载这一个压缩包再本地解压覆盖，新增文件无需维护清单
 		const ZIP_NAME = "kirito-extension.zip";
 		const RAW_BASE = `https://raw.githubusercontent.com/${REPO}/main/`;
-		// 匿名多源：公共镜像优先（国内直连可达），GitHub直连兜底（系统代理环境下可达）
-		// raw源用于小文件（info.json的连通性检测/版本号），release源用于更新压缩包
+		// 匿名多源：公共镜像（国内可达性随时波动，连通性测速后按吞吐自动排序），GitHub直连兜底
+		// 所有源均支持 前缀+完整GitHubURL 的代理格式；raw源用于小文件（清单/版本号/增量文件），release源用于整包与测速
 		const SOURCES = [
+			{ label: "ghfast.top", prefix: "https://ghfast.top/" },
 			{ label: "gh-proxy.com 镜像", prefix: "https://gh-proxy.com/" },
+			{ label: "github.moeyy.xyz", prefix: "https://github.moeyy.xyz/" },
 			{ label: "ghproxy.net 镜像", prefix: "https://ghproxy.net/" },
+			{ label: "gh.llkk.cc", prefix: "https://gh.llkk.cc/" },
+			{ label: "ghproxy.cc", prefix: "https://ghproxy.cc/" },
 			{ label: "GitHub 直连", prefix: "" },
 		];
 		let overlay = null;
@@ -181,19 +185,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			const timer = setTimeout(() => ctrl.abort(), ms);
 			return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(timer));
 		};
-		// 单源连通性检测：GET info.json（顺带取远程版本号），8秒超时
-		const checkSource = async (src) => {
-			const t0 = Date.now();
-			try {
-				const resp = await fetchTimeout(rawUrlOf(src, "info.json"), 8000);
-				if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-				const json = await resp.json();
-				return { ok: true, ms: Date.now() - t0, version: json.version };
-			} catch (e) {
-				return { ok: false, ms: Date.now() - t0, error: e.name == "AbortError" ? "超时" : e.message };
-			}
-		};
-		// 拉Release的version.txt作为远程版本号（按连通性排序的源依次尝试）
+		// 拉Release的version.txt作为远程版本号（按测速排序的源依次尝试）
 		const fetchReleaseVersion = async () => {
 			for (const { src } of sourceOrder) {
 				try {
@@ -205,22 +197,92 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			}
 			return null;
 		};
+		// 增量更新支持：工作流每次打包生成 manifest.json（路径→md5），Release资产
+		const MANIFEST_NAME = "manifest.json";
+		const LOCAL_MANIFEST = ".update_manifest.json";
+		const fetchReleaseManifest = async () => {
+			for (const { src } of sourceOrder) {
+				try {
+					const resp = await fetch(relUrlOf(src, MANIFEST_NAME), { signal: abortCtrl ? abortCtrl.signal : undefined });
+					if (!resp.ok) continue;
+					const json = await resp.json();
+					if (json && typeof json == "object") return json;
+				} catch {}
+			}
+			return null;
+		};
+		const readStoredManifest = async () => {
+			try {
+				const text = await game.promises.readFileAsText(`extension/${NAME}/${LOCAL_MANIFEST}`);
+				const json = JSON.parse(text);
+				return json && typeof json == "object" ? json : null;
+			} catch {
+				return null;
+			}
+		};
+		// 增量：按源顺序下载单个原始文件（小文件，无需流式进度）
+		const downloadRaw = async (file) => {
+			let lastError = null;
+			for (const { src } of sourceOrder) {
+				try {
+					const resp = await fetch(rawUrlOf(src, file), { signal: abortCtrl.signal });
+					if (!resp.ok) throw new Error(`RAW ${resp.status}`);
+					return new Uint8Array(await resp.arrayBuffer());
+				} catch (e) {
+					if (e.name == "AbortError") throw e;
+					lastError = e;
+				}
+			}
+			throw lastError || new Error("下载失败");
+		};
+		// 单源测速：试拉Release压缩包前1.5MB计算真实吞吐（延迟低≠带宽高，按吞吐排序才是真快）
+		const PROBE_BYTES = 1572864;
+		const measureSpeed = async (src) => {
+			const t0 = Date.now();
+			const ctrl = new AbortController();
+			const timer = setTimeout(() => ctrl.abort(), 20000);
+			try {
+				const resp = await fetch(zipUrlOf(src), { signal: ctrl.signal });
+				if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+				if (!resp.body || typeof resp.body.getReader != "function") {
+					return { ok: true, speed: Number(resp.headers.get("content-length")) || 999999 };
+				}
+				const reader = resp.body.getReader();
+				let received = 0;
+				for (;;) {
+					const { done, value } = await reader.read();
+					if (done) break;
+					received += value.length;
+					if (received >= PROBE_BYTES) break;
+				}
+				try {
+					await reader.cancel();
+				} catch {}
+				const seconds = (Date.now() - t0) / 1000;
+				return { ok: true, speed: received / Math.max(seconds, 0.05) };
+			} catch (e) {
+				return { ok: false, speed: 0, error: e.name == "AbortError" ? "超时" : e.message };
+			} finally {
+				clearTimeout(timer);
+			}
+		};
 		async function checkConnectivity() {
 			remoteVersion = null;
 			setDisabled($.start, true);
+			setDisabled($.inc, true);
 			setDisabled($.check, true);
-			setStatus("正在检测各下载源连通性…");
-			const results = await Promise.all(SOURCES.map(checkSource));
-			// 可用源优先、按延迟升序排列，更新时按此顺序降级
-			sourceOrder = SOURCES.map((src, i) => ({ src, res: results[i], idx: i })).sort((a, b) => (b.res.ok - a.res.ok) || (a.res.ms - b.res.ms));
+			setStatus("正在测速各下载源（试拉整包前1.5MB，约需数秒）…");
+			const results = await Promise.all(SOURCES.map(measureSpeed));
+			// 可用源优先、按吞吐降序排列，更新时按此顺序降级
+			sourceOrder = SOURCES.map((src, i) => ({ src, res: results[i], idx: i })).sort((a, b) => (b.res.ok - a.res.ok) || (b.res.speed - a.res.speed));
 			sourceOrder.forEach(({ src, res, idx }) => {
 				const line = $.srcs[idx];
 				if (res.ok) {
 					line.className = "ktupd-src ok";
-					line.textContent = `✓ ${src.label} — ${res.ms}ms`;
+					line.textContent = `✓ ${src.label} — ${fmtSize(res.speed)}/s`;
 				} else {
 					line.className = "ktupd-src bad";
-					line.textContent = `✗ ${src.label} — 不可达（${res.error}，${res.ms}ms）`;
+					line.textContent = `✗ ${src.label} — 不可达（${res.error}）`;
 				}
 			});
 			const anyOk = results.some((r) => r.ok);
@@ -241,13 +303,18 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			}
 			if (anyOk) {
 				setDisabled($.start, false);
-				if (remoteVersion && remoteVersion == localVersion()) {
-					setStatus(`连通性检测通过。当前已是最新版本（v${localVersion()}），无需更新（仍可强制重装）`);
-				} else {
-					setStatus(`连通性检测通过，发现新版本：${localVersion()} → ${remoteVersion || "未知"}，可开始更新`);
+				// 增量按钮：需要本地已有基准清单（首次/手动安装后需先全量一次）
+				const hasBaseline = !!(await readStoredManifest());
+				setDisabled($.inc, !hasBaseline);
+				const newest = remoteVersion && remoteVersion == localVersion();
+				let msg = `测速完成，最快源：${sourceOrder.find((s) => s.res.ok).src.label}`;
+				msg += newest ? `。当前已是最新版本（v${localVersion()}），可强制重装` : `。发现新版本：${localVersion()} → ${remoteVersion || "未知"}`;
+				if (!hasBaseline) {
+					msg += "。本地无增量基准，请先执行一次全量更新";
 				}
+				setStatus(msg);
 			} else {
-				setStatus("所有下载源均不可达，请检查网络（或系统代理）后重新检测", "err");
+				setStatus("所有下载源均不可达，请检查网络（或系统代理）后重新测速", "err");
 			}
 			setDisabled($.check, false);
 		}
@@ -350,6 +417,11 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				const finalVersion = infoJsonVersion || remoteVersion;
 				if (finalVersion) game.saveConfig(`extension_${NAME}_version`, finalVersion);
 				game.saveConfig(`extension_${NAME}_updateTime`, new Date().toLocaleString());
+				// 写入增量基准清单，下次可选择增量更新（失败不影响本次结果）
+				const remoteManifest = await fetchReleaseManifest();
+				if (remoteManifest) {
+					await writeFileTo(LOCAL_MANIFEST, JSON.stringify(remoteManifest));
+				}
 				$.fill.style.width = "100%";
 				$.progress.textContent = `${entries.length} 个文件全部完成`;
 				$.cur.textContent = "";
@@ -365,6 +437,87 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				setStatus(`更新失败：${reason}。版本号未变更，可直接重新开始更新`, "err");
 				setDisabled($.check, false);
 				setDisabled($.start, false);
+			} finally {
+				abortCtrl = null;
+			}
+		}
+		// 增量更新：对比Release清单与本地基准清单，仅下载有变化的文件（info.json最后写）
+		async function startIncremental() {
+			setDisabled($.check, true);
+			setDisabled($.start, true);
+			setDisabled($.inc, true);
+			$.restart.style.display = "none";
+			abortCtrl = new AbortController();
+			try {
+				setStatus("正在获取最新 Release 清单…");
+				const releaseVersion = await fetchReleaseVersion();
+				if (releaseVersion) {
+					remoteVersion = releaseVersion;
+					$.remote.textContent = `v${remoteVersion}`;
+				}
+				const remoteManifest = await fetchReleaseManifest();
+				if (!remoteManifest) {
+					throw new Error("清单获取失败，请改用全量更新");
+				}
+				const storedManifest = await readStoredManifest();
+				if (!storedManifest) {
+					throw new Error("本地无增量基准，请先执行一次全量更新");
+				}
+				const changeList = [];
+				for (const path of Object.keys(remoteManifest)) {
+					if (storedManifest[path] !== remoteManifest[path]) {
+						changeList.push(path);
+						continue;
+					}
+					// 哈希一致但本地文件缺失/为空（如被手动删除）时也补下
+					try {
+						const data = await game.promises.readFile(`extension/${NAME}/${path}`);
+						if (!data || !data.byteLength) {
+							changeList.push(path);
+						}
+					} catch {
+						changeList.push(path);
+					}
+				}
+				if (!changeList.length) {
+					$.fill.style.width = "100%";
+					$.progress.textContent = "增量检查完成：0 个文件需要更新";
+					$.cur.textContent = "";
+					setStatus(`本地文件与最新版（v${remoteVersion || "?"}）完全一致`, "ok");
+					setDisabled($.check, false);
+					setDisabled($.start, false);
+					return;
+				}
+				// info.json（版本号）排到最后写
+				const order = changeList.filter((f) => f != "info.json");
+				if (changeList.includes("info.json")) {
+					order.push("info.json");
+				}
+				let done = 0;
+				for (const file of order) {
+					$.fill.style.width = `${((done / order.length) * 100).toFixed(1)}%`;
+					$.progress.textContent = `增量下载 · ${done + 1}/${order.length}`;
+					$.cur.textContent = file;
+					const bytes = await downloadRaw(file);
+					done++;
+					await writeFileTo(file, /\.(js|json)$/.test(file) ? new TextDecoder().decode(bytes) : bytes);
+				}
+				// 全部覆盖成功 → 写新清单作为下次增量基准，再写版本号配置
+				await writeFileTo(LOCAL_MANIFEST, JSON.stringify(remoteManifest));
+				const finalVersion = releaseVersion || remoteVersion;
+				if (finalVersion) game.saveConfig(`extension_${NAME}_version`, finalVersion);
+				game.saveConfig(`extension_${NAME}_updateTime`, new Date().toLocaleString());
+				$.fill.style.width = "100%";
+				$.progress.textContent = `${order.length} 个文件增量完成`;	
+				$.cur.textContent = "";
+				setStatus(`增量更新完成（v${finalVersion || "?"}），重启游戏后生效`, "ok");
+				$.restart.style.display = "";
+			} catch (e) {
+				const reason = e.name == "AbortError" ? "已手动中止" : e.message;
+				setStatus(`增量更新失败：${reason}。版本号未变更，可重试或改用全量更新`, "err");
+				setDisabled($.check, false);
+				setDisabled($.start, false);
+				setDisabled($.inc, false);
 			} finally {
 				abortCtrl = null;
 			}
@@ -406,7 +559,14 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			};
 			$.srcs = SOURCES.map((src) => el("ktupd-src", dialog, `● ${src.label} — 未检测`));
 			el("ktupd-section", dialog, "② 下载更新");
-			$.start = el("ktupd-btn green", dialog, "开始更新");
+			el("ktupd-hint", dialog, "增量：仅下载有变化的文件（几秒完成，需已有增量基准）；全量：下载完整压缩包解压覆盖（约86MB）");
+			$.inc = el("ktupd-btn", dialog, "增量更新（仅变化文件）");
+			setDisabled($.inc, true);
+			$.inc.onclick = function () {
+				if (this.hasAttribute("disabled")) return;
+				startIncremental();
+			};
+			$.start = el("ktupd-btn green", dialog, "全量更新（完整压缩包）");
 			setDisabled($.start, true);
 			$.start.onclick = function () {
 				if (this.hasAttribute("disabled")) return;
@@ -418,7 +578,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			el("ktupd-bar", dialog).appendChild(($.fill = document.createElement("div"))).className = "ktupd-fill";
 			$.progress = el("ktupd-cur", dialog, "");
 			$.cur = el("ktupd-cur", dialog, "");
-			$.status = el("ktupd-status", dialog, "请先检测连通性，通过后才可开始更新");
+			$.status = el("ktupd-status", dialog, "请先测速（会自动选择最快的下载源），通过后可选择增量或全量更新");
 		}
 		return { open };
 	})();
@@ -653,7 +813,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			// 在线更新：独立更新中心窗口（连通性检测→进度条下载→全部成功才写版本号，失败版本号不变）
 			checkUpdate: {
 				name: "更新中心（独立窗口）",
-				intro: "从 GitHub Releases 下载自动打包的整包压缩包并解压覆盖本地；先检测连通性，通过后才开始更新；解压覆盖全部成功才写入新版本号，中途出错版本号保持不变。完成后需重启游戏生效",
+				intro: "多源自动测速择优。增量更新：仅下载有变化的文件，几秒完成（首次需先全量一次建立基准）；全量更新：下载整包压缩包解压覆盖。两者均在全部写入成功后才写版本号，中途出错版本号不变。完成后需重启游戏生效",
 				clear: true,
 				onclick() {
 					ktUpdateCenter.open();
