@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.12";
+const VERSION = "3.13";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1337,6 +1337,26 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 									});
 									// 挂到事件上后，引擎game.Check会在每次点选时自动刷新按钮文字（全选/反选）
 									chooseEvent.buttonChooseAll = selectAll;
+									// 覆写按钮点击：引擎默认在multitarget/complexSelect场景下点击已选按钮会
+									// uncheck清空全部选中，这里改为逐项反选（只取消点中的那个）
+									chooseEvent.custom = {
+										replace: {
+											button(button) {
+												if (!button.classList.contains("selectable")) {
+													return;
+												}
+												if (button.classList.contains("selected")) {
+													ui.selected.buttons.remove(button);
+													button.classList.remove("selected");
+												} else {
+													button.classList.add("selected");
+													ui.selected.buttons.add(button);
+												}
+												game.check();
+											},
+										},
+										add: {},
+									};
 									const result = await chooseEvent.forResult();
 									if (result?.bool && result.links?.length) {
 										game.log(player, "获得了技能", "#g" + result.links.map((skill) => `【${get.translation(skill)}】`).join(""));
