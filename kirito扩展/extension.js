@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.15";
+const VERSION = "3.16";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -801,6 +801,20 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				}, 500);
 				setTimeout(() => clearInterval(timer), 15000);
 			}
+			// 自愈守望：十周年UI初始化会执行 decadeUI.dynamicSkin = {...dynamicSkinConfig} 整表重建，
+			// 若重建发生在我们注入之后（其更新后重建时机变晚，加载顺序竞态），注入项会被抹掉导致动皮无法选择。
+			// 启动后2分钟内每3秒检查一次，发现被抹即自动补注；2分钟后视为初始化完毕，停止守望
+			const watchdogDeadline = Date.now() + 120000;
+			const watchdog = setInterval(() => {
+				if (Date.now() > watchdogDeadline) {
+					clearInterval(watchdog);
+					return;
+				}
+				if (window.decadeUI && decadeUI.dynamicSkin && !decadeUI.dynamicSkin.wushangshen) {
+					install();
+					console.log("kirito扩展：检测到动皮配置被重建抹除，已自动补注");
+				}
+			}, 3000);
 		},
 		help: {},
 		config: {
