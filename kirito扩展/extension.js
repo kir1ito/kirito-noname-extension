@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.9";
+const VERSION = "3.10";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -159,7 +159,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		// 远程版本号权威来源：Release资产version.txt（工作流打包时与zip同批生成、在zip之后上传）
 		// 避免"代码已推到main、压缩包还没打完"窗口期里显示新版本号却下到旧压缩包
 		const VER_NAME = "version.txt";
-		};
 		const el = (cls, parent, text) => {
 			const node = document.createElement("div");
 			node.className = cls;
@@ -832,19 +831,19 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 								charlotte: true,
 								silent: true,
 								init() {
-									// 守护拦截器为绝境⑥/神体③共用（见 installGrySkillGuard），只装一次
-					/* ===== 龙魂（强化版，本体技能见 character/extra.js relonghun）=====
-					 * 原效果：花色转化+双张强化，全部保留
-					 * 新增："魂"计数持续累计不清空（单张牌发动+1，两张牌发动+2），计数为1或2的倍数时摸一张牌
-					 * 计数≥12：杀/决斗指定目标后二选一（伤害+1/拿一张牌）
-									installGrySkillGuard();
-								},
+							// 守护拦截器为绝境⑥/神体③共用（见 installGrySkillGuard），只装一次
+								installGrySkillGuard();
 							},
 						},
 					},
-					 * 计数≥24：龙魂杀/无懈不可被响应；单张转化闪/无懈后获得当前回合角色一张牌；
-					 * 龙魂转化使用的牌不计入使用次数；龙魂转化的【桃】自带酒效果（不占酒次数） */
-					grylonghun: {
+				},
+				/* ===== 龙魂（强化版，本体技能见 character/extra.js relonghun）=====
+				 * 原效果：花色转化+双张强化，全部保留
+				 * 新增："魂"计数持续累计不清空（单张牌发动+1，两张牌发动+2），计数为1或2的倍数时摸一张牌
+				 * 计数≥12：杀/决斗指定目标后二选一（伤害+1/拿一张牌）
+				 * 计数≥24：龙魂杀/无懈不可被响应；单张转化闪/无懈后获得当前回合角色一张牌；
+				 * 龙魂转化使用的牌不计入使用次数；龙魂转化的【桃】自带酒效果（不占酒次数） */
+				grylonghun: {
 						audio: "relonghun",
 						// 移除防护（官方机制）：与绝境同理，防止被断肠等移除型效果剥离
 						fixed: true,
