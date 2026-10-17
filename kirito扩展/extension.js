@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.20";
+const VERSION = "3.21";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -78,8 +78,14 @@ export default function () {
 			return originLoseMaxHp.apply(this, arguments);
 		};
 	};
-	// 降临默认候选池：本扩展全部可选技能（可在扩展设置的「降临技能池管理」中增删，存于配置 touyingPool）
-	const DEFAULT_TOUYING_POOL = ["gryjuejing", "grylonghun", "gryshenti", "ktyuli", "kttingwei", "ktjimie", "ktxinghun", "ktshenpei"];
+// 降临默认候选池：本扩展全部可选技能（可在扩展设置的「降临技能池管理」中增删，存于配置 touyingPool）
+const DEFAULT_TOUYING_POOL = ["gryjuejing", "grylonghun", "gryshenti", "ktyuli", "kttingwei", "ktjimie", "ktxinghun", "ktshenpei"];
+// 二进制写入统一转ArrayBuffer：安卓cordova桥对Uint8Array按JSON逐字节序列化成{"0":72,"1":101,...}，
+// 几MB的图片/语音就是百万级HashMap键值，直接OOM爆Java堆；ArrayBuffer走base64通道无此问题。
+// node端game.writeFile同样接受ArrayBuffer（内部new Uint8Array包裹），PC行为不变
+const ktBinData = (data) => (data instanceof Uint8Array
+	? (data.byteOffset == 0 && data.byteLength == data.buffer.byteLength ? data.buffer : data.slice().buffer)
+	: data);
 	// 在线更新中心：点按钮弹出独立遮罩窗口（形态复刻十周年UI配置中心，非系统窗口）
 	// 流程：检测连通性（各源拉info.json测延迟）→ 通过后才可开始更新 → 进度条逐文件流式下载
 	// → 全部成功后最后写info.json（版本号）。任何一步失败：版本号与更新时间配置不变更（相当于还原），
@@ -339,7 +345,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			// node版对根下嵌套新目录也会抛错——两端实现真正的createDir都会等目录建好才回调
 			await new Promise((resolve, reject) => game.createDir(dir, resolve, reject));
 			await new Promise((resolve, reject) =>
-				game.writeFile(data, dir, local.slice(slash + 1), (err) => {
+				game.writeFile(ktBinData(data), dir, local.slice(slash + 1), (err) => {
 					// 安卓端cordova写成功时回调的是ProgressEvent（truthy），只有真失败才是FileError；node端成功回调null
 					if (!err || (typeof ProgressEvent != "undefined" && err instanceof ProgressEvent)) resolve();
 					else reject(err);
@@ -803,10 +809,11 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 							return;
 						}
 						const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
-						await game.promises.ensureDirectory(to, null, true);
+						// createDir等目录真正建完再回调（ensureDirectory在cordova端不等待，有竞态）
 						const slash = to.lastIndexOf("/");
+						await new Promise((resolve, reject) => game.createDir(to.slice(0, slash), resolve, reject));
 						await new Promise((resolve, reject) =>
-							game.writeFile(bytes, to.slice(0, slash), to.slice(slash + 1), (err) => (err ? reject(err) : resolve()))
+							game.writeFile(ktBinData(bytes), to.slice(0, slash), to.slice(slash + 1), (err) => (err ? reject(err) : resolve()))
 						);
 						console.log(`kirito扩展：已镜像 ${to}`);
 					} catch (e) {
