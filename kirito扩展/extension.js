@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.24";
+const VERSION = "3.25";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -930,6 +930,52 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					console.log("kirito扩展：检测到动皮配置被重建抹除，已自动补注");
 				}
 			}, 3000);
+			// 皮肤切换(第三方扩展)安卓守护：其postMsgApi的playAvatar/changeAvatarAction/action裸访问
+			// player.dynamic.renderer.postMessage——安卓webview下播放器worker常初始化失败或结算时已销毁置空，
+			// 直接TypeError崩溃，且空白动皮层会遮住静态立绘（结算图片空白）。此处运行时包装三个入口：
+			// renderer不可用时跳过指令，并隐藏空白动皮层、还原静态立绘（优雅回退）；PC端renderer恒可用不受影响。
+			// skinSwitch本体是window全局普通对象（extension.js中Object.assign合入postMsgApi），可安全包装
+			const guardSkinSwitch = () => {
+				const api = window.skinSwitch && window.skinSwitch.postMsgApi;
+				if (!api || api.__ktGuard) {
+					return false;
+				}
+				const usable = (player) =>
+					!!(player && player.dynamic && player.dynamic.renderer && typeof player.dynamic.renderer.postMessage == "function");
+				const fallbackStatic = (player) => {
+					const wrap = player.querySelector(".qhdynamic-big-wrap") || player.querySelector(".dynamic-wrap");
+					if (wrap) {
+						wrap.style.display = "none";
+					}
+					if (player.node && player.node.avatar) {
+						player.node.avatar.style.display = "";
+					}
+				};
+				for (const name of ["playAvatar", "changeAvatarAction", "action"]) {
+					const origin = api[name];
+					if (typeof origin != "function") {
+						continue;
+					}
+					api[name] = function (player) {
+						if (!usable(player)) {
+							fallbackStatic(player);
+							return;
+						}
+						return origin.apply(this, arguments);
+					};
+				}
+				api.__ktGuard = true;
+				console.log("kirito扩展：已为皮肤切换动皮播放器安装空渲染器守护");
+				return true;
+			};
+			if (!guardSkinSwitch()) {
+				let tries = 0;
+				const guardTimer = setInterval(() => {
+					if (guardSkinSwitch() || ++tries > 30) {
+						clearInterval(guardTimer);
+					}
+				}, 1000);
+			}
 		},
 		help: {},
 		config: {
