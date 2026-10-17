@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.10";
+const VERSION = "3.11";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -78,7 +78,7 @@ export default function () {
 			return originLoseMaxHp.apply(this, arguments);
 		};
 	};
-	// 投影默认候选池：本扩展全部可选技能（可在扩展设置的「投影技能池管理」中增删，存于配置 touyingPool）
+	// 降临默认候选池：本扩展全部可选技能（可在扩展设置的「降临技能池管理」中增删，存于配置 touyingPool）
 	const DEFAULT_TOUYING_POOL = ["gryjuejing", "grylonghun", "gryshenti", "ktyuli", "kttingwei", "ktjimie", "ktxinghun", "ktshenpei"];
 	// 在线更新中心：点按钮弹出独立遮罩窗口（形态复刻十周年UI配置中心，非系统窗口）
 	// 流程：检测连通性（各源拉info.json测延迟）→ 通过后才可开始更新 → 进度条逐文件流式下载
@@ -422,7 +422,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		}
 		return { open };
 	})();
-	// 投影技能池管理：扩展设置里点按钮弹出的遮罩窗口（与更新中心共用KT_CSS样式）
+	// 降临技能池管理：扩展设置里点按钮弹出的遮罩窗口（与更新中心共用KT_CSS样式）
 	// 池子存于配置 extension_kirito扩展_touyingPool（数组），投影发动时读取；
 	// 未配置过时用默认池 DEFAULT_TOUYING_POOL；上限20个；改动即时保存
 	const ktPoolManager = (() => {
@@ -470,7 +470,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			$.chips.innerHTML = "";
 			$.count.textContent = `${pool.length}/${MAX}`;
 			if (!pool.length) {
-				el("ktupd-empty", $.chips, "池子为空：游戏内投影将没有可选技能，点下方「恢复默认」可一键还原");
+				el("ktupd-empty", $.chips, "池子为空：游戏内降临将没有可选技能，点下方「恢复默认」可一键还原");
 			}
 			for (const skill of pool) {
 				const chip = el("ktupd-chip", $.chips, `【${lib.translate[skill] || skill}】✕`);
@@ -519,7 +519,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			ktInjectCss();
 			overlay = el("ktupd-overlay", document.body);
 			const dialog = el("ktupd-dialog", overlay);
-			el("ktupd-title", dialog, "投影技能池管理");
+			el("ktupd-title", dialog, "降临技能池管理");
 			const close = () => {
 				overlay.remove();
 				overlay = null;
@@ -659,10 +659,10 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					ktUpdateCenter.open();
 				},
 			},
-			// 投影技能池：管理无上神〖投影〗局内可选的技能（默认本扩展全部技能，可增删，上限20）
+			// 降临技能池：管理无上神〖降临〗局内可选的技能（默认本扩展全部技能，可增删，上限20）
 			touyingPool: {
-				name: "投影技能池管理（增加/排除）",
-				intro: "管理〖投影〗游戏开始时可挑选的技能池：默认为本扩展全部技能；可搜索添加本体及已开启扩展武将的所有技能（上限20个），点标签排除不需要的技能。改动即时保存，下一局生效",
+				name: "降临技能池管理（增加/排除）",
+				intro: "管理〖降临〗游戏开始时可挑选的技能池：默认为本扩展全部技能；可搜索添加本体及已开启扩展武将的所有技能（上限20个），点标签排除不需要的技能。改动即时保存，下一局生效",
 				clear: true,
 				onclick() {
 					ktPoolManager.open();
@@ -1278,7 +1278,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 								if (lib._wssJimieBar) {
 									lib._wssJimieBar.create(player);
 								}
-								// 候选池：可在扩展设置「投影技能池管理」中增删（存于配置 touyingPool），
+								// 候选池：可在扩展设置「降临技能池管理」中增删（存于配置 touyingPool），
 								// 未配置时用默认池（DEFAULT_TOUYING_POOL，本扩展全部可选技能）。
 								// 运行时再过滤：技能本体已注册且有描述文案才进列表，防止源包未加载或配置残留失效技能
 								const saved = lib.config["extension_kirito扩展_touyingPool"];
@@ -1290,22 +1290,54 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										skill,
 										`<div class="popup text" style="width:calc(100% - 10px);display:inline-block"><div class="skill">【${get.translation(skill)}】</div><div>${lib.translate[skill + "_info"]}</div></div>`,
 									]);
-									const result = await player
-										.chooseButton({
-											createDialog: ["投影：挑选任意个技能加入本局游戏", [list, "textbutton"]],
-											selectButton: [1, list.length],
-											forced: true,
-											// 引擎原生全选/反选按钮（ui.create.buttonChooseAll，依赖选项"启用全选/反选按钮"，默认开启）
-											allowChooseAll: true,
-											ai(button) {
-												const info = get.info(button.link);
-												if (!info || info.ai?.neg || info.ai?.combo) {
-													return 0;
-												}
-												return 1 + Math.random();
-											},
-										})
-										.forResult();
+									// 预构建对话框：自注入"全选/反选"按钮（选中逻辑复刻ui.create.buttonChooseAll，
+									// 不受游戏选项"启用全选/反选按钮"开关影响，保证始终显示）
+									const dialog = ui.create.dialog("降临：挑选任意个技能加入本局游戏", [list, "textbutton"], "hidden");
+									const selectAll = ui.create.div(".select-all.popup.pointerdiv");
+									selectAll.innerHTML = "全选";
+									const caption = dialog.content.querySelector(".caption");
+									if (caption) {
+										dialog.content.insertBefore(selectAll, caption);
+									} else {
+										dialog.content.insertBefore(selectAll, dialog.content.firstChild);
+									}
+									selectAll.listen(function (e) {
+										const event2 = get.event();
+										const selecteds = [...ui.selected.buttons];
+										ui.selected.buttons.length = 0;
+										game.check();
+										const selectables = get.selectableButtons();
+										const buttons = selecteds.length ? [...new Set(selectables).difference(new Set(selecteds))] : selectables;
+										ui.selected.buttons.push(...buttons);
+										for (const button of ui.selected.buttons) {
+											button.classList.add("selected");
+										}
+										for (const button of selecteds) {
+											button.classList.remove("selected");
+										}
+										game.check();
+										if (typeof event2.custom?.add?.button == "function") {
+											event2.custom.add.button();
+										}
+										if (e) {
+											e.stopPropagation();
+										}
+									});
+									const chooseEvent = player.chooseButton({
+										dialog: dialog,
+										selectButton: [1, list.length],
+										forced: true,
+										ai(button) {
+											const info = get.info(button.link);
+											if (!info || info.ai?.neg || info.ai?.combo) {
+												return 0;
+											}
+											return 1 + Math.random();
+										},
+									});
+									// 挂到事件上后，引擎game.Check会在每次点选时自动刷新按钮文字（全选/反选）
+									chooseEvent.buttonChooseAll = selectAll;
+									const result = await chooseEvent.forResult();
 									if (result?.bool && result.links?.length) {
 										game.log(player, "获得了技能", "#g" + result.links.map((skill) => `【${get.translation(skill)}】`).join(""));
 										await player.addSkills(result.links);
@@ -1624,63 +1656,64 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 							filter(event) {
 								return event.isFirstTarget && event.card?.name === "sha";
 							},
-							async cost(event, trigger, player) {
-								event.result = await player
-									.chooseTarget({
-										prompt: get.prompt2(event.skill),
-										filterTarget(_card, _player, target) {
-											const event = get.event();
-											return event.targets.includes(target);
-										},
-										ai(target) {
-											const player = get.player();
-											const trigger = get.event().getTrigger();
-											const att = get.attitude(player, target);
-											if (att >= 0) {
-												return -1;
-											}
-											let score = 0;
-											const nature = get.nature(trigger.card);
-											const damage = get.damageEffect(target, player, player, nature);
-											if (damage > 0) {
-												score += damage * 1.8;
-												if (target.hp <= 2) {
-													score += 2;
-												}
-											}
-											const skills = target.getSkills(null, false, false).filter(skill => {
-												const info = get.info(skill);
-												return info && !info.locked && !info.charlotte;
-											});
-											score += skills.length * 1.2;
-											const equips1 = target.getGainableCards(player, "e");
-											const equips2 = target.getGainableCards(player, "h", card => card.isKnownBy(player) && get.type(card) === "equip");
-											const equips = equips1.concat(equips2);
-											if (equips.length) {
-												const values = equips.reduce((sum, card) => sum + get.value(card, target), 0) / equips.length;
-												score += Math.min(3, values);
-											}
-											const cards = target.countDiscardableCards(target, "he");
-											if (cards) {
-												score += Math.min(3, 1 + 4 / cards);
-											}
-											if (!target.isLinked()) {
-												score += 0.8;
-												if (game.hasPlayer(current => current !== player && current.isLinked())) {
-													score += 0.8;
-												}
-												if (nature) {
-													score += 0.6;
-												}
-											}
-											score *= Math.max(1, -att / 3);
-											return score;
-										},
-									})
-									.set("targets", trigger.targets)
-									.forResult();
-							},
+							direct: true,
 							logTarget: "targets",
+							async cost(event, trigger, player) {
+								// 默认发动：不再弹目标确认，按AI评分自动选择收益最高的目标
+								const targets = trigger.targets;
+								if (!targets.length) {
+									event.result = { bool: false };
+									return;
+								}
+								const scoreOf = (target) => {
+									let score = 0;
+									const nature = get.nature(trigger.card);
+									const damage = get.damageEffect(target, player, player, nature);
+									if (damage > 0) {
+										score += damage * 1.8;
+										if (target.hp <= 2) {
+											score += 2;
+										}
+									}
+									const skills = target.getSkills(null, false, false).filter(skill => {
+										const info = get.info(skill);
+										return info && !info.locked && !info.charlotte;
+									});
+									score += skills.length * 1.2;
+									const equips1 = target.getGainableCards(player, "e");
+									const equips2 = target.getGainableCards(player, "h", card => card.isKnownBy(player) && get.type(card) === "equip");
+									const equips = equips1.concat(equips2);
+									if (equips.length) {
+										const values = equips.reduce((sum, card) => sum + get.value(card, target), 0) / equips.length;
+										score += Math.min(3, values);
+									}
+									const cards = target.countDiscardableCards(target, "he");
+									if (cards) {
+										score += Math.min(3, 1 + 4 / cards);
+									}
+									if (!target.isLinked()) {
+										score += 0.8;
+										if (game.hasPlayer(current => current !== player && current.isLinked())) {
+											score += 0.8;
+										}
+										if (nature) {
+											score += 0.6;
+										}
+									}
+									score *= Math.max(1, -get.attitude(player, target) / 3);
+									return score;
+								};
+								let best = null;
+								let bestScore = -Infinity;
+								for (const target of targets) {
+									const score = scoreOf(target);
+									if (score > bestScore) {
+										bestScore = score;
+										best = target;
+									}
+								}
+								event.result = { bool: true, targets: [best] };
+							},
 							async content(event, trigger, player) {
 								player.addMark("kttingwei", 4);
 								const target = event.targets[0];
@@ -2239,8 +2272,8 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					gryshenti_info: "锁定技。①你的手牌上限+2，你不会被翻面，且你的体力上限不会减少。②当你进入或脱离濒死状态时，你摸两张牌。③你的所有技能均不会被禁用或封锁，特殊技能不会被移除。",
 					grylonghun: "龙魂",
 					grylonghun_info: "你可以将同花色的一至两张牌按下列规则使用或打出：红桃当【桃】，方块当火【杀】，梅花当【闪】，黑桃当【无懈可击】。若你以此法转化了两张：红色牌，则此牌回复值或伤害值+1；黑色牌，则你弃置当前回合角色一张牌。每当你以此法使用或打出牌，“魂”计数+X（单张牌+1，两张牌+2，计数持续累计，不会清空）。若计数为1或2的倍数，你摸一张牌。“魂”计数达到12后：你使用【杀】或【决斗】指定目标后，你可以选择一项：1.此伤害+1；2.获得该目标区域内一张牌（其区域内没有牌则不能选择此项）。“魂”计数达到24后：1.你转化发动的【杀】不可被响应，转化的【无懈可击】不可被【无懈可击】响应；2.你以单张牌转化【闪】或【无懈可击】后，获得当前回合角色区域内一张牌；3.你转化发动使用的牌不计入使用次数；4.你转化发动的【桃】自带酒效果（与饮酒效果叠加，且不占用【酒】的使用次数）。",
-					grytouying: "投影",
-					grytouying_info: "锁定技。游戏开始时，你从技能池中挑选任意个技能加入本局游戏（可多选），挑选完成后失去此技能。技能池默认为本扩展全部技能，可在扩展设置的「投影技能池管理」中增加或排除。",
+					grytouying: "降临",
+					grytouying_info: "锁定技。游戏开始时，你从技能池中挑选任意个技能加入本局游戏（可多选），挑选完成后失去此技能。技能池默认为本扩展全部技能，可在扩展设置的「降临技能池管理」中增加或排除。",
 					ktyuli: "驭雳",
 					ktyuli_info: "锁定技。①你造成的伤害改为雷电伤害，已是雷电伤害则伤害+1；②你受到雷电伤害时，防止之并摸等量牌。",
 					kttingwei: "霆威",
