@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.17";
+const VERSION = "3.18";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -143,14 +143,14 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		// 匿名多源：公共镜像（国内可达性随时波动，连通性测速后按吞吐自动排序），GitHub直连兜底
 		// 所有源均支持 前缀+完整GitHubURL 的代理格式；raw源用于小文件（清单/版本号/增量文件），release源用于整包与测速
 		const SOURCES = [
-			{ label: "ghfast.top", prefix: "https://ghfast.top/" },
+			{ label: "GitHub 直连", prefix: "" },
 			{ label: "gh-proxy.com 镜像", prefix: "https://gh-proxy.com/" },
+			{ label: "ghfast.top", prefix: "https://ghfast.top/" },
 			{ label: "ghproxy.homeboyc.cn", prefix: "https://ghproxy.homeboyc.cn/" },
 			{ label: "github.moeyy.xyz", prefix: "https://github.moeyy.xyz/" },
 			{ label: "ghproxy.net 镜像", prefix: "https://ghproxy.net/" },
 			{ label: "gh.llkk.cc", prefix: "https://gh.llkk.cc/" },
 			{ label: "ghproxy.cc", prefix: "https://ghproxy.cc/" },
-			{ label: "GitHub 直连", prefix: "" },
 		];
 		let overlay = null;
 		let abortCtrl = null;
@@ -347,41 +347,80 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					remoteVersion = releaseVersion;
 					$.remote.textContent = `v${remoteVersion}`;
 				}
+				// 断点续传下载：息屏/断网中断后按 Range 从断点继续（GitHub Release 支持），
+				// 源间也会带着断点降级；服务器不支持Range(返回200)时丢弃已收数据从头收。最多重试8轮
 				setStatus("正在下载更新压缩包…");
 				let data = null;
 				let lastError = null;
-				for (const { src } of sourceOrder) {
-					try {
-						const resp = await fetch(zipUrlOf(src), { signal: abortCtrl.signal });
-						if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-						const size = Number(resp.headers.get("content-length")) || 0;
-						if (!resp.body || typeof resp.body.getReader != "function") {
-							data = new Uint8Array(await resp.arrayBuffer());
+				const chunks = [];
+				let received = 0;
+				let zipTotal = 0;
+				const setProgress = () => setZipProgress(received, zipTotal);
+				const assemble = () => {
+					data = new Uint8Array(received);
+					let off = 0;
+					for (const chunk of chunks) {
+						data.set(chunk, off);
+						off += chunk.length;
+					}
+				};
+				for (let attempt = 1; attempt <= 8 && data === null; attempt++) {
+					if (attempt > 1) {
+						// 中断后稍候重试（等网络恢复），断点字节保留
+						setStatus(`下载中断（已收 ${fmtSize(received)}），3秒后从断点继续（第${attempt - 1}次重试）…`);
+						await new Promise((resolve) => setTimeout(resolve, 3000));
+					}
+					for (const { src } of sourceOrder) {
+						try {
+							const headers = { signal: abortCtrl.signal };
+							if (received > 0) {
+								headers.headers = { Range: `bytes=${received}-` };
+							}
+							const resp = await fetch(zipUrlOf(src), headers);
+							if (!resp.ok && !(resp.status == 206 && received > 0)) {
+								throw new Error(`HTTP ${resp.status}`);
+							}
+							if (received > 0 && resp.status == 206) {
+								// 续传成功：从content-range解析总大小，已收数据继续有效
+								const cr = resp.headers.get("content-range");
+								const m = cr && cr.match(/\/(\d+)\s*$/);
+								if (m) {
+									zipTotal = Number(m[1]);
+								}
+							} else {
+								// 全新下载（首连或服务器不支持Range返回200全量）：丢弃断点从头收
+								if (received > 0) {
+									chunks.length = 0;
+									received = 0;
+								}
+								zipTotal = Number(resp.headers.get("content-length")) || 0;
+							}
+							setProgress();
+							if (!resp.body || typeof resp.body.getReader != "function") {
+								const buf = new Uint8Array(await resp.arrayBuffer());
+								chunks.push(buf);
+								received += buf.length;
+								assemble();
+								break;
+							}
+							const reader = resp.body.getReader();
+							for (;;) {
+								const { done, value } = await reader.read();
+								if (done) break;
+								chunks.push(value);
+								received += value.length;
+								setProgress();
+							}
+							assemble();
 							break;
+						} catch (e) {
+							if (e.name == "AbortError") throw e;
+							lastError = e;
+							// 断点保留，换下一个源继续
 						}
-						const reader = resp.body.getReader();
-						const chunks = [];
-						let received = 0;
-						for (;;) {
-							const { done, value } = await reader.read();
-							if (done) break;
-							chunks.push(value);
-							received += value.length;
-							setZipProgress(received, size);
-						}
-						data = new Uint8Array(received);
-						let off = 0;
-						for (const chunk of chunks) {
-							data.set(chunk, off);
-							off += chunk.length;
-						}
-						break;
-					} catch (e) {
-						if (e.name == "AbortError") throw e;
-						lastError = e;
 					}
 				}
-				if (!data) throw lastError || new Error("压缩包下载失败");
+				if (!data) throw lastError || new Error(`压缩包下载失败（已收 ${fmtSize(received)}，稍后重试会从断点继续）`);
 				// ② 解压并逐条写盘：info.json（版本号）暂存内存，其余立即覆盖，全部成功才最后写版本号
 				setStatus(`下载完成（${fmtSize(data.length)}），正在解压覆盖…`);
 				const zip = await new Promise((resolve) => get.zip(resolve));
