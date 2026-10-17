@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.16";
+const VERSION = "3.17";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -145,6 +145,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		const SOURCES = [
 			{ label: "ghfast.top", prefix: "https://ghfast.top/" },
 			{ label: "gh-proxy.com 镜像", prefix: "https://gh-proxy.com/" },
+			{ label: "ghproxy.homeboyc.cn", prefix: "https://ghproxy.homeboyc.cn/" },
 			{ label: "github.moeyy.xyz", prefix: "https://github.moeyy.xyz/" },
 			{ label: "ghproxy.net 镜像", prefix: "https://ghproxy.net/" },
 			{ label: "gh.llkk.cc", prefix: "https://gh.llkk.cc/" },
