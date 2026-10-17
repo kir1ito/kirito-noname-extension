@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.25";
+const VERSION = "3.26";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -947,6 +947,10 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					if (wrap) {
 						wrap.style.display = "none";
 					}
+					// 十周年UI用d-skin类把静态头像设为opacity:0，光恢复display不够，类也要摘掉
+					if (player.classList) {
+						player.classList.remove("d-skin", "d-skin2");
+					}
 					if (player.node && player.node.avatar) {
 						player.node.avatar.style.display = "";
 					}
@@ -975,6 +979,35 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 						clearInterval(guardTimer);
 					}
 				}, 1000);
+			}
+			// MVP/结算兜底：斗转星移等结算页直接读 node.avatar 的背景图URL渲染大图；选中动皮后该URL
+			// 指向动皮资源（非静态图片，加载失败）或被置空——结算页取不到图即整页空白（MVP页卡在pre-show）。
+			// 结算前把动皮态的背景重置为本体静态立绘（image/character/<名>.jpg，已由上方镜像保证存在）；
+			// 千幻聆音等真实存在的皮肤图URL不含assets/dynamic，不受影响
+			const fixSettlementAvatars = () => {
+				for (const p of [...(game.players || []), ...(game.dead || [])]) {
+					for (const key of ["avatar", "avatar2"]) {
+						const av = p.node && p.node[key];
+						if (!av) continue;
+						const bg = av.style.backgroundImage;
+						if (!bg || bg.indexOf("assets/dynamic") >= 0) {
+							const name = key == "avatar" ? (p.name1 || p.name) : (p.name2 || p.name1);
+							if (name) av.setBackground(name, "character");
+						}
+					}
+				}
+			};
+			if (typeof game.over == "function" && !game.__ktSettlementFix) {
+				game.__ktSettlementFix = true;
+				const originOver = game.over;
+				game.over = function (...args) {
+					try {
+						fixSettlementAvatars();
+					} catch (e) {
+						console.warn("kirito扩展：结算头像兜底失败", e);
+					}
+					return originOver.apply(this, args);
+				};
 			}
 		},
 		help: {},
