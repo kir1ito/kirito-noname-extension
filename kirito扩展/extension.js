@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.19";
+const VERSION = "3.20";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -140,17 +140,12 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		// 更新器只下载这一个压缩包再本地解压覆盖，新增文件无需维护清单
 		const ZIP_NAME = "kirito-extension.zip";
 		const RAW_BASE = `https://raw.githubusercontent.com/${REPO}/main/`;
-		// 匿名多源：公共镜像（国内可达性随时波动，连通性测速后按吞吐自动排序），GitHub直连兜底
+		// 下载源：GitHub直连 + gh-proxy.com + gh.llkk.cc 三个（连通性测速后按吞吐自动排序）
 		// 所有源均支持 前缀+完整GitHubURL 的代理格式；raw源用于小文件（清单/版本号/增量文件），release源用于整包与测速
 		const SOURCES = [
 			{ label: "GitHub 直连", prefix: "" },
 			{ label: "gh-proxy.com 镜像", prefix: "https://gh-proxy.com/" },
-			{ label: "ghfast.top", prefix: "https://ghfast.top/" },
-			{ label: "ghproxy.homeboyc.cn", prefix: "https://ghproxy.homeboyc.cn/" },
-			{ label: "github.moeyy.xyz", prefix: "https://github.moeyy.xyz/" },
-			{ label: "ghproxy.net 镜像", prefix: "https://ghproxy.net/" },
 			{ label: "gh.llkk.cc", prefix: "https://gh.llkk.cc/" },
-			{ label: "ghproxy.cc", prefix: "https://ghproxy.cc/" },
 		];
 		let overlay = null;
 		let abortCtrl = null;
@@ -1988,7 +1983,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 													["fengyin", "非锁定技失效至下个回合结束"],
 													["equip", `交给${get.translation(player)}一张装备牌`],
 													["damage", `${get.translation(trigger.card)}对你造成伤害+1`],
-													["discard", "随机弃两张牌"],
+													["discard", "随机弃一张牌"],
 												],
 												"textbutton",
 											],
@@ -2215,7 +2210,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 											break;
 										}
 										case "discard": {
-											await target.randomDiscard({ position: "he", num: 2 });
+											await target.randomDiscard({ position: "he", num: 1 });
 											break;
 										}
 									}
@@ -2563,7 +2558,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					ktyuli: "驭雳",
 					ktyuli_info: "锁定技。①你造成的伤害改为雷电伤害，已是雷电伤害则伤害+1；②你受到雷电伤害时，防止之并摸等量牌。",
 					kttingwei: "霆威",
-					kttingwei_info: "你使用【杀】指定目标后，可获得4枚“霆”标记并选择一名目标角色，其选择任意项并令你弃等量的“霆”标记：1.非锁定技失效至其下个回合结束；2.交给你一张装备牌；3.此牌对其造成伤害+1；4.随机弃两张牌。若其均未选择，其横置。",
+					kttingwei_info: "你使用【杀】指定目标后，可获得4枚“霆”标记并选择一名目标角色，其选择任意项并令你弃等量的“霆”标记：1.非锁定技失效至其下个回合结束；2.交给你一张装备牌；3.此牌对其造成伤害+1；4.随机弃一张牌。若其均未选择，其横置。",
 					ktjimie: "寂灭",
 					ktjimie_info: `限定技，出牌阶段结束时，你可以弃8枚“霆”标记，对一名角色造成等于其体力上限的伤害。然后当你${get.poptip("ktyuli")}的两项均执行后，此技能视为未发动过。`,
 					ktxinghun: "星魂",
