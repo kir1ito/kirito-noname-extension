@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.21";
+const VERSION = "3.22";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -206,7 +206,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		const fetchReleaseVersion = async () => {
 			for (const { src } of sourceOrder) {
 				try {
-					const resp = await fetch(relUrlOf(src, VER_NAME));
+					const resp = await fetch(bustCache(relUrlOf(src, VER_NAME)));
 					if (!resp.ok) continue;
 					const text = (await resp.text()).trim();
 					if (text) return text;
@@ -217,12 +217,25 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		// 增量更新支持：工作流每次打包生成 manifest.json（路径→md5），Release资产
 		const fmtSize = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(2)} MB` : `${(n / 1024).toFixed(1)} KB`);
 		const localVersion = () => (lib.extensionPack[NAME] && lib.extensionPack[NAME].version) || "未知";
+		// 镜像站会缓存Release资产（缓存期内一直吐旧包，3.20曾致安卓下到3.18旧包崩溃）：
+		// 请求统一加时间戳参数穿透缓存（镜像忽略该参数也无害）
+		const bustCache = (url) => `${url}${url.includes("?") ? "&" : "?"}_=${Date.now()}`;
+		// 版本号逐段数值比较：a<b返回-1，用于识别缓存滞后的旧包
+		const cmpVersion = (a, b) => {
+			const pa = String(a).split(".").map(Number);
+			const pb = String(b).split(".").map(Number);
+			for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+				const d = (pa[i] || 0) - (pb[i] || 0);
+				if (d) return d;
+			}
+			return 0;
+		};
 		const MANIFEST_NAME = "manifest.json";
 		const LOCAL_MANIFEST = ".update_manifest.json";
 		const fetchReleaseManifest = async () => {
 			for (const { src } of sourceOrder) {
 				try {
-					const resp = await fetch(relUrlOf(src, MANIFEST_NAME), { signal: abortCtrl ? abortCtrl.signal : undefined });
+					const resp = await fetch(bustCache(relUrlOf(src, MANIFEST_NAME)), { signal: abortCtrl ? abortCtrl.signal : undefined });
 					if (!resp.ok) continue;
 					const json = await resp.json();
 					if (json && typeof json == "object") return json;
@@ -244,7 +257,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			let lastError = null;
 			for (const { src } of sourceOrder) {
 				try {
-					const resp = await fetch(rawUrlOf(src, file), { signal: abortCtrl.signal });
+					const resp = await fetch(bustCache(rawUrlOf(src, file)), { signal: abortCtrl.signal });
 					if (!resp.ok) throw new Error(`RAW ${resp.status}`);
 					return new Uint8Array(await resp.arrayBuffer());
 				} catch (e) {
@@ -261,7 +274,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			const ctrl = new AbortController();
 			const timer = setTimeout(() => ctrl.abort(), 20000);
 			try {
-				const resp = await fetch(zipUrlOf(src), { signal: ctrl.signal });
+				const resp = await fetch(bustCache(zipUrlOf(src)), { signal: ctrl.signal });
 				if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 				if (!resp.body || typeof resp.body.getReader != "function") {
 					return { ok: true, speed: Number(resp.headers.get("content-length")) || 999999 };
@@ -326,8 +339,13 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				const hasBaseline = !!(await readStoredManifest());
 				setDisabled($.inc, !hasBaseline);
 				const newest = remoteVersion && remoteVersion == localVersion();
+				const behind = remoteVersion && cmpVersion(remoteVersion, localVersion()) < 0;
 				let msg = `测速完成，最快源：${sourceOrder.find((s) => s.res.ok).src.label}`;
-				msg += newest ? `。当前已是最新版本（v${localVersion()}），可强制重装` : `。发现新版本：${localVersion()} → ${remoteVersion || "未知"}`;
+				msg += behind
+					? `。该源报出的版本（v${remoteVersion}）落后于本地v${localVersion()}——缓存滞后，请稍后重新检测`
+					: newest
+						? `。当前已是最新版本（v${localVersion()}），可强制重装`
+						: `。发现新版本：${localVersion()} → ${remoteVersion || "未知"}`;
 				if (!hasBaseline) {
 					msg += "。本地无增量基准，请先执行一次全量更新";
 				}
@@ -371,6 +389,10 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					remoteVersion = releaseVersion;
 					$.remote.textContent = `v${remoteVersion}`;
 				}
+				// 源报出的版本号落后于本地＝该源缓存滞后，继续只会装旧文件
+				if (releaseVersion && cmpVersion(releaseVersion, localVersion()) < 0) {
+					throw new Error(`下载源缓存的版本（v${releaseVersion}）落后于本地（v${localVersion()}），缓存尚未更新，请稍后重试或换网络环境`);
+				}
 				// 断点续传下载：息屏/断网中断后按 Range 从断点继续（GitHub Release 支持），
 				// 源间也会带着断点降级；服务器不支持Range(返回200)时丢弃已收数据从头收。最多重试8轮
 				setStatus("正在下载更新压缩包…");
@@ -400,7 +422,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 							if (received > 0) {
 								headers.headers = { Range: `bytes=${received}-` };
 							}
-							const resp = await fetch(zipUrlOf(src), headers);
+							const resp = await fetch(bustCache(zipUrlOf(src)), headers);
 							if (!resp.ok && !(resp.status == 206 && received > 0)) {
 								throw new Error(`HTTP ${resp.status}`);
 							}
@@ -456,6 +478,17 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				const stray = entries.find((entry) => !entry.name.startsWith(folder));
 				if (stray) throw new Error(`压缩包内出现意外条目：${stray.name}`);
 				if (!entries.length) throw new Error("压缩包内容为空");
+				// 下载源缓存可能滞后于Release：解压前先核对包内info.json版本，旧包直接中止（此时尚未覆盖任何文件）
+				const infoEntry = entries.find((entry) => entry.name.slice(folder.length) == "info.json");
+				if (infoEntry) {
+					let zipVersion = null;
+					try {
+						zipVersion = JSON.parse(new TextDecoder().decode(infoEntry.asUint8Array())).version;
+					} catch {}
+					if (zipVersion && cmpVersion(zipVersion, localVersion()) < 0) {
+						throw new Error(`下载到的是旧版本包（包内v${zipVersion}，本地已是v${localVersion()}，下载源缓存滞后）——未覆盖任何文件，请稍后重试或换网络环境`);
+					}
+				}
 				let infoJsonBytes = null;
 				let infoJsonVersion = null;
 				let done = 0;
@@ -522,6 +555,10 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				if (releaseVersion) {
 					remoteVersion = releaseVersion;
 					$.remote.textContent = `v${remoteVersion}`;
+				}
+				// 源报出的版本号落后于本地＝该源缓存滞后，继续只会装旧文件
+				if (releaseVersion && cmpVersion(releaseVersion, localVersion()) < 0) {
+					throw new Error(`下载源缓存的版本（v${releaseVersion}）落后于本地（v${localVersion()}），缓存尚未更新，请稍后重试或换网络环境`);
 				}
 				const remoteManifest = await fetchReleaseManifest();
 				if (!remoteManifest) {
