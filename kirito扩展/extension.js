@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.22";
+const VERSION = "3.23";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1885,6 +1885,10 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										player.logSkill("ktyuli", null, null, null, [get.rand(5, 6)]);
 										trigger.cancel();
 										await player.draw(trigger.num);
+										// 受到雷电伤害时回复等量体力（伤害已被防止，按防止前的伤害值计算）
+										if (player.isDamaged()) {
+											await player.recover(trigger.num);
+										}
 										updateState(player, "def");
 										break;
 								}
@@ -2309,7 +2313,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 									"ext:kirito扩展/audio/skill/ktjimie4.mp3",
 								];
 							},
-							trigger: { player: "phaseUseEnd" },
+							trigger: { player: "phaseDiscardAfter" },
 							limited: true,
 							skillAnimation: true,
 							filter(_event, player) {
@@ -2332,11 +2336,33 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 								if (lib._wssJimieBar?.playDazhao) {
 									await lib._wssJimieBar.playDazhao();
 								}
-								player.awakenSkill("ktjimie");
-								player.removeMark("kttingwei", 8);
-								const target = event.targets[0];
-								await target.damage({ num: target.maxHp });
-								player.setStorage("ktyuli", [], true);
+									player.awakenSkill("ktjimie");
+									player.removeMark("kttingwei", 8);
+									const target = event.targets[0];
+									await target.damage({ num: target.maxHp });
+									// 命中后可彻底移除目标的一个技能（fixed技能引擎层面拒绝移除，已从候选排除），也可放弃；自己命中的不询问
+									if (target.isIn() && target != player) {
+										const skills = target.getSkills().filter((skill) => {
+											const info = lib.skill[skill];
+											return info && !info.sub && !info.nopop && !info.fixed && lib.translate[skill] && !skill.startsWith("#");
+										});
+										if (skills.length) {
+											const result = await player
+												.chooseButton([
+													`寂灭：是否彻底移除${get.translation(target)}的一个技能`,
+													[skills.map((skill) => [skill, get.translation(skill)]), "textbutton"],
+												])
+												.set("rmTarget", target)
+												.set("ai", (button) => (get.attitude(get.player(), get.event().rmTarget) < 0 ? 4 + Math.random() : 0))
+												.forResult();
+											if (result.bool && result.links[0]) {
+												const skill = result.links[0];
+												target.removeSkill(skill);
+												game.log(target, "的技能", "#g【" + get.translation(skill) + "】", "被寂灭彻底移除");
+											}
+										}
+									}
+									player.setStorage("ktyuli", [], true);
 								if (lib._wssJimieBar) {
 									lib._wssJimieBar.update(player);
 									const lock = player.querySelector && player.querySelector(".jimieLock");
@@ -2600,11 +2626,11 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					grytouying: "降临",
 					grytouying_info: "锁定技。游戏开始时，你从技能池中挑选任意个技能加入本局游戏（可多选），挑选完成后失去此技能。技能池默认为本扩展全部技能，可在扩展设置的「降临技能池管理」中增加或排除。",
 					ktyuli: "驭雳",
-					ktyuli_info: "锁定技。①你造成的伤害改为雷电伤害，已是雷电伤害则伤害+1；②你受到雷电伤害时，防止之并摸等量牌。",
+					ktyuli_info: "锁定技。①你造成的伤害改为雷电伤害，已是雷电伤害则伤害+1；②你受到雷电伤害时，防止之并摸等量牌，然后你回复等量体力（回复量等于该伤害值）。",
 					kttingwei: "霆威",
 					kttingwei_info: "你使用【杀】指定目标后，可获得4枚“霆”标记并选择一名目标角色，其选择任意项并令你弃等量的“霆”标记：1.非锁定技失效至其下个回合结束；2.交给你一张装备牌；3.此牌对其造成伤害+1；4.随机弃一张牌。若其均未选择，其横置。",
 					ktjimie: "寂灭",
-					ktjimie_info: `限定技，出牌阶段结束时，你可以弃8枚“霆”标记，对一名角色造成等于其体力上限的伤害。然后当你${get.poptip("ktyuli")}的两项均执行后，此技能视为未发动过。`,
+					ktjimie_info: `限定技，弃牌阶段结束时，你可以弃8枚“霆”标记，对一名角色造成等于其体力上限的伤害，然后你可以彻底移除其一个技能（所有技能均可选，也可放弃移除；特殊技能不会被移除）。当你${get.poptip("ktyuli")}的两项均执行后，此技能视为未发动过。`,
 					ktxinghun: "星魂",
 					ktxinghun_info: "出牌阶段限一次，你可以观看牌堆顶五张牌，用任意张手牌与其中的等量张牌进行交换并任意排序，然后你令一名其他角色展示你的手牌与牌堆顶的共计五张牌，你对其依次使用其中的【杀】。",
 					ktshenpei: "神霈",
