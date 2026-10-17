@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.23";
+const VERSION = "3.24";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -232,13 +232,23 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		};
 		const MANIFEST_NAME = "manifest.json";
 		const LOCAL_MANIFEST = ".update_manifest.json";
+		// manifest键统一为相对扩展根目录的路径：工作流生成的键带"kirito扩展/"前缀，而downloadRaw/writeFileTo
+		// 会自己拼前缀——不去前缀则raw地址双重前缀必404（3.23增量首用即暴露）
+		const normManifest = (manifest) => {
+			const out = {};
+			const prefix = `${NAME}/`;
+			for (const key of Object.keys(manifest)) {
+				out[key.startsWith(prefix) ? key.slice(prefix.length) : key] = manifest[key];
+			}
+			return out;
+		};
 		const fetchReleaseManifest = async () => {
 			for (const { src } of sourceOrder) {
 				try {
 					const resp = await fetch(bustCache(relUrlOf(src, MANIFEST_NAME)), { signal: abortCtrl ? abortCtrl.signal : undefined });
 					if (!resp.ok) continue;
 					const json = await resp.json();
-					if (json && typeof json == "object") return json;
+					if (json && typeof json == "object") return normManifest(json);
 				} catch {}
 			}
 			return null;
@@ -247,7 +257,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			try {
 				const text = await game.promises.readFileAsText(`extension/${NAME}/${LOCAL_MANIFEST}`);
 				const json = JSON.parse(text);
-				return json && typeof json == "object" ? json : null;
+				return json && typeof json == "object" ? normManifest(json) : null;
 			} catch {
 				return null;
 			}
