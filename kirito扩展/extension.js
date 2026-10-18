@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.28";
+const VERSION = "3.29";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -829,78 +829,43 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		}
 		return { open };
 	})();
-	// 配置云同步：把本体配置+所有扩展菜单配置（均存于lib.config）上传到仓库 config-sync/device-config.json，
-	// 另一台设备一键原样覆盖——解决PC/手机两套游戏重复调配置的问题。
-	// 上传走GitHub Contents API，需在面板填一次PAT（对本仓库Contents读写权限）；下载复用多源raw（公开仓库免令牌，手机零配置）。
-	// 同步策略：本机已安装的扩展整组覆盖；未安装的扩展整组跳过并汇总提醒；版本不一致导致的未知选项照样写入但记录异常；
-	// 全部异常等写完一次性弹出。令牌键永不上传永不同步；extensions启用列表按本机安装过滤后覆盖。
+	// 配置云同步（精简版）：PC端为唯一配置源。PC游戏每次启动自动把 lib.config（本体配置+全部扩展菜单配置）
+	// 导出为游戏根目录 config-sync.json；更新扩展时由构建流程把该快照复制进扩展包（AGENTS.md规则6），
+	// 手机端随扩展更新拿到快照，点「同步配置」读取本地快照原样覆盖：
+	// 已安装的扩展整组覆盖；未安装的扩展整组跳过；版本不一致导致的未知选项照样写入但记录异常；
+	// 全部异常等写完一次性弹出。令牌等敏感键永不同步。
 	const ktConfigSync = (() => {
-		const REPO = "kir1ito/kirito-noname-extension";
 		const NAME = "kirito扩展";
-		const SYNC_PATH = "config-sync/device-config.json";
-		const API_BASE = `https://api.github.com/repos/${REPO}/contents/`;
-		const TOKEN_KEY = `extension_${NAME}_githubToken`;
-		// 敏感/设备私有的键不上传也不同步
-		const DENY = new Set([TOKEN_KEY]);
-		let overlay = null;
-		const $ = {};
-		const el = (cls, parent, text) => {
-			const node = document.createElement("div");
-			node.className = cls;
-			if (text != null) node.textContent = text;
-			parent.appendChild(node);
-			return node;
-		};
-		const setStatus = (text, cls) => {
-			$.status.textContent = text;
-			$.status.className = `ktupd-status${cls ? ` ${cls}` : ""}`;
-		};
-		const setDisabled = (btn, val) => {
-			if (val) btn.setAttribute("disabled", "");
-			else btn.removeAttribute("disabled");
-		};
-		const getToken = () => String(lib.config[TOKEN_KEY] || "").trim();
-		// 自动凭据：PC(Electron)端本机已git/gh登录时，直接读取凭据管理器里的GitHub令牌——即git推送用的那份，
-		// 无需手填。gh auth token优先（无交互），git credential fill兜底（禁用交互防弹窗）。手机端无此环境，返回null
-		const autoToken = () => {
-			try {
-				if (typeof window.require != "function" || typeof window.process == "undefined") {
-					return null;
-				}
-				const cp = window.require("child_process");
-				const opts = {
-					timeout: 8000,
-					env: Object.assign({}, window.process.env, { GIT_TERMINAL_PROMPT: "0", GCM_INTERACTIVE: "never" }),
-				};
-				try {
-					const out = cp.execFileSync("gh", ["auth", "token"], opts).toString().trim();
-					if (out && out.length >= 20) {
-						return out;
-					}
-				} catch {}
-				try {
-					const out = cp
-						.execFileSync("git", ["credential", "fill"], Object.assign({ input: "protocol=https\nhost=github.com\n\n" }, opts))
-						.toString();
-					const m = out.match(/password=(\S+)/);
-					if (m && m[1]) {
-						return m[1];
-					}
-				} catch {}
-			} catch (e) {
-				console.warn("kirito扩展：自动读取本机GitHub凭据失败", e);
-			}
-			return null;
-		};
-		const utf8ToB64 = (str) => {
-			const bytes = new TextEncoder().encode(str);
-			let bin = "";
-			for (let i = 0; i < bytes.length; i += 0x8000) {
-				bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-			}
-			return btoa(bin);
-		};
+		const SNAP_PATH = `extension/${NAME}/config-sync.json`;
+		// 敏感/设备私有的键不导出也不同步
+		const DENY = new Set([`extension_${NAME}_githubToken`]);
 		const platformName = () => (/android/i.test(navigator.userAgent || "") ? "安卓" : "PC");
+		const gatherConfig = () => {
+			const cfg = JSON.parse(JSON.stringify(lib.config));
+			for (const k of DENY) delete cfg[k];
+			cfg.__syncMeta = {
+				time: new Date().toLocaleString(),
+				from: platformName(),
+				ext: VERSION,
+			};
+			return cfg;
+		};
+		// 游戏每次启动自动导出快照到游戏根目录（构建流程拾取后打进扩展包），静默执行
+		const exportSnapshot = () => {
+			try {
+				if (typeof game.writeFile != "function") {
+					return;
+				}
+				const json = JSON.stringify(gatherConfig());
+				game.writeFile(json, ".", "config-sync.json", (err) => {
+					if (err) {
+						console.warn("kirito扩展：配置快照导出失败", err);
+					}
+				});
+			} catch (e) {
+				console.warn("kirito扩展：配置快照导出失败", e);
+			}
+		};
 		// 本机已安装扩展集合：已启用 ∪ extensionInfo ∪ 本扩展 ∪ extension目录
 		const localInstalled = async () => {
 			const set = new Set(Array.isArray(lib.config.extensions) ? lib.config.extensions : []);
@@ -918,89 +883,19 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			}
 			return set;
 		};
-		const gatherConfig = () => {
-			const cfg = JSON.parse(JSON.stringify(lib.config));
-			for (const k of DENY) delete cfg[k];
-			cfg.__syncMeta = {
-				time: new Date().toLocaleString(),
-				from: platformName(),
-				ext: VERSION,
-			};
-			return cfg;
-		};
-		const uploadConfig = async () => {
-			const token = getToken() || autoToken();
-			if (!token) {
-				throw new Error("未获取到GitHub令牌：本机没有已登录的git/gh凭据，请在上方手填PAT（对本仓库 Contents 读写权限）");
+		const readSnapshot = async () => {
+			const text = await game.promises.readFileAsText(SNAP_PATH);
+			const json = JSON.parse(text);
+			if (!json || typeof json != "object") {
+				throw new Error("快照内容无效");
 			}
-			const cfg = gatherConfig();
-			const json = JSON.stringify(cfg);
-			const meta = cfg.__syncMeta;
-			const headers = {
-				Authorization: `Bearer ${token}`,
-				Accept: "application/vnd.github+json",
-				"Content-Type": "application/json",
-			};
-			let sha = null;
-			try {
-				const r = await fetch(`${API_BASE}${SYNC_PATH}?ref=main&_=${Date.now()}`, { headers });
-				if (r.ok) {
-					sha = (await r.json()).sha;
-				}
-			} catch {}
-			const resp = await fetch(API_BASE + SYNC_PATH, {
-				method: "PUT",
-				headers,
-				body: JSON.stringify({
-					message: `配置同步（${meta.from}，${meta.time}）`,
-					content: utf8ToB64(json),
-					branch: "main",
-					...(sha ? { sha } : {}),
-				}),
-			});
-			if (resp.ok) {
-				return `已上传（${Object.keys(cfg).length} 个配置键，来自${meta.from} ${meta.time}）`;
-			}
-			if (resp.status == 401) {
-				throw new Error("令牌无效或已过期（401），请重新生成并填入");
-			}
-			if (resp.status == 403) {
-				throw new Error("令牌权限不足或触发限流（403）——令牌需要本仓库的 Contents 读写权限");
-			}
-			const t = await resp.text().catch(() => "");
-			throw new Error(`上传失败 HTTP ${resp.status} ${t.slice(0, 150)}`);
-		};
-		const fetchCloud = async () => {
-			const pathEnc = SYNC_PATH.split("/").map(encodeURIComponent).join("/");
-			const sources = [
-				{ label: "GitHub 直连", prefix: "" },
-				{ label: "gh-proxy.com 镜像", prefix: "https://gh-proxy.com/" },
-				{ label: "gh.llkk.cc", prefix: "https://gh.llkk.cc/" },
-			];
-			for (const src of sources) {
-				try {
-					const r = await fetch(`${src.prefix}https://raw.githubusercontent.com/${REPO}/main/${pathEnc}?_=${Date.now()}`);
-					if (r.ok) {
-						return await r.json();
-					}
-				} catch {}
-			}
-			const token = getToken();
-			if (token) {
-				const r = await fetch(API_BASE + SYNC_PATH, {
-					headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github.raw" },
-				});
-				if (r.ok) {
-					return await r.json();
-				}
-			}
-			throw new Error("云端还没有配置文件（请先在另一台设备上上传），或所有下载源均不可达");
+			return json;
 		};
 		const applyCloud = async (cloud) => {
 			const warnings = [];
 			let applied = 0;
 			const installed = await localInstalled();
-			// 键归属判定：本机已知扩展名最长前缀优先；都不匹配再试云端extensionInfo（用于未安装提醒）
+			// 键归属判定：本机已知扩展名最长前缀优先；都不匹配再试快照extensionInfo（用于未安装提醒）
 			const localNames = [...installed].sort((a, b) => b.length - a.length);
 			const cloudNames = cloud.extensionInfo && typeof cloud.extensionInfo == "object" ? Object.keys(cloud.extensionInfo).sort((a, b) => b.length - a.length) : [];
 			const ownerOf = (key) => {
@@ -1029,7 +924,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				await game.saveConfig("extensions", keep);
 				applied++;
 			}
-			// ② extensionInfo：本机已安装的用云端覆盖，未安装的保留本地
+			// ② extensionInfo：本机已安装的用快照覆盖，未安装的保留本地
 			if (cloud.extensionInfo && typeof cloud.extensionInfo == "object") {
 				const info = Object.assign({}, lib.config.extensionInfo || {});
 				for (const n of Object.keys(cloud.extensionInfo)) {
@@ -1042,12 +937,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			}
 			// ③ 其余全部键：本体键直接覆盖；扩展键按归属处理
 			const keys = Object.keys(cloud).filter((k) => k != "__syncMeta" && k != "extensions" && k != "extensionInfo");
-			let done = 0;
 			for (const key of keys) {
-				done++;
-				if (done % 20 == 0) {
-					setStatus(`写入配置中 ${done}/${keys.length}…`);
-				}
 				if (DENY.has(key)) {
 					continue;
 				}
@@ -1074,80 +964,43 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			}
 			return { applied, warnings };
 		};
-		async function run(kind) {
-			setDisabled($.upload, true);
-			setDisabled($.sync, true);
+		async function run() {
+			let cloud;
 			try {
-				if (kind == "upload") {
-					setStatus("正在收集并上传配置…");
-					setStatus(await uploadConfig(), "ok");
-				} else {
-					setStatus("正在下载云端配置…");
-					const cloud = await fetchCloud();
-					const meta = cloud.__syncMeta;
-					setStatus(`云端配置来自${meta ? `${meta.from}（${meta.time}）` : "未知设备"}，正在应用…`);
-					const { applied, warnings } = await applyCloud(cloud);
-					let summary = `同步完成：已写入 ${applied} 个配置键。重启游戏后生效。`;
-					if (warnings.length) {
-						const show = warnings.slice(0, 30);
-						summary += `\n\n异常汇总（${warnings.length} 条）：\n· ` + show.join("\n· ") + (warnings.length > show.length ? `\n· …等共 ${warnings.length} 条` : "");
-					}
-					setStatus(summary, warnings.length ? "" : "ok");
-					if (confirm(summary + "\n\n是否立即重启游戏？")) {
-						game.reload();
-					}
+				cloud = await readSnapshot();
+			} catch (e) {
+				alert("未找到PC端配置快照（随扩展更新发布）。\n请先在PC端启动一次游戏（自动导出快照）并完成一次扩展更新，再来同步。\n\n" + (e && e.message ? e.message : e));
+				return;
+			}
+			if (!confirm("将用PC端的配置快照覆盖本机配置。\n已安装的扩展整组覆盖；未安装的扩展跳过；版本不一致的选项照写并汇总提醒。继续？")) {
+				return;
+			}
+			try {
+				const meta = cloud.__syncMeta;
+				const { applied, warnings } = await applyCloud(cloud);
+				let summary = `同步完成：已写入 ${applied} 个配置键${meta ? `（快照来自${meta.from || "?"} ${meta.time || ""}）` : ""}。重启游戏后生效。`;
+				if (warnings.length) {
+					const show = warnings.slice(0, 30);
+					summary += `\n\n异常汇总（${warnings.length} 条）：\n· ` + show.join("\n· ") + (warnings.length > show.length ? `\n· …等共 ${warnings.length} 条` : "");
+				}
+				if (confirm(summary + "\n\n是否立即重启游戏？")) {
+					game.reload();
 				}
 			} catch (e) {
-				setStatus(`${kind == "upload" ? "上传" : "同步"}失败：${e && e.message ? e.message : String(e)}`, "err");
-			} finally {
-				setDisabled($.upload, false);
-				setDisabled($.sync, false);
+				alert(`同步失败：${e && e.message ? e.message : e}`);
 			}
 		}
-		function open() {
-			if (overlay) return;
-			ktInjectCss();
-			overlay = el("ktupd-overlay", document.body);
-			const dialog = el("ktupd-dialog", overlay);
-			el("ktupd-title", dialog, "kirito扩展 · 配置云同步");
-			const close = () => {
-				overlay.remove();
-				overlay = null;
-			};
-			const closeBtn = el("ktupd-close", dialog, "✕");
-			closeBtn.onclick = close;
-			overlay.onclick = (e) => {
-				if (e.target === overlay) close();
-			};
-			el("ktupd-row", dialog).innerHTML = `<span>当前设备</span><b>${platformName()}</b>`;
-			el("ktupd-hint", dialog, "GitHub令牌（PAT）：PC端可留空——自动使用本机已登录的git/gh凭据（推送代码用的那份，只存本机不会上传）。本机没有凭据或手机要上传时，才手填PAT（仓库Settings→Developer settings→Fine-grained tokens，勾选Contents读写）");
-			$.token = document.createElement("input");
-			$.token.className = "ktupd-search";
-			$.token.placeholder = "粘贴GitHub令牌（ghp_… / github_pat_…）";
-			$.token.value = getToken();
-			$.token.onchange = () => game.saveConfig(TOKEN_KEY, $.token.value.trim());
-			dialog.appendChild($.token);
-			el("ktupd-section", dialog, "① 上传（在常改配置的设备上点，如PC）");
-			$.upload = el("ktupd-btn", dialog, "上传当前配置到云端");
-			$.upload.onclick = function () {
-				if (!this.hasAttribute("disabled")) run("upload");
-			};
-			el("ktupd-section", dialog, "② 同步（在另一台设备上点，如手机）");
-			$.sync = el("ktupd-btn green", dialog, "从云端同步配置（原样覆盖）");
-			$.sync.onclick = function () {
-				if (!this.hasAttribute("disabled")) run("sync");
-			};
-			el("ktupd-hint", dialog, "同步规则：本机已安装的扩展整组覆盖；未安装的扩展整组跳过；扩展版本不一致的未知选项照写并提醒。所有异常在同步完成后一次性汇总弹出");
-			$.status = el("ktupd-status", dialog, "上传前先填令牌；同步下载无需令牌");
-		}
-		return { open };
+		return { run, exportSnapshot };
 	})();
 	return {
 		name: "kirito扩展",
 		editable: true,
 		connect: false,
 		arenaReady: function () {},
-		content: function (config, pack) {},
+		content: function (config, pack) {
+			// 每次启动自动导出配置快照到游戏根目录（PC端为配置源；构建流程在更新扩展时拾取打进扩展包）
+			ktConfigSync.exportSnapshot();
+		},
 		prepare: function () {},
 		precontent: function (config) {
 			// 无上神专属"寂灭"进度条样式：复刻自无名美化手杀神马超模块，类名一致（见 grytouying_bar）
@@ -1376,13 +1229,13 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					ktPoolManager.open();
 				},
 			},
-			// 配置云同步：本体配置+所有扩展菜单配置上传到仓库，另一台设备一键原样覆盖（PC/手机双端配置同步）
+			// 配置云同步：以PC端为准——PC启动自动导出配置快照，扩展更新时随包发布，本机一键原样覆盖
 			cloudSync: {
-				name: "配置云同步（上传 / 同步）",
-				intro: "把本体配置和所有扩展的菜单配置上传到GitHub仓库，另一台设备一键原样覆盖。上传需要GitHub令牌（PAT，Contents读写权限，只存本机）；同步下载在公开仓库下无需令牌。同步时未安装的扩展自动跳过、版本不一致的选项会汇总提醒，异常在同步完成后一次性弹出",
+				name: "同步配置（以PC端为准）",
+				intro: "PC端游戏每次启动自动导出配置快照，更新扩展时快照随包发布。点此用快照覆盖本机配置：已安装的扩展整组覆盖、未安装的跳过、版本不一致的选项照写并汇总提醒（异常在完成后一次性弹出），完事后重启生效。无需令牌、无需网络配置",
 				clear: true,
 				onclick() {
-					ktConfigSync.open();
+					ktConfigSync.run();
 				},
 			},
 		},
