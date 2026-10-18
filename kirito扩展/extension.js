@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.26";
+const VERSION = "3.27";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -936,7 +936,8 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			// renderer不可用时跳过指令，并隐藏空白动皮层、还原静态立绘（优雅回退）；PC端renderer恒可用不受影响。
 			// skinSwitch本体是window全局普通对象（extension.js中Object.assign合入postMsgApi），可安全包装
 			const guardSkinSwitch = () => {
-				const api = window.skinSwitch && window.skinSwitch.postMsgApi;
+				const root = window.skinSwitch;
+				const api = root && root.postMsgApi;
 				if (!api || api.__ktGuard) {
 					return false;
 				}
@@ -966,6 +967,30 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 							return;
 						}
 						return origin.apply(this, arguments);
+					};
+				}
+				// 版本脱节修复：chukuang-worker-api.js三处调用skinSwitch.playAudioEffect（出框动画音效），
+				// 但该函数在当前版本不存在（已更名qhly_playAudioEffect）——动皮出框动画一触发就TypeError。
+				// 运行时补安全别名：按post-msg-api同款规则取皮肤名转调qhly_playAudioEffect，
+				// 取不到就静默跳过（最坏只是没音效，不再崩溃）
+				if (typeof root.playAudioEffect != "function") {
+					root.playAudioEffect = function (data, avatar) {
+						try {
+							let name = avatar && avatar.gongji && avatar.gongji.name ? avatar.gongji.name : avatar && avatar.name;
+							if (typeof name != "string" && data && data.dynamic) {
+								name = data.dynamic.gongji && data.dynamic.gongji.name ? data.dynamic.gongji.name : data.dynamic.name;
+							}
+							if (typeof name != "string") {
+								return;
+							}
+							const localePath = avatar && avatar.localePath;
+							if (typeof localePath == "string" && name.startsWith(localePath)) {
+								name = name.slice(localePath.length + 1);
+							}
+							if (typeof root.qhly_playAudioEffect == "function") {
+								root.qhly_playAudioEffect(name);
+							}
+						} catch (e) {}
 					};
 				}
 				api.__ktGuard = true;
