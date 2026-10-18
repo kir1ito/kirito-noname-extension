@@ -761,7 +761,7 @@
 					0
 				],
 				"wei": [
-					2,
+					3,
 					0
 				],
 				"jin": [
@@ -773,7 +773,7 @@
 					0
 				]
 			},
-			"str": "魏国: 2胜 0负<br />蜀国: 2胜 0负<br />吴国: 1胜 0负<br />晋朝: 1胜 0负<br />"
+			"str": "魏国: 3胜 0负<br />蜀国: 2胜 0负<br />吴国: 1胜 0负<br />晋朝: 1胜 0负<br />"
 		},
 		"versus": {
 			"data": {}
@@ -787,15 +787,15 @@
 		"doudizhu": {
 			"data": {
 				"zhu": [
-					22,
+					23,
 					0
 				],
 				"fan": [
-					21,
+					26,
 					0
 				]
 			},
-			"str": "地主：22胜 0负<br>农民：21胜 0负<br>"
+			"str": "地主：23胜 0负<br>农民：26胜 0负<br>"
 		},
 		"single": {
 			"data": {}
@@ -845,12 +845,12 @@
 	"layout": "nova",
 	"cardback_style": "ol",
 	"cardshape": "oblong",
-	"hp_style": "xinglass",
+	"hp_style": "glass",
 	"menu_style": "music",
 	"player_border": "slim",
 	"radius_size": "default",
 	"image_character": "default",
-	"image_background": "september_bg",
+	"image_background": "kyoani_bg",
 	"asset_image": true,
 	"asset_font": true,
 	"card_font": "xiaozhuan",
@@ -1953,7 +1953,7 @@
 	"bannedpile": {},
 	"customcardpile": {},
 	"addedpile": {},
-	"mode": "guozhan",
+	"mode": "doudizhu",
 	"mode_config": {
 		"global": {
 			"player_number": 8,
@@ -2137,20 +2137,12 @@
 			"change_card": "unlimited",
 			"continue_game": true,
 			"show_replay": true,
-			"player_number": "8",
-			"auto_identity": "off",
-			"double_character": false,
-			"save_progress": true,
-			"free_choose": true,
-			"swap": true,
-			"change_identity": true,
-			"battle_number": 3,
-			"double_hp": "pingjun",
-			"auto_mark_identity": true,
-			"change_choice": true,
 			"aozhan_bgm": "rewrite",
+			"auto_mark_identity": true,
 			"banGroup": false,
 			"changeViceType": "default",
+			"change_choice": true,
+			"change_identity": true,
 			"connect_aozhan": "normal",
 			"connect_choose_timeout": "30",
 			"connect_guozhan_mode": "normal",
@@ -2165,6 +2157,8 @@
 			"connect_shenInGuozhan": false,
 			"connect_viewnext": false,
 			"connect_zhulian": true,
+			"double_hp": "pingjun",
+			"free_choose": true,
 			"guozhanSkin": true,
 			"guozhan_mode": "yingbian",
 			"jinEx": true,
@@ -2172,8 +2166,11 @@
 			"menu_loadondemand": true,
 			"onlyguozhan": true,
 			"onlyguozhanexpand": false,
+			"player_number": "8",
 			"qunlangCharacters": false,
 			"recentCharacter": [
+				"wushangshen",
+				"gz_caoying",
 				"god",
 				"gz_ws_caoying",
 				"gz_zhugejin",
@@ -2209,9 +2206,17 @@
 			"change_card": "unlimited",
 			"continue_game": true,
 			"show_replay": true,
+			"player_number": 3,
+			"auto_identity": "off",
+			"double_character": false,
+			"save_progress": true,
+			"free_choose": true,
+			"swap": true,
+			"change_identity": true,
+			"battle_number": 3,
+			"double_hp": "pingjun",
 			"auto_mark_identity": true,
 			"change_choice": true,
-			"change_identity": true,
 			"connect_choose_timeout": "30",
 			"connect_double_character": false,
 			"connect_doudizhu_mode": "normal",
@@ -2222,15 +2227,11 @@
 			"connect_observe_handcard": false,
 			"connect_observe": true,
 			"dierestart": true,
-			"double_character": false,
-			"double_hp": "pingjun",
-			"doudizhu_mode": "huanle",
+			"doudizhu_mode": "normal",
 			"enhance_dizhu": "disabled",
 			"enhance_nongmin": "mobile",
 			"feiyang_version": "online",
-			"free_choose": true,
 			"menu_loadondemand": true,
-			"player_number": 3,
 			"recentCharacter": [
 				"wushangshen",
 				"jsrg_zhaoyun",
@@ -19605,6 +19606,7 @@
 		}
 	},
 	"extension_kirito扩展_enable": true,
+	"extension_kirito扩展_huanleFree": true,
 	"extension_kirito扩展_touyingPool": [
 		"gryshenti",
 		"ktyuli",
@@ -19612,9 +19614,7 @@
 		"ktjimie",
 		"ktxinghun",
 		"potheyun",
-		"potyinhui",
-		"potwuyi",
-		"potcuifeng"
+		"potyinhui"
 	],
 	"extension_kirito扩展_updateTime": "2026/10/17 01:49:15",
 	"extension_kirito扩展_version": "3.7",
@@ -19812,6 +19812,8 @@
 		"maxNum": 50,
 		"charList": [
 			"wushangshen",
+			"lisu",
+			"jiakui",
 			"re_madai",
 			"sp_ol_liubei",
 			"re_xusheng",
@@ -19858,11 +19860,17 @@
 			"mb_guanyinping",
 			"baoxin",
 			"mb_tianfeng",
-			"ol_zhangyì",
-			"dc_huangwudie",
-			"re_huatuo"
+			"ol_zhangyì"
 		],
 		"recentCharList": [
+			"wushangshen",
+			"wushangshen",
+			"wushangshen",
+			"wushangshen",
+			"wushangshen",
+			"wushangshen",
+			"lisu",
+			"jiakui",
 			"re_madai",
 			"wushangshen",
 			"wushangshen",
@@ -19904,15 +19912,7 @@
 			"yadan",
 			"feiyao",
 			"liwei",
-			"sb_zhangfei",
-			"caoxiancaohua",
-			"re_xiaoqiao",
-			"sp_ol_liubei",
-			"re_kanze",
-			"yangbiao",
-			"sunyuan",
-			"clan_xuncai",
-			"shen_zhugeliang"
+			"sb_zhangfei"
 		]
 	},
 	"extension_斗转星移_addBanCharToTopMenu": true,
@@ -19965,7 +19965,7 @@
 			"count": 17400
 		},
 		"daojulibao": {
-			"count": 19
+			"count": 20
 		},
 		"huanjiangka": {
 			"count": 117
@@ -19974,7 +19974,7 @@
 			"count": 107
 		},
 		"jianghun": {
-			"count": 1100
+			"count": 1200
 		},
 		"shenmibaoxiang": {
 			"count": 0
@@ -27252,8 +27252,15 @@
 	"qhly_extcompat": false,
 	"qhly_forceall": true,
 	"qhly_funcLoadInPrecontent": true,
-	"qhly_gzskinList": [],
-	"qhly_jianghun": 95123800,
+	"qhly_gzaudioList": [
+		"gz_tianfeng",
+		"gz_wujing"
+	],
+	"qhly_gzskinList": [
+		"gz_tianfeng",
+		"gz_wujing"
+	],
+	"qhly_jianghun": 95473800,
 	"qhly_listdefaultpage": "skill",
 	"qhly_lutou": true,
 	"qhly_lutouType": "decade",
@@ -27374,7 +27381,8 @@
 			"victory/shen_caocao": "../extension/千幻聆音/sanguoaudio/shen_caocao/victory",
 			"victory/caoying": "../extension/千幻聆音/sanguoaudio/caoying/victory",
 			"victory/mb_caomao": "../extension/千幻聆音/sanguoaudio/mb_caomao/victory",
-			"victory/zhangxiu": "../extension/千幻聆音/sanguoaudio/zhangxiu/victory"
+			"victory/zhangxiu": "../extension/千幻聆音/sanguoaudio/zhangxiu/victory",
+			"victory/mp_xiangxiu": "../extension/千幻聆音/sanguoaudio/mp_xiangxiu/victory"
 		},
 		"djtoggle": {
 			"shen_zhaoyun": {},
@@ -27524,10 +27532,10 @@
 		"wushangshen": {
 			"doudizhu": {
 				"农民": {
-					"win": 9
+					"win": 14
 				},
 				"地主": {
-					"win": 4
+					"win": 5
 				}
 			},
 			"identity": {
@@ -27542,6 +27550,18 @@
 				},
 				"主公": {
 					"win": 4
+				}
+			},
+			"guozhan": {
+				"魏国": {
+					"win": 1
+				}
+			}
+		},
+		"gz_caoying": {
+			"guozhan": {
+				"魏国": {
+					"win": 1
 				}
 			}
 		}
@@ -42300,8 +42320,8 @@
 	"ziqiCharacters": "ziqi",
 	"zuanzhishixian": "off",
 	"__syncMeta": {
-		"time": "2026/10/18 13:35:23",
+		"time": "2026/10/18 15:53:06",
 		"from": "PC",
-		"ext": "3.29"
+		"ext": "3.35"
 	}
 }

@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.35";
+const VERSION = "3.36";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -81,11 +81,95 @@ export default function () {
 // 降临默认候选池：本扩展全部可选技能（可在扩展设置的「降临技能池管理」中增删，存于配置 touyingPool）
 const DEFAULT_TOUYING_POOL = ["gryjuejing", "grylonghun", "gryshenti", "ktyuli", "kttingwei", "ktjimie", "ktxinghun", "ktshenpei"];
 // 二进制写入统一转ArrayBuffer：安卓cordova桥对Uint8Array按JSON逐字节序列化成{"0":72,"1":101,...}，
-// 几MB的图片/语音就是百万级HashMap键值，直接OOM爆Java堆；ArrayBuffer走base64通道无此问题。
-// node端game.writeFile同样接受ArrayBuffer（内部new Uint8Array包裹），PC行为不变
+// 几MB的图片/语音就是百万级HashMap键值，直接OOM爆Java堆。注意：ArrayBuffer在本体APK上同样被
+// 逐字节JSON序列化（见ktWriteBinary），只是峰值内存小不再OOM——所以二进制落盘必须走校验链
 const ktBinData = (data) => (data instanceof Uint8Array
 	? (data.byteOffset == 0 && data.byteLength == data.buffer.byteLength ? data.buffer : data.slice().buffer)
 	: data);
+// 安卓二进制写入自愈（v3.36）：经MTP取证，本体APK（子琪懒人包）的cordova桥把任何二进制参数
+// （ArrayBuffer/TypedArray/File）逐字节JSON序列化成文本写盘——41782字节的jpg落盘成472241字节
+// 的{"0":255,...}文本，图片/动皮atlas/语音全坏且读图失败=空白：结算头像、觉醒限定技背景、动皮
+// 渲染全灭；而纯字符串通道字节精确（extension.js/config-sync.json实测md5一致）。方案：安卓端
+// 二进制落盘一律"写入→读回→全字节比对"，不一致自动降级下一策略，首个通过的策略本会话优先复用：
+// ① 标准game.writeFile(ArrayBuffer)：健康内核字节精确（PC恒走此路，不进校验链）；
+// ② 直调File插件write [localURL, Base64串, offset, isBinary=true]：Java端按isBinary对String做
+//    Base64解码落盘，绕开损坏的JS→原生序列化层（字符串通道是本APK实测唯一字节精确的通道）
+const ktGameWrite = (data, dir, name) => new Promise((resolve, reject) =>
+	game.writeFile(data, dir, name, (err) => {
+		// 安卓端cordova写成功时回调的是ProgressEvent（truthy），只有真失败才是FileError；node端成功回调null
+		if (!err || (typeof ProgressEvent != "undefined" && err instanceof ProgressEvent)) resolve();
+		else reject(err);
+	}));
+const ktBase64Of = (bytes) => {
+	const chunk = 0x8000;
+	let bin = "";
+	for (let i = 0; i < bytes.length; i += chunk) {
+		bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+	}
+	return btoa(bin);
+};
+const ktBytesEqual = (a, b) => {
+	if (!a || !b || a.byteLength != b.byteLength) return false;
+	const ua = a instanceof Uint8Array ? a : new Uint8Array(a);
+	const ub = b instanceof Uint8Array ? b : new Uint8Array(b);
+	for (let i = 0; i < ua.length; i++) {
+		if (ua[i] != ub[i]) return false;
+	}
+	return true;
+};
+let ktBinWritePlan = null;
+const ktWriteBinary = async (data, dir, name) => {
+	const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+	// PC/Electron或无法读回校验的环境：直接写（node端game.writeFile(ArrayBuffer)字节精确）
+	if (typeof window == "undefined" || !window.cordova || typeof game.readFile != "function") {
+		return ktGameWrite(ktBinData(bytes), dir, name);
+	}
+	const local = `${dir.replace(/\/+$/, "")}/${name}`;
+	const verify = async () => {
+		const got = await new Promise((resolve, reject) => game.readFile(local, resolve, reject));
+		return ktBytesEqual(got, bytes);
+	};
+	const plans = [
+		async () => ktGameWrite(ktBinData(bytes), dir, name),
+		async () => {
+			const root = localStorage.getItem("noname_inited");
+			const entry = await new Promise((resolve, reject) =>
+				window.resolveLocalFileSystemURL(
+					root + dir,
+					(d) => d.getFile(name, { create: true }, resolve, reject),
+					reject
+				));
+			// 先删残留：损坏落盘比正确内容膨胀约11倍，若覆写不截断会留尾部垃圾导致校验不过
+			await new Promise((resolve) => game.removeFile(local, resolve));
+			await new Promise((resolve, reject) =>
+				cordova.exec(resolve, (e) => reject(new Error(typeof e == "object" ? JSON.stringify(e) : String(e))), "File", "write", [entry.localURL, ktBase64Of(bytes), 0, true]));
+		},
+	];
+	const order = ktBinWritePlan == 1 ? [1, 0] : [0, 1];
+	const errs = [];
+	for (const idx of order) {
+		try {
+			await plans[idx]();
+			if (!(await verify())) {
+				throw new Error("写入后读回比对不一致（二进制被序列化损坏）");
+			}
+			ktBinWritePlan = idx;
+			return;
+		} catch (e) {
+			errs.push(`${idx == 0 ? "标准写入" : "直调File"}：${(e && e.message) || e}`);
+		}
+	}
+	throw new Error(`二进制写入${local}失败（${errs.join("；")}）`);
+};
+// 更新清单值格式"md5:size"（v3.36+）：安卓历史版本落盘的损坏二进制非空但膨胀约11倍，
+// 仅凭哈希比对与判空永远发现不了，按尺寸体检才能触发重下自愈；旧格式纯md5返回null（跳过尺寸校验）
+const ktManifestSize = (v) => {
+	if (typeof v != "string") return null;
+	const i = v.lastIndexOf(":");
+	if (i < 0) return null;
+	const n = Number(v.slice(i + 1));
+	return Number.isFinite(n) && n >= 0 ? n : null;
+};
 	// 在线更新中心：点按钮弹出独立遮罩窗口（形态复刻十周年UI配置中心，非系统窗口）
 	// 流程：检测连通性（各源拉info.json测延迟）→ 通过后才可开始更新 → 进度条逐文件流式下载
 	// → 全部成功后最后写info.json（版本号）。任何一步失败：版本号与更新时间配置不变更（相当于还原），
@@ -372,13 +456,13 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			// 目录创建不能用ensureDirectory：cordova版不等目录建完就回调（安卓首次写新目录必竞态失败），
 			// node版对根下嵌套新目录也会抛错——两端实现真正的createDir都会等目录建好才回调
 			await new Promise((resolve, reject) => game.createDir(dir, resolve, reject));
-			await new Promise((resolve, reject) =>
-				game.writeFile(ktBinData(data), dir, local.slice(slash + 1), (err) => {
-					// 安卓端cordova写成功时回调的是ProgressEvent（truthy），只有真失败才是FileError；node端成功回调null
-					if (!err || (typeof ProgressEvent != "undefined" && err instanceof ProgressEvent)) resolve();
-					else reject(err);
-				})
-			);
+			if (typeof data == "string") {
+				// 文本走字符串通道：两端实测字节精确（安卓桥只对二进制参数做JSON序列化损坏）
+				await ktGameWrite(data, dir, local.slice(slash + 1));
+			} else {
+				// 二进制走校验链：安卓损坏内核自动降级直调File插件Base64通道，PC直通
+				await ktWriteBinary(data, dir, local.slice(slash + 1));
+			}
 		};
 		async function startUpdate() {
 			setDisabled($.check, true);
@@ -584,11 +668,17 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 						changeList.push(path);
 						continue;
 					}
-					// 哈希一致但本地文件缺失/为空（如被手动删除）时也补下
+					// 哈希一致也做本地体检：缺失/为空/尺寸不符都补下——安卓历史版本落盘的二进制损坏为
+					// 逐字节JSON文本（非空但膨胀约11倍），只判空永远发现不了，按清单size才能触发重下自愈
 					try {
 						const data = await game.promises.readFile(`extension/${NAME}/${path}`);
 						if (!data || !data.byteLength) {
 							changeList.push(path);
+						} else {
+							const expect = ktManifestSize(remoteManifest[path]);
+							if (expect != null && expect !== data.byteLength) {
+								changeList.push(path);
+							}
 						}
 					} catch {
 						changeList.push(path);
@@ -1008,32 +1098,35 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			lib.init.css(lib.assetURL + "extension/kirito扩展", "wushangshen_bar");
 			// 资产镜像：走本体FS抽象（readFile/writeFile），PC/安卓通用。
 			// 不用fetch的原因：①部分安卓webview下对资源URL的fetch不可靠；②旧版"存在即跳过"，
-			// 历史中断留下的0字节文件会被永远跳过——结算头像空白即此因，现校验非空可自愈
+			// 历史损坏留下的非空坏文件会被永远跳过（安卓端逐字节JSON假图片=结算头像空白元凶），
+			// 现全字节比对，不一致自动经ktWriteBinary校验链重写自愈
 			if (typeof game.writeFile == "function" && game.promises && typeof game.promises.readFile == "function") {
-				const copyFile = async (from, to) => {
+			const copyFile = async (from, to) => {
+				try {
+					const data = await game.promises.readFile(from);
+					if (!data || !data.byteLength) {
+						return;
+					}
+					const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+					// 旧版"存在即跳过"会把历史损坏留下的非空坏文件永久保留（安卓端即逐字节JSON损坏的
+					// 假图片，结算头像/限定技背景空白的元凶）——现读回全字节比对，一致才跳过，不一致自动重写自愈
+					let same = false;
 					try {
 						const existing = await game.promises.readFile(to);
-						if (existing && existing.byteLength > 0) {
-							return;
-						}
+						same = ktBytesEqual(existing, bytes);
 					} catch {}
-					try {
-						const data = await game.promises.readFile(from);
-						if (!data || !data.byteLength) {
-							return;
-						}
-						const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
-						// createDir等目录真正建完再回调（ensureDirectory在cordova端不等待，有竞态）
-						const slash = to.lastIndexOf("/");
-						await new Promise((resolve, reject) => game.createDir(to.slice(0, slash), resolve, reject));
-						await new Promise((resolve, reject) =>
-							game.writeFile(ktBinData(bytes), to.slice(0, slash), to.slice(slash + 1), (err) => (err ? reject(err) : resolve()))
-						);
-						console.log(`kirito扩展：已镜像 ${to}`);
-					} catch (e) {
-						console.warn(`kirito扩展：镜像 ${to} 失败`, e);
+					if (same) {
+						return;
 					}
-				};
+					// createDir等目录真正建完再回调（ensureDirectory在cordova端不等待，有竞态）
+					const slash = to.lastIndexOf("/");
+					await new Promise((resolve, reject) => game.createDir(to.slice(0, slash), resolve, reject));
+					await ktWriteBinary(bytes, to.slice(0, slash), to.slice(slash + 1));
+					console.log(`kirito扩展：已镜像 ${to}`);
+				} catch (e) {
+					console.warn(`kirito扩展：镜像 ${to} 失败`, e);
+				}
+			};
 				// (1) 立绘：十周年UI头像/限定技大字特效/MVP结算页等消费方直接请求本体 image/character/<武将>.jpg，
 				// 不读扩展目录（404导致结算大头像空白）
 				copyFile("extension/kirito扩展/wushangshen.jpg", "image/character/wushangshen.jpg");

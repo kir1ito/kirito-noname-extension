@@ -35,7 +35,10 @@ jobs:
                       p = os.path.join(root, f)
                       z.write(p, p)
                       with open(p, "rb") as fh:
-                          manifest[p.replace(os.sep, "/")] = hashlib.md5(fh.read()).hexdigest()
+                          data = fh.read()
+                          # 值格式"md5:size"：客户端增量除哈希外还校验本地文件尺寸，
+                          # 安卓端历史版本落盘损坏的二进制（膨胀约11倍的JSON文本）凭尺寸即可检出重下
+                          manifest[p.replace(os.sep, "/")] = f"{hashlib.md5(data).hexdigest()}:{len(data)}"
                       count += 1
           version = json.load(open("kirito扩展/info.json", encoding="utf-8"))["version"]
           with open("version.txt", "w", encoding="utf-8") as f:
