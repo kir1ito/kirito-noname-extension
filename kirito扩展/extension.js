@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.29";
+const VERSION = "3.30";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -990,7 +990,146 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				alert(`同步失败：${e && e.message ? e.message : e}`);
 			}
 		}
-		return { run, exportSnapshot };
+		// 欢乐斗地主自由选将：运行时接管 game.chooseCharacterHuanle。保留原版叫地主/身份判定/地主加体力流程，
+	// 唯一差异：本机玩家不再只从随机4张（地主7张）候选里选，而是从全部可用武将中自由选择；AI仍从随机候选取将。
+	// 用defineProperty存取器挂钩：无论模式文件何时把原函数赋到game上，读取时都按配置返回（扩展菜单可实时开关）
+	const ktHuanleFreeImpl = function chooseCharacterHuanle() {
+		const next = game.createEvent("chooseCharacter");
+		next.setContent(async (event, trigger, player) => {
+			ui.arena.classList.add("choose-character");
+			game.no_continue_game = true;
+			const characterList = [];
+			const recommendedCharacters = [];
+			const replacedCharacters = [];
+			if (!event.map) {
+				event.map = {};
+			}
+			const characterMap = event.map;
+			for (const group in lib.characterReplace) {
+				const replacements = lib.characterReplace[group];
+				for (const character of [...replacements]) {
+					if (lib.filter.characterDisabled(character)) {
+						replacements.remove(character);
+					}
+				}
+				if (replacements.length) {
+					const name = replacements.randomGet();
+					characterList.push(name);
+					if (game.recommendDizhu.includes(name)) {
+						recommendedCharacters.push(name);
+					}
+					replacedCharacters.addArray(replacements);
+				}
+			}
+			for (const name in lib.character) {
+				if (replacedCharacters.includes(name) || lib.filter.characterDisabled(name)) {
+					continue;
+				}
+				characterList.push(name);
+				if (game.recommendDizhu.includes(name)) {
+					recommendedCharacters.push(name);
+				}
+			}
+			characterList.randomSort();
+			_status.characterlist = characterList.slice();
+			const controls = ["不叫", "叫地主"];
+			// 与原版唯一差异：本机玩家不发随机候选（叫地主后从全部武将自由选择），AI照常随机发将
+			for (const current2 of game.players) {
+				if (current2 === game.me) {
+					continue;
+				}
+				const id = current2.playerid;
+				if (!characterMap[id]) {
+					characterMap[id] = [];
+				}
+				characterMap[id].addArray(recommendedCharacters.randomRemove(1));
+				characterList.removeArray(characterMap[id]);
+				characterMap[id].addArray(characterList.randomRemove(4 - characterMap[id].length));
+				recommendedCharacters.removeArray(characterMap[id]);
+			}
+			const dialog = ui.create.dialog("你的选将框（自由选将：全部武将可选）", [characterList, "character"]);
+			const start = game.players.randomGet();
+			let current = start;
+			let biddingFinished = false;
+			lib.init.onfree();
+			await game.delay(2.5);
+			while (!biddingFinished) {
+				const choiceEvent = current.chooseControl({
+					controls: [...controls],
+					ai: () => Math.random() > 0.5 ? "不叫" : "叫地主"
+				});
+				if (current === game.me) {
+					dialog.content.childNodes[0].innerHTML = "是否抢地主？";
+				}
+				const result2 = await choiceEvent.forResult();
+				current.chat(result2.control);
+				if (result2.control === "叫地主" || current === start.next) {
+					game.zhu = result2.control === "叫地主" ? current : current.next;
+					biddingFinished = true;
+				} else {
+					current = current.next;
+					await game.delay(1.5);
+				}
+			}
+			for (const current2 of game.players) {
+				current2.identity = current2 === game.zhu ? "zhu" : "fan";
+				current2.showIdentity();
+			}
+			dialog.close();
+			characterMap[game.zhu.playerid].addArray(characterList.randomRemove(3));
+			const result = await game.me.chooseButton({
+				createDialog: ["请选择你的武将（自由选将）", [characterList, "character"]],
+				forced: true
+			}).forResult();
+			game.me.init(result.links[0]);
+			for (const current2 of game.players) {
+				if (current2 !== game.me) {
+					current2.init(characterMap[current2.playerid].randomGet());
+				}
+			}
+			if (!game.zhu.isInitFilter("noZhuHp")) {
+				game.zhu.maxHp++;
+				game.zhu.hp++;
+				game.zhu.update();
+			}
+			for (const current2 of game.players) {
+				_status.characterlist.remove(current2.name1);
+				_status.characterlist.remove(current2.name2);
+			}
+			setTimeout(() => ui.arena.classList.remove("choose-character"), 500);
+		});
+		return next;
+	};
+	// 挂钩安装：content阶段调用（window标记防重复）。getter按配置实时返回自由选将版/原版
+	const installHuanleFree = () => {
+		if (window.__ktHuanleFreeInstalled || typeof game != "object" || !game) {
+			return;
+		}
+		const KEY = "chooseCharacterHuanle";
+		const desc = Object.getOwnPropertyDescriptor(game, KEY);
+		if (desc && !desc.configurable) {
+			window.__ktHuanleFreeInstalled = true;
+			return;
+		}
+		let originRef = typeof (desc && desc.value) == "function" ? desc.value : undefined;
+		Object.defineProperty(game, KEY, {
+			configurable: true,
+			enumerable: true,
+			get() {
+				if (lib.config["extension_kirito扩展_huanleFree"] === false && typeof originRef == "function") {
+					return originRef;
+				}
+				return ktHuanleFreeImpl;
+			},
+			set(v) {
+				if (typeof v == "function") {
+					originRef = v;
+				}
+			},
+		});
+		window.__ktHuanleFreeInstalled = true;
+	};
+	return { run, exportSnapshot };
 	})();
 	return {
 		name: "kirito扩展",
@@ -1000,6 +1139,8 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		content: function (config, pack) {
 			// 每次启动自动导出配置快照到游戏根目录（PC端为配置源；构建流程在更新扩展时拾取打进扩展包）
 			ktConfigSync.exportSnapshot();
+			// 欢乐斗地主自由选将挂钩（window标记防重复安装）
+			installHuanleFree();
 		},
 		prepare: function () {},
 		precontent: function (config) {
@@ -1237,6 +1378,13 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				onclick() {
 					ktConfigSync.run();
 				},
+			},
+			// 欢乐斗地主自由选将：你的武将从全部可用武将中自由选择（AI仍随机），可实时开关
+			huanleFree: {
+				name: "欢乐斗地主自由选将",
+				init: true,
+				intro: "欢乐斗地主模式下，你的武将从全部可用武将中自由选择（叫地主流程不变），AI仍从随机候选中取将。开关实时生效（改动后开始的新对局即应用）",
+				clear: true,
 			},
 		},
 		package: {
