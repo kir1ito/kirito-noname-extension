@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.30";
+const VERSION = "3.31";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -990,7 +990,9 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				alert(`同步失败：${e && e.message ? e.message : e}`);
 			}
 		}
-		// 欢乐斗地主自由选将：运行时接管 game.chooseCharacterHuanle。保留原版叫地主/身份判定/地主加体力流程，
+		return { run, exportSnapshot };
+	})();
+	// 欢乐斗地主自由选将：运行时接管 game.chooseCharacterHuanle。保留原版叫地主/身份判定/地主加体力流程，
 	// 唯一差异：本机玩家不再只从随机4张（地主7张）候选里选，而是从全部可用武将中自由选择；AI仍从随机候选取将。
 	// 用defineProperty存取器挂钩：无论模式文件何时把原函数赋到game上，读取时都按配置返回（扩展菜单可实时开关）
 	const ktHuanleFreeImpl = function chooseCharacterHuanle() {
@@ -1129,8 +1131,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		});
 		window.__ktHuanleFreeInstalled = true;
 	};
-	return { run, exportSnapshot };
-	})();
 	return {
 		name: "kirito扩展",
 		editable: true,
