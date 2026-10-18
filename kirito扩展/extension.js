@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.34";
+const VERSION = "3.35";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -992,126 +992,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		}
 		return { run, exportSnapshot };
 	})();
-	// 欢乐斗地主自由选将：叠加式挂钩（不整体替换，不与其他扩展抢着覆写斗地主代码）。
-	// 原函数（可能已被倍数美化等扩展包装过）照常执行，本机玩家的候选框照旧；
-	// 仅在候选选将时额外挂一个与休闲模式同款的「自由选将」按钮——点击在候选框/全将框之间切换，
-	// 在全将框点选的武将即为最终选择。defineProperty存取器挂载，扩展菜单可实时开关
-	const installHuanleFree = () => {
-		if (window.__ktHuanleFreeInstalled || typeof game != "object" || !game) {
-			return;
-		}
-		const KEY = "chooseCharacterHuanle";
-		const desc = Object.getOwnPropertyDescriptor(game, KEY);
-		if (desc && !desc.configurable) {
-			window.__ktHuanleFreeInstalled = true;
-			return;
-		}
-		let originRef = typeof (desc && desc.value) == "function" ? desc.value : undefined;
-		const wrapped = function () {
-			const base = typeof originRef == "function" ? originRef : null;
-			if (!base || lib.config["extension_kirito扩展_huanleFree"] === false) {
-				return base ? base.apply(this, arguments) : undefined;
-			}
-			const next = base.apply(this, arguments);
-			if (!next || !next.content) {
-				return next;
-			}
-			const originContent = next.content;
-			next.setContent(async function (event, trigger, player) {
-				const me = game.me;
-				const originChooseButton = me && me.chooseButton;
-				if (!me || !originChooseButton) {
-					return await originContent.call(this, event, trigger, player);
-				}
-				let dialogxx = null;
-				let cheat2 = null;
-				// 仅包装本机玩家的选将：候选框照常打开，另加「自由选将」按钮做候选框/全将框切换
-				// （切换机制照抄休闲模式：改挂_status.event.dialog后uncheck/check）
-				me.chooseButton = function (...args) {
-					// 兼容两种调用形态：本体/对象式{createDialog:[标题,[候选,"character"]]}；
-					// 斗转星移用数组式chooseButton(["请选择你的武将",[候选,"character"]],true)
-					const a0 = args[0];
-					const isCharPick = !!(
-						(
-							a0 &&
-							a0.createDialog &&
-							a0.createDialog[1] &&
-							Array.isArray(a0.createDialog[1]) &&
-							a0.createDialog[1][1] == "character"
-						) ||
-						(Array.isArray(a0) && a0[1] && Array.isArray(a0[1]) && a0[1][1] == "character")
-					);
-					if (!isCharPick || lib.config["extension_kirito扩展_huanleFree"] === false) {
-						return originChooseButton.apply(this, args);
-					}
-					const promise = originChooseButton.apply(this, args);
-					try {
-						cheat2 = ui.create.control("自由选将", () => {
-							const control = cheat2;
-							if (!_status.event.dialog) {
-								return;
-							}
-							if (control.dialog === _status.event.dialog) {
-								control.dialog.close();
-								_status.event.dialog = control.backup;
-								control.backup.open();
-								delete control.backup;
-								game.uncheck();
-								game.check();
-							} else {
-								if (!dialogxx) {
-									dialogxx = ui.create.characterDialog("heightset");
-								}
-								control.backup = _status.event.dialog;
-								_status.event.dialog.close();
-								_status.event.dialog = dialogxx;
-								control.dialog = dialogxx;
-								control.dialog.open();
-								game.uncheck();
-								game.check();
-							}
-						});
-					} catch (e) {}
-					return promise;
-				};
-				try {
-					return await originContent.call(this, event, trigger, player);
-				} finally {
-					if (me) {
-						if (originChooseButton) {
-							me.chooseButton = originChooseButton;
-						} else {
-							delete me.chooseButton;
-						}
-					}
-					if (cheat2) {
-						cheat2.close();
-						cheat2 = null;
-					}
-					if (dialogxx) {
-						try {
-							dialogxx.close();
-						} catch (e) {}
-						dialogxx = null;
-					}
-				}
-			});
-			return next;
-		};
-		Object.defineProperty(game, KEY, {
-			configurable: true,
-			enumerable: true,
-			get() {
-				return wrapped;
-			},
-			set(v) {
-				if (typeof v == "function") {
-					originRef = v;
-				}
-			},
-		});
-		window.__ktHuanleFreeInstalled = true;
-	};
 
 	return {
 		name: "kirito扩展",
@@ -1121,8 +1001,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		content: function (config, pack) {
 			// 每次启动自动导出配置快照到游戏根目录（PC端为配置源；构建流程在更新扩展时拾取打进扩展包）
 			ktConfigSync.exportSnapshot();
-			// 欢乐斗地主自由选将挂钩（window标记防重复安装）
-			installHuanleFree();
 		},
 		prepare: function () {},
 		precontent: function (config) {
@@ -1360,13 +1238,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				onclick() {
 					ktConfigSync.run();
 				},
-			},
-			// 欢乐斗地主自由选将：你的武将从全部可用武将中自由选择（AI仍随机），可实时开关
-			huanleFree: {
-				name: "欢乐斗地主自由选将",
-				init: true,
-				intro: "欢乐斗地主模式下，你的武将从全部可用武将中自由选择（叫地主流程不变），AI仍从随机候选中取将。开关实时生效（改动后开始的新对局即应用）",
-				clear: true,
 			},
 		},
 		package: {
