@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.33";
+const VERSION = "3.34";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1028,8 +1028,19 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				// 仅包装本机玩家的选将：候选框照常打开，另加「自由选将」按钮做候选框/全将框切换
 				// （切换机制照抄休闲模式：改挂_status.event.dialog后uncheck/check）
 				me.chooseButton = function (...args) {
-					const cd = args[0] && args[0].createDialog;
-					const isCharPick = cd && cd[1] && Array.isArray(cd[1]) && cd[1][1] == "character";
+					// 兼容两种调用形态：本体/对象式{createDialog:[标题,[候选,"character"]]}；
+					// 斗转星移用数组式chooseButton(["请选择你的武将",[候选,"character"]],true)
+					const a0 = args[0];
+					const isCharPick = !!(
+						(
+							a0 &&
+							a0.createDialog &&
+							a0.createDialog[1] &&
+							Array.isArray(a0.createDialog[1]) &&
+							a0.createDialog[1][1] == "character"
+						) ||
+						(Array.isArray(a0) && a0[1] && Array.isArray(a0[1]) && a0[1][1] == "character")
+					);
 					if (!isCharPick || lib.config["extension_kirito扩展_huanleFree"] === false) {
 						return originChooseButton.apply(this, args);
 					}
