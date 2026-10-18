@@ -860,6 +860,38 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			else btn.removeAttribute("disabled");
 		};
 		const getToken = () => String(lib.config[TOKEN_KEY] || "").trim();
+		// 自动凭据：PC(Electron)端本机已git/gh登录时，直接读取凭据管理器里的GitHub令牌——即git推送用的那份，
+		// 无需手填。gh auth token优先（无交互），git credential fill兜底（禁用交互防弹窗）。手机端无此环境，返回null
+		const autoToken = () => {
+			try {
+				if (typeof window.require != "function" || typeof window.process == "undefined") {
+					return null;
+				}
+				const cp = window.require("child_process");
+				const opts = {
+					timeout: 8000,
+					env: Object.assign({}, window.process.env, { GIT_TERMINAL_PROMPT: "0", GCM_INTERACTIVE: "never" }),
+				};
+				try {
+					const out = cp.execFileSync("gh", ["auth", "token"], opts).toString().trim();
+					if (out && out.length >= 20) {
+						return out;
+					}
+				} catch {}
+				try {
+					const out = cp
+						.execFileSync("git", ["credential", "fill"], Object.assign({ input: "protocol=https\nhost=github.com\n\n" }, opts))
+						.toString();
+					const m = out.match(/password=(\S+)/);
+					if (m && m[1]) {
+						return m[1];
+					}
+				} catch {}
+			} catch (e) {
+				console.warn("kirito扩展：自动读取本机GitHub凭据失败", e);
+			}
+			return null;
+		};
 		const utf8ToB64 = (str) => {
 			const bytes = new TextEncoder().encode(str);
 			let bin = "";
@@ -897,9 +929,9 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			return cfg;
 		};
 		const uploadConfig = async () => {
-			const token = getToken();
+			const token = getToken() || autoToken();
 			if (!token) {
-				throw new Error("请先在上方填入GitHub令牌（PAT，对本仓库的 Contents 读写权限），保存后重试");
+				throw new Error("未获取到GitHub令牌：本机没有已登录的git/gh凭据，请在上方手填PAT（对本仓库 Contents 读写权限）");
 			}
 			const cfg = gatherConfig();
 			const json = JSON.stringify(cfg);
@@ -1088,7 +1120,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				if (e.target === overlay) close();
 			};
 			el("ktupd-row", dialog).innerHTML = `<span>当前设备</span><b>${platformName()}</b>`;
-			el("ktupd-hint", dialog, "GitHub令牌（PAT）：仓库Settings→Developer settings→Fine-grained tokens，勾选本仓库的 Contents 读写权限。上传必须填；同步下载在公开仓库下可不填。令牌只存本机，不会上传");
+			el("ktupd-hint", dialog, "GitHub令牌（PAT）：PC端可留空——自动使用本机已登录的git/gh凭据（推送代码用的那份，只存本机不会上传）。本机没有凭据或手机要上传时，才手填PAT（仓库Settings→Developer settings→Fine-grained tokens，勾选Contents读写）");
 			$.token = document.createElement("input");
 			$.token.className = "ktupd-search";
 			$.token.placeholder = "粘贴GitHub令牌（ghp_… / github_pat_…）";
