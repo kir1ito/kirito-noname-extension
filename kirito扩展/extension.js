@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.31";
+const VERSION = "3.33";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -992,117 +992,10 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		}
 		return { run, exportSnapshot };
 	})();
-	// 欢乐斗地主自由选将：运行时接管 game.chooseCharacterHuanle。保留原版叫地主/身份判定/地主加体力流程，
-	// 唯一差异：本机玩家不再只从随机4张（地主7张）候选里选，而是从全部可用武将中自由选择；AI仍从随机候选取将。
-	// 用defineProperty存取器挂钩：无论模式文件何时把原函数赋到game上，读取时都按配置返回（扩展菜单可实时开关）
-	const ktHuanleFreeImpl = function chooseCharacterHuanle() {
-		const next = game.createEvent("chooseCharacter");
-		next.setContent(async (event, trigger, player) => {
-			ui.arena.classList.add("choose-character");
-			game.no_continue_game = true;
-			const characterList = [];
-			const recommendedCharacters = [];
-			const replacedCharacters = [];
-			if (!event.map) {
-				event.map = {};
-			}
-			const characterMap = event.map;
-			for (const group in lib.characterReplace) {
-				const replacements = lib.characterReplace[group];
-				for (const character of [...replacements]) {
-					if (lib.filter.characterDisabled(character)) {
-						replacements.remove(character);
-					}
-				}
-				if (replacements.length) {
-					const name = replacements.randomGet();
-					characterList.push(name);
-					if (game.recommendDizhu.includes(name)) {
-						recommendedCharacters.push(name);
-					}
-					replacedCharacters.addArray(replacements);
-				}
-			}
-			for (const name in lib.character) {
-				if (replacedCharacters.includes(name) || lib.filter.characterDisabled(name)) {
-					continue;
-				}
-				characterList.push(name);
-				if (game.recommendDizhu.includes(name)) {
-					recommendedCharacters.push(name);
-				}
-			}
-			characterList.randomSort();
-			_status.characterlist = characterList.slice();
-			const controls = ["不叫", "叫地主"];
-			// 与原版唯一差异：本机玩家不发随机候选（叫地主后从全部武将自由选择），AI照常随机发将
-			for (const current2 of game.players) {
-				if (current2 === game.me) {
-					continue;
-				}
-				const id = current2.playerid;
-				if (!characterMap[id]) {
-					characterMap[id] = [];
-				}
-				characterMap[id].addArray(recommendedCharacters.randomRemove(1));
-				characterList.removeArray(characterMap[id]);
-				characterMap[id].addArray(characterList.randomRemove(4 - characterMap[id].length));
-				recommendedCharacters.removeArray(characterMap[id]);
-			}
-			const dialog = ui.create.dialog("你的选将框（自由选将：全部武将可选）", [characterList, "character"]);
-			const start = game.players.randomGet();
-			let current = start;
-			let biddingFinished = false;
-			lib.init.onfree();
-			await game.delay(2.5);
-			while (!biddingFinished) {
-				const choiceEvent = current.chooseControl({
-					controls: [...controls],
-					ai: () => Math.random() > 0.5 ? "不叫" : "叫地主"
-				});
-				if (current === game.me) {
-					dialog.content.childNodes[0].innerHTML = "是否抢地主？";
-				}
-				const result2 = await choiceEvent.forResult();
-				current.chat(result2.control);
-				if (result2.control === "叫地主" || current === start.next) {
-					game.zhu = result2.control === "叫地主" ? current : current.next;
-					biddingFinished = true;
-				} else {
-					current = current.next;
-					await game.delay(1.5);
-				}
-			}
-			for (const current2 of game.players) {
-				current2.identity = current2 === game.zhu ? "zhu" : "fan";
-				current2.showIdentity();
-			}
-			dialog.close();
-			characterMap[game.zhu.playerid].addArray(characterList.randomRemove(3));
-			const result = await game.me.chooseButton({
-				createDialog: ["请选择你的武将（自由选将）", [characterList, "character"]],
-				forced: true
-			}).forResult();
-			game.me.init(result.links[0]);
-			for (const current2 of game.players) {
-				if (current2 !== game.me) {
-					current2.init(characterMap[current2.playerid].randomGet());
-				}
-			}
-			if (!game.zhu.isInitFilter("noZhuHp")) {
-				game.zhu.maxHp++;
-				game.zhu.hp++;
-				game.zhu.update();
-			}
-			for (const current2 of game.players) {
-				_status.characterlist.remove(current2.name1);
-				_status.characterlist.remove(current2.name2);
-			}
-			setTimeout(() => ui.arena.classList.remove("choose-character"), 500);
-		});
-		return next;
-	};
-	// 挂钩安装：content阶段调用（window标记防重复）。getter按配置实时返回自由选将版/原版
+	// 欢乐斗地主自由选将：叠加式挂钩（不整体替换，不与其他扩展抢着覆写斗地主代码）。
+	// 原函数（可能已被倍数美化等扩展包装过）照常执行，本机玩家的候选框照旧；
+	// 仅在候选选将时额外挂一个与休闲模式同款的「自由选将」按钮——点击在候选框/全将框之间切换，
+	// 在全将框点选的武将即为最终选择。defineProperty存取器挂载，扩展菜单可实时开关
 	const installHuanleFree = () => {
 		if (window.__ktHuanleFreeInstalled || typeof game != "object" || !game) {
 			return;
@@ -1114,14 +1007,91 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			return;
 		}
 		let originRef = typeof (desc && desc.value) == "function" ? desc.value : undefined;
+		const wrapped = function () {
+			const base = typeof originRef == "function" ? originRef : null;
+			if (!base || lib.config["extension_kirito扩展_huanleFree"] === false) {
+				return base ? base.apply(this, arguments) : undefined;
+			}
+			const next = base.apply(this, arguments);
+			if (!next || !next.content) {
+				return next;
+			}
+			const originContent = next.content;
+			next.setContent(async function (event, trigger, player) {
+				const me = game.me;
+				const originChooseButton = me && me.chooseButton;
+				if (!me || !originChooseButton) {
+					return await originContent.call(this, event, trigger, player);
+				}
+				let dialogxx = null;
+				let cheat2 = null;
+				// 仅包装本机玩家的选将：候选框照常打开，另加「自由选将」按钮做候选框/全将框切换
+				// （切换机制照抄休闲模式：改挂_status.event.dialog后uncheck/check）
+				me.chooseButton = function (...args) {
+					const cd = args[0] && args[0].createDialog;
+					const isCharPick = cd && cd[1] && Array.isArray(cd[1]) && cd[1][1] == "character";
+					if (!isCharPick || lib.config["extension_kirito扩展_huanleFree"] === false) {
+						return originChooseButton.apply(this, args);
+					}
+					const promise = originChooseButton.apply(this, args);
+					try {
+						cheat2 = ui.create.control("自由选将", () => {
+							const control = cheat2;
+							if (!_status.event.dialog) {
+								return;
+							}
+							if (control.dialog === _status.event.dialog) {
+								control.dialog.close();
+								_status.event.dialog = control.backup;
+								control.backup.open();
+								delete control.backup;
+								game.uncheck();
+								game.check();
+							} else {
+								if (!dialogxx) {
+									dialogxx = ui.create.characterDialog("heightset");
+								}
+								control.backup = _status.event.dialog;
+								_status.event.dialog.close();
+								_status.event.dialog = dialogxx;
+								control.dialog = dialogxx;
+								control.dialog.open();
+								game.uncheck();
+								game.check();
+							}
+						});
+					} catch (e) {}
+					return promise;
+				};
+				try {
+					return await originContent.call(this, event, trigger, player);
+				} finally {
+					if (me) {
+						if (originChooseButton) {
+							me.chooseButton = originChooseButton;
+						} else {
+							delete me.chooseButton;
+						}
+					}
+					if (cheat2) {
+						cheat2.close();
+						cheat2 = null;
+					}
+					if (dialogxx) {
+						try {
+							dialogxx.close();
+						} catch (e) {}
+						dialogxx = null;
+					}
+				}
+			});
+			return next;
+		};
 		Object.defineProperty(game, KEY, {
 			configurable: true,
 			enumerable: true,
 			get() {
-				if (lib.config["extension_kirito扩展_huanleFree"] === false && typeof originRef == "function") {
-					return originRef;
-				}
-				return ktHuanleFreeImpl;
+				return wrapped;
 			},
 			set(v) {
 				if (typeof v == "function") {
@@ -1131,6 +1101,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		});
 		window.__ktHuanleFreeInstalled = true;
 	};
+
 	return {
 		name: "kirito扩展",
 		editable: true,
