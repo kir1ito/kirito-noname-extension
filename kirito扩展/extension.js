@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.40";
+const VERSION = "3.41";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1019,7 +1019,68 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				return origDisabled2.apply(this, arguments);
 			};
 		};
-		// 人挑选将对话框：预置玩家禁用过滤；模式自带 filterButton（如国战）会经 set 组合为"两者皆过"
+		// 人挑选将对话框过滤（v3.41两级）：玩家禁用武将在选将框置灰不可选
+		// ① 内容级（主）：包装 lib.element.content.chooseButton 首步——执行时对话框按钮已建、
+		//    filterButton已成定局（含国战等模式经set后写入的），在此最终组合，任何创建期遗漏都在此兜住；
+		// ② 创建级（辅）：包装 Player.prototype.chooseButton，创建时即组合（防内容函数被更早编译的极端时序）。
+		// 触发判定用事件父链找chooseCharacter（异步content恢复后_status.event时机不稳，欢乐斗地主实测会漏），
+		// 另兜底"对话框内确有武将按钮"；候选全部被禁时放行，避免强制点选无解卡死
+		const ktComposeBanFilter = (event) => {
+			if (!event || event.__ktBanComposed) {
+				return;
+			}
+			const banPlayer = getList(KEY_PLAYER);
+			if (!banPlayer.length) {
+				return;
+			}
+			const nameOf = (button) => {
+				const link = button && button.link;
+				return typeof link == "string" ? link : link && link.name;
+			};
+			let evt = event.parent;
+			let isCharPick = false;
+			while (evt) {
+				if (evt.name == "chooseCharacter") {
+					isCharPick = true;
+					break;
+				}
+				evt = evt.parent;
+			}
+			const buttons = event.dialog && event.dialog.buttons;
+			const hasCharBtn = Array.isArray(buttons) && buttons.some((b) => {
+				const n = nameOf(b);
+				return n && lib.character[n];
+			});
+			if (!isCharPick && !hasCharBtn) {
+				return;
+			}
+			event.__ktBanComposed = true;
+			const prev = typeof event.filterButton == "function" ? event.filterButton : null;
+			event.filterButton = function (button, player) {
+				if (banPlayer.includes(nameOf(button))) {
+					const all = Array.isArray(buttons) && buttons.length && buttons.every((b) => banPlayer.includes(nameOf(b)));
+					if (!all) {
+						return false;
+					}
+				}
+				return prev ? prev.call(this, button, player) : true;
+			};
+		};
+		const patchContent = () => {
+			const steps = lib.element.content && lib.element.content.chooseButton;
+			if (Array.isArray(steps) && steps.length && typeof steps[0] == "function" && !steps.__ktBanPatched) {
+				steps.__ktBanPatched = true;
+				const origFirst = steps[0];
+				steps[0] = async function (event) {
+					try {
+						ktComposeBanFilter(event);
+					} catch (e) {
+						console.warn("kirito扩展：玩家禁用过滤失败", e);
+					}
+					return origFirst.apply(this, arguments);
+				};
+			}
+		};
 		const patchChooseButton = () => {
 			if (typeof Player != "function" || !Player.prototype || typeof Player.prototype.chooseButton != "function") {
 				return;
@@ -1028,30 +1089,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			Player.prototype.chooseButton = function (...args) {
 				const next = origChooseButton.apply(this, args);
 				try {
-					if (next && _status.event && _status.event.name == "chooseCharacter" && getList(KEY_PLAYER).length) {
-						const banPlayer = getList(KEY_PLAYER);
-						const nameOf = (button) => {
-							const link = button && button.link;
-							return typeof link == "string" ? link : link && link.name;
-						};
-						const ours = (button) => {
-							if (!banPlayer.includes(nameOf(button))) {
-								return true;
-							}
-							// 候选全部被禁时放行，避免强制点选无解卡死
-							const buttons = next.dialog && next.dialog.buttons;
-							return Boolean(buttons && buttons.length && buttons.every((b) => banPlayer.includes(nameOf(b))));
-						};
-						const origSet = next.set;
-						next.set = function (key, value) {
-							if (key == "filterButton" && typeof value == "function") {
-								const modeFilter = value;
-								return origSet.call(this, "filterButton", (button, player) => ours(button) && modeFilter.call(this, button, player));
-							}
-							return origSet.apply(this, arguments);
-						};
-						origSet.call(next, "filterButton", ours);
-					}
+					ktComposeBanFilter(next);
 				} catch (e) {
 					console.warn("kirito扩展：玩家禁用过滤失败", e);
 				}
@@ -1130,6 +1168,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			}
 			installed = true;
 			patchFilters();
+			patchContent();
 			patchChooseButton();
 			installQhlyBoxes();
 		};
