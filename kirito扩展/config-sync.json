@@ -707,8 +707,8 @@
 	"doubleclick_intro": true,
 	"choose_all_button": false,
 	"cheat": true,
-	"volumn_background": 0,
-	"volumn_audio": 0,
+	"volumn_background": 2,
+	"volumn_audio": 2,
 	"connect_avatar": "sb_zhenji",
 	"connect_nickname": "kirito",
 	"config_menu": true,
@@ -740,19 +740,19 @@
 					0
 				],
 				"zhong": [
-					12,
+					14,
 					0
 				],
 				"zhu": [
-					5,
+					8,
 					0
 				],
 				"fan": [
-					17,
+					20,
 					0
 				]
 			},
-			"str": "主公：5胜 0负<br>忠臣：12胜 0负<br>内奸：4胜 0负<br>反贼：17胜 0负<br>"
+			"str": "主公：8胜 0负<br>忠臣：14胜 0负<br>内奸：4胜 0负<br>反贼：20胜 0负<br>"
 		},
 		"guozhan": {
 			"data": {
@@ -787,15 +787,15 @@
 		"doudizhu": {
 			"data": {
 				"zhu": [
-					23,
+					26,
 					0
 				],
 				"fan": [
-					26,
+					30,
 					0
 				]
 			},
-			"str": "地主：23胜 0负<br>农民：26胜 0负<br>"
+			"str": "地主：26胜 0负<br>农民：30胜 0负<br>"
 		},
 		"single": {
 			"data": {}
@@ -850,7 +850,7 @@
 	"player_border": "slim",
 	"radius_size": "default",
 	"image_character": "default",
-	"image_background": "kyoani_bg",
+	"image_background": "wangshi_bg",
 	"asset_image": true,
 	"asset_font": true,
 	"card_font": "xiaozhuan",
@@ -2169,6 +2169,7 @@
 			"player_number": "8",
 			"qunlangCharacters": false,
 			"recentCharacter": [
+				"gz_xurong",
 				"wushangshen",
 				"gz_caoying",
 				"god",
@@ -2206,17 +2207,9 @@
 			"change_card": "unlimited",
 			"continue_game": true,
 			"show_replay": true,
-			"player_number": 3,
-			"auto_identity": "off",
-			"double_character": false,
-			"save_progress": true,
-			"free_choose": true,
-			"swap": true,
-			"change_identity": true,
-			"battle_number": 3,
-			"double_hp": "pingjun",
 			"auto_mark_identity": true,
 			"change_choice": true,
+			"change_identity": true,
 			"connect_choose_timeout": "30",
 			"connect_double_character": false,
 			"connect_doudizhu_mode": "normal",
@@ -2227,11 +2220,15 @@
 			"connect_observe_handcard": false,
 			"connect_observe": true,
 			"dierestart": true,
+			"double_character": false,
+			"double_hp": "pingjun",
 			"doudizhu_mode": "normal",
 			"enhance_dizhu": "disabled",
 			"enhance_nongmin": "mobile",
 			"feiyang_version": "online",
+			"free_choose": true,
 			"menu_loadondemand": true,
+			"player_number": 3,
 			"recentCharacter": [
 				"wushangshen",
 				"jsrg_zhaoyun",
@@ -2308,9 +2305,21 @@
 			"versus_mode": "jiange"
 		},
 		"taixuhuanjing": {
+			"player_number": 8,
+			"auto_identity": "off",
+			"double_character": false,
+			"save_progress": true,
+			"free_choose": true,
+			"swap": true,
+			"change_identity": true,
+			"battle_number": 3,
+			"double_hp": "pingjun",
+			"auto_mark_identity": true,
+			"change_choice": true,
+			"continue_game": true,
+			"show_replay": true,
 			"Background_Music": 0,
 			"Background_Picture": "1",
-			"auto_mark_identity": true,
 			"chongxinxuanjiang": false,
 			"deleteModeNode": false,
 			"menu_loadondemand": true,
@@ -3339,6 +3348,7 @@
 	"auto_check_update": false,
 	"autoborder_count": "kill",
 	"autoborder_start": "bronze",
+	"banned_info": "7978764140",
 	"blur_ui": false,
 	"border_style": "default",
 	"boss_banned": [
@@ -19614,7 +19624,8 @@
 		"ktjimie",
 		"ktxinghun",
 		"potheyun",
-		"potyinhui"
+		"potyinhui",
+		"sbxingshang"
 	],
 	"extension_kirito扩展_updateTime": "2026/10/17 01:49:15",
 	"extension_kirito扩展_version": "3.7",
@@ -19782,7 +19793,7 @@
 	"extension_奇妙工具_enable": true,
 	"extension_奇妙工具_luckyCards": false,
 	"extension_奇妙工具_maximumNumberOfPlayers": 10,
-	"extension_奇妙工具_replaceCharacter": true,
+	"extension_奇妙工具_replaceCharacter": false,
 	"extension_奇妙工具_setIdentity": false,
 	"extension_奇妙工具_swapSeat": false,
 	"extension_奇妙工具_viewHandCards": false,
@@ -19869,6 +19880,13 @@
 			"wushangshen",
 			"wushangshen",
 			"wushangshen",
+			"wushangshen",
+			"wushangshen",
+			"wushangshen",
+			"wushangshen",
+			"wushangshen",
+			"wushangshen",
+			"wushangshen",
 			"lisu",
 			"jiakui",
 			"re_madai",
@@ -19905,14 +19923,7 @@
 			"wushangshen",
 			"liuyong",
 			"wushangshen",
-			"ol_miheng",
-			"mayunlu",
-			"clan_yangzhong",
-			"liuchen",
-			"yadan",
-			"feiyao",
-			"liwei",
-			"sb_zhangfei"
+			"ol_miheng"
 		]
 	},
 	"extension_斗转星移_addBanCharToTopMenu": true,
@@ -19974,7 +19985,7 @@
 			"count": 107
 		},
 		"jianghun": {
-			"count": 1200
+			"count": 1340
 		},
 		"shenmibaoxiang": {
 			"count": 0
@@ -25051,7 +25062,7 @@
 	"extension_无名AI_classicAutoUpdate": true,
 	"extension_无名AI_classicDoudizhu": true,
 	"extension_无名AI_classicDoudizhuCollect": true,
-	"extension_无名AI_classicEffectReport": true,
+	"extension_无名AI_classicEffectReport": false,
 	"extension_无名AI_classicModelEnabled": true,
 	"extension_无名AI_cloudAutoUpload": false,
 	"extension_无名AI_cloudShowButton": true,
@@ -27260,7 +27271,7 @@
 		"gz_tianfeng",
 		"gz_wujing"
 	],
-	"qhly_jianghun": 95473800,
+	"qhly_jianghun": 96223800,
 	"qhly_listdefaultpage": "skill",
 	"qhly_lutou": true,
 	"qhly_lutouType": "decade",
@@ -27375,14 +27386,14 @@
 			"victory/guanyu": "../extension/千幻聆音/sanguoaudio/guanyu/victory",
 			"victory/zhangqiying": "../extension/千幻聆音/sanguoaudio/zhangqiying/victory",
 			"victory/tengfanglan": "../extension/千幻聆音/sanguoaudio/tengfanglan/victory",
-			"victory/wolongfengchu": "../extension/千幻聆音/sanguoaudio/wolongfengchu/victory",
 			"victory/mb_cuilingyi": "../extension/千幻聆音/sanguoaudio/mb_cuilingyi/victory",
 			"victory/ol_puyuan": "../extension/千幻聆音/sanguoaudio/ol_puyuan/victory",
 			"victory/shen_caocao": "../extension/千幻聆音/sanguoaudio/shen_caocao/victory",
 			"victory/caoying": "../extension/千幻聆音/sanguoaudio/caoying/victory",
-			"victory/mb_caomao": "../extension/千幻聆音/sanguoaudio/mb_caomao/victory",
 			"victory/zhangxiu": "../extension/千幻聆音/sanguoaudio/zhangxiu/victory",
-			"victory/mp_xiangxiu": "../extension/千幻聆音/sanguoaudio/mp_xiangxiu/victory"
+			"victory/mp_xiangxiu": "../extension/千幻聆音/sanguoaudio/mp_xiangxiu/victory",
+			"victory/wolongfengchu": "../extension/千幻聆音/sanguoaudio/wolongfengchu/victory",
+			"victory/mb_caomao": "../extension/千幻聆音/sanguoaudio/mb_caomao/victory"
 		},
 		"djtoggle": {
 			"shen_zhaoyun": {},
@@ -27532,24 +27543,24 @@
 		"wushangshen": {
 			"doudizhu": {
 				"农民": {
-					"win": 14
+					"win": 18
 				},
 				"地主": {
-					"win": 5
+					"win": 8
 				}
 			},
 			"identity": {
 				"忠臣": {
-					"win": 11
+					"win": 13
 				},
 				"内奸": {
 					"win": 1
 				},
 				"反贼": {
-					"win": 17
+					"win": 20
 				},
 				"主公": {
-					"win": 4
+					"win": 7
 				}
 			},
 			"guozhan": {
@@ -30470,7 +30481,7 @@
 	],
 	"taixuhuanjing": {
 		"name": null,
-		"point": null,
+		"point": "wushangshen",
 		"servant": null,
 		"level": 1,
 		"score": {
@@ -30503,7 +30514,7 @@
 		"maxSkills": 5,
 		"useSkills": [],
 		"skillSource": {},
-		"rank": 1,
+		"rank": 5,
 		"season": "GuiShenZhiNu",
 		"chapter": 0,
 		"procedure": null,
@@ -30525,7 +30536,7 @@
 		"use": {
 			"shen_zhaoyun": 2,
 			"god": 4,
-			"wushangshen": 4
+			"wushangshen": 5
 		},
 		"forbidden": [
 			"exam4255",
@@ -30534,7 +30545,8 @@
 			"exam4254",
 			"exam4286",
 			"exam1041",
-			"exam2008"
+			"exam2008",
+			"exam1018"
 		],
 		"ChongYingChuLin": {
 			"rank": 2,
@@ -40068,6 +40080,470 @@
 				"chapter": 4
 			},
 			"total": 25317.6
+		},
+		"1792324817833": {
+			"name": "wushangshen",
+			"point": "wushangshen",
+			"servant": "tengshe",
+			"level": 3,
+			"score": {
+				"gaincard": 76,
+				"usecard": 60,
+				"discard": 8,
+				"damage": 104,
+				"damaged": 7,
+				"kill": 10,
+				"skill": 12,
+				"round": 7,
+				"fight": 7,
+				"time": 603
+			},
+			"hp": 1,
+			"maxHp": 2,
+			"exp": 0,
+			"maxExp": 700,
+			"cards": [
+				{
+					"name": "sha",
+					"suit": "diamond",
+					"number": 6,
+					"nature": "thunder"
+				}
+			],
+			"equips": [],
+			"equip1": {
+				"name": "rewrite_zhuge",
+				"suit": "club",
+				"number": 3,
+				"nature": "fire"
+			},
+			"equip2": null,
+			"equip3": null,
+			"equip4": null,
+			"minHs": 5,
+			"maxHs": 0,
+			"effect": "qianlizhuixi",
+			"buff": [
+				"txhj_tengsheSkill1",
+				"txhj_tengsheSkill2",
+				"txhj_tengsheSkill3",
+				"buff_txhj_aozhan"
+			],
+			"skills": [],
+			"maxSkills": 4,
+			"useSkills": [
+				"grytouying",
+				"chengshang",
+				"zhiheng"
+			],
+			"skillSource": {},
+			"rank": 5,
+			"season": "GuiShenZhiNu",
+			"chapter": 1,
+			"procedure": [],
+			"gameplus": 1,
+			"adjust": 3,
+			"skin": null,
+			"coin": 920.5,
+			"maxCoin": 2660,
+			"skip": [],
+			"exam": [
+				"exam1018"
+			],
+			"events": [
+				{
+					"id": "txhj_fujiahaoli",
+					"seat": 284,
+					"name": "富贾豪礼",
+					"type": "gain",
+					"info": "依旧是为了助你前进，但他给出了更多的钱...",
+					"text": "获得好多金币！",
+					"level": 1,
+					"change": true,
+					"season": "GuiShenZhiNu",
+					"chapter": 0,
+					"buttons": [
+						{
+							"result": true,
+							"name": "获得金币了！",
+							"effect": [
+								{
+									"name": "coin",
+									"number": 700
+								}
+							],
+							"random": 1
+						}
+					],
+					"ext": "txhj_fujiazhili"
+				},
+				{
+					"id": "txhj_xianzhenzhizhi",
+					"season": "GuiShenZhiNu",
+					"chapter": 0
+				},
+				{
+					"id": "txhj_diwozhize",
+					"seat": 556,
+					"name": "敌我之择",
+					"type": "gain",
+					"info": "选择一种技能获取吧",
+					"text": "你更喜欢干扰敌人呢，还是自己成长呢",
+					"level": 3,
+					"change": false,
+					"season": "GuiShenZhiNu",
+					"chapter": 1,
+					"buttons": [
+						{
+							"result": true,
+							"name": "获得辅助技能",
+							"effect": [
+								{
+									"name": "assist",
+									"number": 1
+								}
+							],
+							"random": 1
+						},
+						{
+							"result": true,
+							"name": "获得爆发技能",
+							"effect": [
+								{
+									"name": "burst",
+									"number": 1
+								}
+							],
+							"random": 1
+						}
+					],
+					"ext": "txhj_diwozhize"
+				},
+				{
+					"id": "txhj_xianzhenbingtuan",
+					"seat": 940,
+					"name": "陷阵兵团",
+					"type": "main",
+					"info": "更多的陷阵兵驻守在此。",
+					"text": "",
+					"level": 1,
+					"change": false,
+					"season": "GuiShenZhiNu",
+					"chapter": 1,
+					"ext": "txhj_xianzhenzhizhi"
+				},
+				{
+					"id": "txhj_michenghuanjingG",
+					"seat": 495,
+					"name": "迷城幻境",
+					"type": "micheng",
+					"info": "神奇的幻境中有着未知的敌人",
+					"text": "",
+					"level": 1,
+					"change": false,
+					"season": "GuiShenZhiNu",
+					"chapter": 1,
+					"ext": "txhj_michenghuanjing"
+				},
+				{
+					"id": "txhj_wuzixianluo",
+					"seat": 685,
+					"name": "吴资陷落",
+					"type": "main",
+					"info": "吴资还在厮杀",
+					"text": "",
+					"level": 1,
+					"change": false,
+					"season": "GuiShenZhiNu",
+					"chapter": 1,
+					"ext": "txhj_wuzixianluo"
+				},
+				{
+					"id": "txhj_elang",
+					"seat": 999,
+					"name": "此有饿狼",
+					"type": "side",
+					"info": "你信步前进，不料一头饿狼悄悄跟来",
+					"text": "",
+					"level": 1,
+					"change": false,
+					"season": "GuiShenZhiNu",
+					"chapter": 1,
+					"ext": "txhj_elang"
+				},
+				{
+					"id": "txhj_shenjunbaima",
+					"seat": 425,
+					"name": "驯服良驹",
+					"type": "side",
+					"info": "一匹白马正在嬉水",
+					"text": "",
+					"level": 1,
+					"change": false,
+					"season": "GuiShenZhiNu",
+					"chapter": 1,
+					"ext": "txhj_shenjunbaima"
+				}
+			],
+			"optional1": {
+				"id": "txhj_anxianghonglou",
+				"name": "暗巷红楼",
+				"type": "store",
+				"info": "暗巷中的红楼，是神秘人的交易之地",
+				"text": "",
+				"level": 2,
+				"chapter": 1,
+				"target": "all",
+				"min": 0,
+				"max": 1,
+				"exp": 0,
+				"premise": "",
+				"enemy": [],
+				"friend": [],
+				"effect": [],
+				"spoils": [],
+				"ext": "txhj_anxianghonglou",
+				"season": "GuiShenZhiNu",
+				"seat": 983
+			},
+			"optional2": {
+				"id": "txhj_michenghuanjingaw",
+				"name": "迷城幻境",
+				"type": "micheng",
+				"info": "神奇的幻境中有着未知的敌人",
+				"text": "",
+				"level": 1,
+				"chapter": 1,
+				"target": "all",
+				"min": 0,
+				"max": 1,
+				"exp": 100,
+				"premise": "击败所有敌人",
+				"enemy": [
+					{
+						"name": "txhj_shenliubei",
+						"level": 7,
+						"info": "",
+						"type": "boss",
+						"seat": 3,
+						"hp": 0,
+						"minHs": 4,
+						"maxHp": 0,
+						"cards": [],
+						"equip": [],
+						"buff": [],
+						"skills": [],
+						"effect": [
+							"correct"
+						],
+						"spoils": [
+							{
+								"result": true,
+								"name": "金币*300  经验*100",
+								"effect": [
+									{
+										"name": "coin",
+										"number": 300
+									}
+								],
+								"random": 1
+							}
+						]
+					},
+					{
+						"name": "txhj_reliubei",
+						"level": 7,
+						"info": "",
+						"type": "mortal",
+						"seat": 1,
+						"hp": 0,
+						"minHs": 4,
+						"maxHp": 0,
+						"cards": [],
+						"equip": [],
+						"buff": [],
+						"skills": [],
+						"effect": [
+							"correct"
+						],
+						"spoils": []
+					},
+					{
+						"name": "txhj_sbliubei",
+						"level": 7,
+						"info": "",
+						"type": "mortal",
+						"seat": 0,
+						"hp": 0,
+						"minHs": 4,
+						"maxHp": 0,
+						"cards": [],
+						"equip": [],
+						"buff": [],
+						"skills": [],
+						"effect": [
+							"correct"
+						],
+						"spoils": []
+					}
+				],
+				"friend": [],
+				"effect": [],
+				"spoils": [],
+				"ext": "txhj_michenghuanjing",
+				"season": "GuiShenZhiNu",
+				"seat": 475
+			},
+			"optional3": {
+				"id": "txhj_shuzhitiebi",
+				"name": "蜀之铁壁",
+				"type": "boss",
+				"info": "此处敌人是蜀汉忠魂的幻象",
+				"text": "",
+				"level": 1,
+				"chapter": 1,
+				"target": "kill",
+				"min": 0,
+				"max": 1,
+				"exp": 100,
+				"premise": "击败赵云幻象",
+				"enemy": [
+					{
+						"name": "txhj_zhaoyunhuanxiang",
+						"level": 2,
+						"info": "",
+						"type": "boss",
+						"seat": 2,
+						"hp": 0,
+						"minHs": 4,
+						"maxHp": 0,
+						"cards": [],
+						"equip": [],
+						"buff": [],
+						"skills": [],
+						"effect": [
+							"correct"
+						],
+						"spoils": [
+							{
+								"result": true,
+								"name": "金币*300  经验*100",
+								"effect": [
+									{
+										"name": "coin",
+										"number": 300
+									}
+								],
+								"random": 1
+							}
+						]
+					},
+					{
+						"name": "txhj_huanxiangbingnan",
+						"level": 2,
+						"info": "",
+						"type": "mortal",
+						"seat": 3,
+						"hp": 0,
+						"minHs": 4,
+						"maxHp": 0,
+						"cards": [],
+						"equip": [],
+						"buff": [],
+						"skills": [],
+						"effect": [
+							"correct"
+						],
+						"spoils": []
+					},
+					{
+						"name": "txhj_huanxiangbingnan",
+						"level": 2,
+						"info": "",
+						"type": "mortal",
+						"seat": 1,
+						"hp": 0,
+						"minHs": 4,
+						"maxHp": 0,
+						"cards": [],
+						"equip": [],
+						"buff": [],
+						"skills": [],
+						"effect": [
+							"correct"
+						],
+						"spoils": []
+					}
+				],
+				"friend": [],
+				"effect": [],
+				"spoils": [],
+				"ext": "txhj_shu",
+				"season": "GuiShenZhiNu",
+				"seat": 61
+			},
+			"optionalExam": [
+				"exam1018"
+			],
+			"bowenqiangzhi": null,
+			"eventMin": 10,
+			"eventMax": 10,
+			"store": {
+				"GuiShenZhiNu": {
+					"1": {
+						"txhj_anxianghonglou": {
+							"cardNum": 1,
+							"buffNum": 0,
+							"skillNum": 0,
+							"equipNum": 0,
+							"skills": [
+								"kanade_mapo",
+								"olchunlao"
+							],
+							"buff": [],
+							"equip": [
+								{
+									"name": "guanshi",
+									"suit": "club",
+									"number": 11,
+									"nature": ""
+								},
+								{
+									"name": "sanjian",
+									"suit": "heart",
+									"number": 6,
+									"nature": "fire"
+								},
+								{
+									"name": "pyzhuren_club",
+									"suit": "heart",
+									"number": 10,
+									"nature": ""
+								}
+							],
+							"cards": [
+								{
+									"name": "zengbin",
+									"suit": "spade",
+									"number": 10,
+									"nature": ""
+								},
+								{
+									"name": "txyihuajiemu",
+									"suit": "diamond",
+									"number": 4,
+									"nature": ""
+								}
+							]
+						}
+					}
+				}
+			},
+			"txEquipBuff": [
+				"buff_txhj_gongzhibaowu",
+				"buff_txhj_shenfuhuaxie"
+			],
+			"time": 1792324817833
 		}
 	},
 	"taixuhuanjing_banned": [
@@ -41044,7 +41520,8 @@
 			"guohe",
 			"xietianzi",
 			"tiesuo",
-			"wugu"
+			"wugu",
+			"sha"
 		],
 		"equip": [
 			"zhuge",
@@ -41067,7 +41544,8 @@
 			"yonglv",
 			"zhanxiang",
 			"txhj_zhuge",
-			"taigongyinfu"
+			"taigongyinfu",
+			"rewrite_zhuge"
 		],
 		"skill": [
 			"stdzhongshi",
@@ -41119,7 +41597,10 @@
 			"biejun",
 			"rewenji",
 			"noname_gongchuang",
-			"wanwei"
+			"wanwei",
+			"zhuixi",
+			"chengshang",
+			"zhiheng"
 		],
 		"buff": [
 			"diychunxiao",
@@ -41353,7 +41834,15 @@
 			"txhj_mcxiahoushang",
 			"txhj_huanyanliru",
 			"txhj_ljxurong",
-			"txhj_ljhuzhen"
+			"txhj_ljhuzhen",
+			"txhj_xianzhenying",
+			"txhj_rezhangjiao",
+			"txhj_zhangliang",
+			"txhj_zhangbao",
+			"txhj_wuzi",
+			"txhj_shenliubei",
+			"txhj_reliubei",
+			"txhj_sbliubei"
 		]
 	},
 	"unauto_choose": false,
@@ -42319,9 +42808,10 @@
 	"wuxie_self": true,
 	"ziqiCharacters": "ziqi",
 	"zuanzhishixian": "off",
+	"player_number": 3,
 	"__syncMeta": {
-		"time": "2026/10/18 15:53:06",
+		"time": "2026/10/19 18:57:39",
 		"from": "PC",
-		"ext": "3.35"
+		"ext": "3.36"
 	}
 }

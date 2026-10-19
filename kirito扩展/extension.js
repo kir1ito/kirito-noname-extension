@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.36";
+const VERSION = "3.37";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -788,14 +788,10 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		}
 		return { open };
 	})();
-	// 降临技能池管理：扩展设置里点按钮弹出的遮罩窗口（与更新中心共用KT_CSS样式）
-	// 池子存于配置 extension_kirito扩展_touyingPool（数组），投影发动时读取；
-	// 未配置过时用默认池 DEFAULT_TOUYING_POOL；上限20个；改动即时保存
-	const ktPoolManager = (() => {
-		const KEY = "extension_kirito扩展_touyingPool";
-		const MAX = 20;
-		// 本扩展自有技能（多不在任何武将技能列表上，作为搜索候选的固定补充）
-		const OWN_SKILLS = [...DEFAULT_TOUYING_POOL, "kthuitian"];
+	// 技能池管理器工厂：扩展设置里点按钮弹出的遮罩窗口（与更新中心共用KT_CSS样式）
+	// ①降临池 extension_kirito扩展_touyingPool（默认本扩展全部技能，上限20）：〖降临〗发动时读取；
+	// ②灌顶池 extension_kirito扩展_guandingPool（默认空，无上限）：开启「自动添加技能」后每局开局自动加给玩家
+	const ktCreatePoolManager = ({ key, title, hint, max, defaultPool, ownSkills, emptyHint, resetLabel }) => {
 		let overlay = null;
 		const $ = {};
 		// 候选全集：本体+已开启扩展所有武将的技能 + 本扩展自有技能（跳过投影自身与无名条目）
@@ -810,7 +806,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					map.set(skill, get.translation(cname) || cname);
 				}
 			}
-			for (const skill of OWN_SKILLS) {
+			for (const skill of ownSkills) {
 				if (!map.has(skill) && lib.skill[skill] && lib.translate[skill] && lib.translate[skill + "_info"]) {
 					map.set(skill, "kirito扩展");
 				}
@@ -818,10 +814,10 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			return map;
 		};
 		const getPool = () => {
-			const saved = lib.config[KEY];
+			const saved = lib.config[key];
 			return Array.isArray(saved) ? saved.filter((skill) => typeof skill == "string") : [];
 		};
-		const savePool = (pool) => game.saveConfig(KEY, pool);
+		const savePool = (pool) => game.saveConfig(key, pool);
 		const el = (cls, parent, text) => {
 			const node = document.createElement("div");
 			node.className = cls;
@@ -834,9 +830,9 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			const candidates = buildCandidates();
 			// 已选池：标签列表，点标签=移除
 			$.chips.innerHTML = "";
-			$.count.textContent = `${pool.length}/${MAX}`;
+			$.count.textContent = max === Infinity ? `${pool.length} 个` : `${pool.length}/${max}`;
 			if (!pool.length) {
-				el("ktupd-empty", $.chips, "池子为空：游戏内降临将没有可选技能，点下方「恢复默认」可一键还原");
+				el("ktupd-empty", $.chips, emptyHint);
 			}
 			for (const skill of pool) {
 				const chip = el("ktupd-chip", $.chips, `【${lib.translate[skill] || skill}】✕`);
@@ -864,12 +860,12 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				left.innerHTML = `<b style="color:#eaf1ff">【${lib.translate[skill]}】</b><span class="owner">${owner}</span>`;
 				left.style.cssText = "flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
 				const inPool = pool.includes(skill);
-				const full = pool.length >= MAX;
+				const full = pool.length >= max;
 				const btn = el(`ktupd-add${inPool || full ? " off" : ""}`, item, inPool ? "已添加" : full ? "已满" : "+ 添加");
 				if (!inPool && !full) {
 					btn.onclick = () => {
 						const next = getPool();
-						if (next.length >= MAX || next.includes(skill)) return;
+						if (next.length >= max || next.includes(skill)) return;
 						next.push(skill);
 						savePool(next);
 						render();
@@ -885,7 +881,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			ktInjectCss();
 			overlay = el("ktupd-overlay", document.body);
 			const dialog = el("ktupd-dialog", overlay);
-			el("ktupd-title", dialog, "降临技能池管理");
+			el("ktupd-title", dialog, title);
 			const close = () => {
 				overlay.remove();
 				overlay = null;
@@ -898,9 +894,9 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			const hintRow = el("ktupd-row", dialog);
 			hintRow.innerHTML = "<span>已选技能</span>";
 			$.count = document.createElement("b");
-			$.count.textContent = "0/20";
+			$.count.textContent = "0";
 			hintRow.appendChild($.count);
-			el("ktupd-hint", dialog, "点下方标签移除技能；在搜索框中按技能名/ID/武将名筛选后点「+ 添加」加入（上限20个）。改动即时保存，对下一局生效");
+			el("ktupd-hint", dialog, hint);
 			$.chips = el("ktupd-chips", dialog);
 			$.search = document.createElement("input");
 			$.search.className = "ktupd-search";
@@ -910,15 +906,37 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			$.list = el("ktupd-list", dialog);
 			const footer = el("div", dialog);
 			footer.style.cssText = "margin-top:12px";
-			const resetBtn = el("ktupd-btn", footer, "恢复默认（本扩展全部技能）");
+			const resetBtn = el("ktupd-btn", footer, resetLabel);
 			resetBtn.onclick = () => {
-				savePool(DEFAULT_TOUYING_POOL.slice());
+				savePool(defaultPool.slice());
 				render();
 			};
 			render();
 		}
 		return { open };
-	})();
+	};
+	// 降临技能池：〖降临〗局内可挑选的技能（默认本扩展全部技能，上限20）
+	const ktPoolManager = ktCreatePoolManager({
+		key: "extension_kirito扩展_touyingPool",
+		title: "降临技能池管理",
+		hint: "点下方标签移除技能；在搜索框中按技能名/ID/武将名筛选后点「+ 添加」加入（上限20个）。改动即时保存，对下一局生效",
+		max: 20,
+		defaultPool: DEFAULT_TOUYING_POOL,
+		ownSkills: [...DEFAULT_TOUYING_POOL, "kthuitian"],
+		emptyHint: "池子为空：游戏内降临将没有可选技能，点下方「恢复默认」可一键还原",
+		resetLabel: "恢复默认（本扩展全部技能）",
+	});
+	// 灌顶技能池：开启「自动添加技能」后每局开局自动加给玩家操控的角色（默认空，无上限）
+	const ktGuandingManager = ktCreatePoolManager({
+		key: "extension_kirito扩展_guandingPool",
+		title: "灌顶技能池管理",
+		hint: "点下方标签移除技能；在搜索框中按技能名/ID/武将名筛选后点「+ 添加」加入（无上限）。改动即时保存，对下一局生效",
+		max: Infinity,
+		defaultPool: [],
+		ownSkills: [...DEFAULT_TOUYING_POOL, "kthuitian"],
+		emptyHint: "池子为空：开局不会自动添加任何技能，在下方搜索添加后配合「自动添加技能」开关使用",
+		resetLabel: "清空池子",
+	});
 	// 配置云同步（精简版）：PC端为唯一配置源。PC游戏每次启动自动把 lib.config（本体配置+全部扩展菜单配置）
 	// 导出为游戏根目录 config-sync.json；更新扩展时由构建流程把该快照复制进扩展包（AGENTS.md规则6），
 	// 手机端随扩展更新拿到快照，点「同步配置」读取本地快照原样覆盖：
@@ -1091,6 +1109,31 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		content: function (config, pack) {
 			// 每次启动自动导出配置快照到游戏根目录（PC端为配置源；构建流程在更新扩展时拾取打进扩展包）
 			ktConfigSync.exportSnapshot();
+			// 灌顶：订阅本体每局 gameStart 广播（订阅方式参照奇妙工具）。开关「自动添加技能」开启且
+			// 灌顶池非空时，创建事件把池内全部技能自动加给玩家操控的角色（addSkills自带获得特效）。
+			// 录像回放不广播gameStart天然跳过；hasSkill去重保证读档/重复广播不会重复添加
+			lib.announce.subscribe("Noname.Game.Event.GameStart", () => {
+				try {
+					if (!game.getExtensionConfig("kirito扩展", "autoAddSkills") || !game.me) {
+						return;
+					}
+					const next = game.createEvent("ktGuanding", false);
+					next.player = game.me;
+					next.setContent(async (event, trigger, player) => {
+						const saved = game.getExtensionConfig("kirito扩展", "guandingPool");
+						const pool = (Array.isArray(saved) ? saved : []).filter(
+							(skill) => typeof skill == "string" && lib.skill[skill] && !player.hasSkill(skill, null, null, false)
+						);
+						if (!pool.length) {
+							return;
+						}
+						await player.addSkills(pool);
+						game.log(player, "灌顶获得了技能", "#g" + pool.map((skill) => `【${get.translation(skill)}】`).join(""));
+					});
+				} catch (e) {
+					console.warn("kirito扩展：灌顶添加技能失败", e);
+				}
+			});
 		},
 		prepare: function () {},
 		precontent: function (config) {
@@ -1321,6 +1364,20 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				clear: true,
 				onclick() {
 					ktPoolManager.open();
+				},
+			},
+			// 灌顶：开关+技能池（默认空）。开启后每局开局自动把池内全部技能加给玩家操控的角色
+			autoAddSkills: {
+				name: "自动添加技能（灌顶）",
+				intro: "开启后，每局游戏开始时自动把「灌顶技能池」内的全部技能灌顶给你操控的角色（无需手动挑选）。需先在下方「灌顶技能池管理」中添加技能，池子为空则无效果",
+				init: false,
+			},
+			guandingPool: {
+				name: "灌顶技能池管理（增加/排除）",
+				intro: "管理开局自动灌顶的技能池：默认为空；可搜索添加本体及已开启扩展武将的所有技能（无上限），点标签移除。配合「自动添加技能」开关使用，改动即时保存，下一局生效",
+				clear: true,
+				onclick() {
+					ktGuandingManager.open();
 				},
 			},
 			// 配置云同步：以PC端为准——PC启动自动导出配置快照，扩展更新时随包发布，本机一键原样覆盖
