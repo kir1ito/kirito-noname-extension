@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.38";
+const VERSION = "3.39";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -937,6 +937,160 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		emptyHint: "池子为空：开局不会自动添加任何技能，在下方搜索添加后配合「自动添加技能」开关使用",
 		resetLabel: "清空池子",
 	});
+	// 武将禁选中心：在千幻聆音武将详情「禁用设置」里插入「AI 禁用」「玩家禁用」两个勾选（存于
+	// extension_kirito扩展_banAI / banPlayer 名单），消费挂在核心两级闸门上，不碰原生 forbidai/_banned：
+	// ① AI 禁用 → lib.filter.characterDisabled（选将池级，与本体forbidai同层）：AI/随机发放的池子里
+	//    直接没有该武将；自由选将/上阵类界面走 Disabled2 不受影响，玩家仍可主动选择；
+	// ② 玩家禁用 → lib.filter.characterDisabled2（UI级）：图鉴/自由选将/获得类列表全部隐藏；
+	//    各模式开局池只查 Disabled（如身份/国战遍历lib.character时），故 AI 仍可随机获得该武将；
+	//    人挑选将对话框经 chooseButton 包装把该武将置灰不可选（候选全被禁时放行，避免无解卡死）
+	const ktBanCenter = (() => {
+		const KEY_AI = "extension_kirito扩展_banAI";
+		const KEY_PLAYER = "extension_kirito扩展_banPlayer";
+		let installed = false;
+		let qhlyPollTimer = null;
+		const getList = (key) => (Array.isArray(lib.config[key]) ? lib.config[key].filter((n) => typeof n == "string") : []);
+		const saveList = (key, name, checked) => {
+			const list = getList(key);
+			if (checked) {
+				if (!list.includes(name)) list.push(name);
+			} else {
+				list.remove(name);
+			}
+			game.saveConfig(key, list);
+		};
+		const patchFilters = () => {
+			const origDisabled = lib.filter.characterDisabled;
+			lib.filter.characterDisabled = function (name2, _characters, ...options) {
+				if (!options.includes("ignoreForibidden") && getList(KEY_AI).includes(name2)) {
+					return true;
+				}
+				return origDisabled.apply(this, arguments);
+			};
+			const origDisabled2 = lib.filter.characterDisabled2;
+			lib.filter.characterDisabled2 = function (name2, ...options) {
+				if (getList(KEY_PLAYER).includes(name2)) {
+					return true;
+				}
+				return origDisabled2.apply(this, arguments);
+			};
+		};
+		// 人挑选将对话框：预置玩家禁用过滤；模式自带 filterButton（如国战）会经 set 组合为"两者皆过"
+		const patchChooseButton = () => {
+			if (typeof Player != "function" || !Player.prototype || typeof Player.prototype.chooseButton != "function") {
+				return;
+			}
+			const origChooseButton = Player.prototype.chooseButton;
+			Player.prototype.chooseButton = function (...args) {
+				const next = origChooseButton.apply(this, args);
+				try {
+					if (next && _status.event && _status.event.name == "chooseCharacter" && getList(KEY_PLAYER).length) {
+						const banPlayer = getList(KEY_PLAYER);
+						const nameOf = (button) => {
+							const link = button && button.link;
+							return typeof link == "string" ? link : link && link.name;
+						};
+						const ours = (button) => {
+							if (!banPlayer.includes(nameOf(button))) {
+								return true;
+							}
+							// 候选全部被禁时放行，避免强制点选无解卡死
+							const buttons = next.dialog && next.dialog.buttons;
+							return Boolean(buttons && buttons.length && buttons.every((b) => banPlayer.includes(nameOf(b))));
+						};
+						const origSet = next.set;
+						next.set = function (key, value) {
+							if (key == "filterButton" && typeof value == "function") {
+								const modeFilter = value;
+								return origSet.call(this, "filterButton", (button, player) => ours(button) && modeFilter.call(this, button, player));
+							}
+							return origSet.apply(this, arguments);
+						};
+						origSet.call(next, "filterButton", ours);
+					}
+				} catch (e) {
+					console.warn("kirito扩展：玩家禁用过滤失败", e);
+				}
+				return next;
+			};
+		};
+		// 千幻聆音武将详情面板：其构建「禁用设置」时会调用 game.qhly_isForbidAI(name)（此时DOM已就绪），
+		// 包装它拿到时机与武将名，在「仅自由选将可选」行后插入两行，复用其复选框组件与交互
+		const injectQhlyRows = (name) => {
+			try {
+				if (document.getElementById("kt_ban_ai_box")) {
+					return;
+				}
+				const anchor = document.getElementById("qhconfig_checkbox_text_ai");
+				if (!anchor || !anchor.parentNode || !anchor.parentNode.parentNode) {
+					return;
+				}
+				const row = anchor.parentNode.parentNode;
+				const makeRow = (boxId, textId, label) => {
+					const p = document.createElement("p");
+					const span = document.createElement("span");
+					span.style.cssText = "display:inline-block;height:30px;";
+					const img = document.createElement("img");
+					img.id = boxId;
+					const text = document.createElement("span");
+					text.id = textId;
+					text.style.cssText = "display:inline-block;position:relative;bottom:25%;";
+					text.textContent = label;
+					span.appendChild(img);
+					span.appendChild(text);
+					p.appendChild(span);
+					return { p, img, text };
+				};
+				const aiRow = makeRow("kt_ban_ai_box", "kt_ban_ai_text", "AI 禁用（AI不会随机获得或选用，你可自选）");
+				const playerRow = makeRow("kt_ban_player_box", "kt_ban_player_text", "玩家禁用（你无法获得，AI不受影响）");
+				row.parentNode.insertBefore(playerRow.p, row.nextSibling);
+				row.parentNode.insertBefore(aiRow.p, playerRow.p);
+				const bind = (img, text, key) => {
+					ui.qhly_initCheckBox(img, getList(key).includes(name));
+					img.qhly_onchecked = (check) => saveList(key, name, check);
+					ui.qhly_addListenFunc(text);
+					text.listen(() => img.qhly_setChecked(!img.qhly_checked, true));
+				};
+				bind(aiRow.img, aiRow.text, KEY_AI);
+				bind(playerRow.img, playerRow.text, KEY_PLAYER);
+			} catch (e) {
+				console.warn("kirito扩展：禁选勾选注入失败", e);
+			}
+		};
+		const installQhlyBoxes = () => {
+			if (typeof game.qhly_isForbidAI == "function") {
+				const origIsForbidAI = game.qhly_isForbidAI;
+				game.qhly_isForbidAI = function (name) {
+					injectQhlyRows(name);
+					return origIsForbidAI.apply(this, arguments);
+				};
+				return;
+			}
+			// 千幻聆音可能晚于本扩展加载：轮询等待（最长60秒），缺席则静默放弃（仅没有这两个勾选，其余不受影响）
+			if (qhlyPollTimer == null) {
+				const start = Date.now();
+				qhlyPollTimer = setInterval(() => {
+					if (typeof game.qhly_isForbidAI == "function" || Date.now() - start > 60000) {
+						clearInterval(qhlyPollTimer);
+						qhlyPollTimer = null;
+						if (typeof game.qhly_isForbidAI == "function") {
+							installQhlyBoxes();
+						}
+					}
+				}, 500);
+			}
+		};
+		const install = () => {
+			if (installed) {
+				return;
+			}
+			installed = true;
+			patchFilters();
+			patchChooseButton();
+			installQhlyBoxes();
+		};
+		return { install };
+	})();
 	// 配置云同步（精简版）：PC端为唯一配置源。PC游戏每次启动自动把 lib.config（本体配置+全部扩展菜单配置）
 	// 导出为游戏根目录 config-sync.json；更新扩展时由构建流程把该快照复制进扩展包（AGENTS.md规则6），
 	// 手机端随扩展更新拿到快照，点「同步配置」读取本地快照原样覆盖：
@@ -1109,6 +1263,8 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		content: function (config, pack) {
 			// 每次启动自动导出配置快照到游戏根目录（PC端为配置源；构建流程在更新扩展时拾取打进扩展包）
 			ktConfigSync.exportSnapshot();
+			// 武将禁选中心：核心闸门包装 + 千幻聆音「禁用设置」弹窗插入 AI 禁用/玩家禁用勾选
+			ktBanCenter.install();
 			// 灌顶：订阅本体每局 gameStart 广播（订阅方式参照奇妙工具）。开关「自动添加技能」开启且
 			// 灌顶池非空时，创建事件把池内全部技能自动加给玩家操控的角色（addSkills自带获得特效）。
 			// 录像回放不广播gameStart天然跳过；hasSkill去重保证读档/重复广播不会重复添加
