@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.37";
+const VERSION = "3.38";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1120,6 +1120,13 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					const next = game.createEvent("ktGuanding", false);
 					next.player = game.me;
 					next.setContent(async (event, trigger, player) => {
+						// 无上神自带〖降临〗可自行挑选技能，默认排除不重复灌顶（可关掉排除开关）
+						if (
+							game.getExtensionConfig("kirito扩展", "guandingExcludeWss") !== false &&
+							(player.name == "wushangshen" || player.name1 == "wushangshen" || player.name2 == "wushangshen")
+						) {
+							return;
+						}
 						const saved = game.getExtensionConfig("kirito扩展", "guandingPool");
 						const pool = (Array.isArray(saved) ? saved : []).filter(
 							(skill) => typeof skill == "string" && lib.skill[skill] && !player.hasSkill(skill, null, null, false)
@@ -1369,8 +1376,13 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			// 灌顶：开关+技能池（默认空）。开启后每局开局自动把池内全部技能加给玩家操控的角色
 			autoAddSkills: {
 				name: "自动添加技能（灌顶）",
-				intro: "开启后，每局游戏开始时自动把「灌顶技能池」内的全部技能灌顶给你操控的角色（无需手动挑选）。需先在下方「灌顶技能池管理」中添加技能，池子为空则无效果",
+				intro: "开启后，每局游戏开始时自动把「灌顶技能池」内的全部技能灌顶给你操控的角色（无需手动挑选）。需先在下方「灌顶技能池管理」中添加技能，池子为空则无效果。无上神默认不参与灌顶",
 				init: false,
+			},
+			guandingExcludeWss: {
+				name: "灌顶排除无上神",
+				intro: "开启后，你操控无上神（含国战副将形态）时开局不自动灌顶——无上神自带〖降临〗可自行挑选技能，避免重复。关闭此项则无上神也照常灌顶",
+				init: true,
 			},
 			guandingPool: {
 				name: "灌顶技能池管理（增加/排除）",
