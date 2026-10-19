@@ -61,3 +61,31 @@ jobs:
           gh release upload latest manifest.json --clobber
           gh release upload latest version.txt --clobber
           echo "已上传 kirito-extension.zip + manifest.json + version.txt（commit $GITHUB_SHA）"
+
+      # dist分支只含三个发版资产（zip/manifest/version.txt）：供CNB等纯git镜像走raw直链，
+      # 无需在CNB侧另建Release；[skip ci]防触发自身，且workflow只监听main不受影响
+      - name: 发布资产到 dist 分支
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan dist-tmp
+          git rm -rf --cached . -q
+          find . -mindepth 1 -maxdepth 1 ! -name 'kirito-extension.zip' ! -name 'manifest.json' ! -name 'version.txt' ! -name '.git' -exec rm -rf {} +
+          git add -f kirito-extension.zip manifest.json version.txt
+          git commit -m "发版资产 v$(cat version.txt) [skip ci]"
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist-tmp:dist
+          echo "已推送 dist 分支（zip + manifest.json + version.txt）"
+
+      # CNB（cnb.cool）镜像同步：main（增量raw源）+ dist（发版资产）。需在GitHub Secrets配置CNB_TOKEN
+      # （cnb.cool 个人设置生成的访问令牌），未配置时本步跳过；同步失败不影响Release发布
+      - name: 同步到 CNB 镜像
+        if: env.CNB_TOKEN != ''
+        env:
+          CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
+        continue-on-error: true
+        run: |
+          git push --force "https://cnb:${CNB_TOKEN}@cnb.cool/kir1ito/kirito-noname-extension.git" origin/main:main dist-tmp:dist
+          echo "已同步 main 与 dist 到 cnb.cool/kir1ito/kirito-noname-extension"

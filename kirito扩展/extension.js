@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.39";
+const VERSION = "3.40";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -86,14 +86,17 @@ const DEFAULT_TOUYING_POOL = ["gryjuejing", "grylonghun", "gryshenti", "ktyuli",
 const ktBinData = (data) => (data instanceof Uint8Array
 	? (data.byteOffset == 0 && data.byteLength == data.buffer.byteLength ? data.buffer : data.slice().buffer)
 	: data);
-// 安卓二进制写入自愈（v3.36）：经MTP取证，本体APK（子琪懒人包）的cordova桥把任何二进制参数
-// （ArrayBuffer/TypedArray/File）逐字节JSON序列化成文本写盘——41782字节的jpg落盘成472241字节
-// 的{"0":255,...}文本，图片/动皮atlas/语音全坏且读图失败=空白：结算头像、觉醒限定技背景、动皮
-// 渲染全灭；而纯字符串通道字节精确（extension.js/config-sync.json实测md5一致）。方案：安卓端
-// 二进制落盘一律"写入→读回→全字节比对"，不一致自动降级下一策略，首个通过的策略本会话优先复用：
-// ① 标准game.writeFile(ArrayBuffer)：健康内核字节精确（PC恒走此路，不进校验链）；
-// ② 直调File插件write [localURL, Base64串, offset, isBinary=true]：Java端按isBinary对String做
-//    Base64解码落盘，绕开损坏的JS→原生序列化层（字符串通道是本APK实测唯一字节精确的通道）
+// 安卓二进制写入自愈链（v3.36初版，v3.40补FileTransfer通道）：经MTP取证，本体APK（子琪懒人包）的
+// cordova桥把任何二进制参数（ArrayBuffer/TypedArray/File）逐字节JSON序列化成文本写盘——41782字节的
+// jpg落盘成472241字节的{"0":255,...}文本，图片/动皮atlas/语音全坏且读图失败=空白；纯字符串通道字节
+// 精确但落盘的是字符串本身。真机v3.39实测：直调File插件的本地路径也匹配失败（ENCODING_ERR=5）。
+// 故完整策略链一律"写入→读回→全字节比对"，不一致自动降级下一策略，首个通过验证的策略本会话优先
+// 复用（ktBinWritePlan记策略名）：
+// ① FileTransfer直落盘（调用方提供源URL且插件可用时）：native端HTTP下载直接写目标文件，载荷完全
+//    不经过JS桥——与本体game.download（云端资源下载）同通道，真机长期验证字节精确；
+// ② 标准game.writeFile(ArrayBuffer)：健康内核字节精确（PC恒走此路，不进校验链）；
+// ③ 直调File插件write [localURL, Base64串, offset, isBinary=true]：部分内核可用，Java端对String做Base64解码落盘
+const PLAN_LABELS = { transfer: "FileTransfer直落盘", standard: "标准写入", direct: "直调File" };
 const ktGameWrite = (data, dir, name) => new Promise((resolve, reject) =>
 	game.writeFile(data, dir, name, (err) => {
 		// 安卓端cordova写成功时回调的是ProgressEvent（truthy），只有真失败才是FileError；node端成功回调null
@@ -118,7 +121,27 @@ const ktBytesEqual = (a, b) => {
 	return true;
 };
 let ktBinWritePlan = null;
-const ktWriteBinary = async (data, dir, name) => {
+// FileTransfer下载直写：ensureDirectory建好目录后交native按URL下载落盘（root为noname存储根）
+const ktTransferWrite = (srcUrl, dir, name) => new Promise((resolve, reject) => {
+	const root = localStorage.getItem("noname_inited");
+	if (!root) {
+		reject(new Error("noname_inited缺失"));
+		return;
+	}
+	game.ensureDirectory(`${dir}/${name}`, () => {
+		try {
+			new FileTransfer().download(
+				encodeURI(srcUrl),
+				encodeURI(`${root}${dir}/${name}`),
+				() => resolve(),
+				(e) => reject(new Error(`FileTransfer code=${e && e.code}`))
+			);
+		} catch (e) {
+			reject(e);
+		}
+	}, true);
+});
+const ktWriteBinary = async (data, dir, name, srcUrl) => {
 	const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
 	// PC/Electron或无法读回校验的环境：直接写（node端game.writeFile(ArrayBuffer)字节精确）
 	if (typeof window == "undefined" || !window.cordova || typeof game.readFile != "function") {
@@ -129,34 +152,44 @@ const ktWriteBinary = async (data, dir, name) => {
 		const got = await new Promise((resolve, reject) => game.readFile(local, resolve, reject));
 		return ktBytesEqual(got, bytes);
 	};
-	const plans = [
-		async () => ktGameWrite(ktBinData(bytes), dir, name),
-		async () => {
-			const root = localStorage.getItem("noname_inited");
-			const entry = await new Promise((resolve, reject) =>
-				window.resolveLocalFileSystemURL(
-					root + dir,
-					(d) => d.getFile(name, { create: true }, resolve, reject),
-					reject
-				));
-			// 先删残留：损坏落盘比正确内容膨胀约11倍，若覆写不截断会留尾部垃圾导致校验不过
-			await new Promise((resolve) => game.removeFile(local, resolve));
-			await new Promise((resolve, reject) =>
-				cordova.exec(resolve, (e) => reject(new Error(typeof e == "object" ? JSON.stringify(e) : String(e))), "File", "write", [entry.localURL, ktBase64Of(bytes), 0, true]));
-		},
-	];
-	const order = ktBinWritePlan == 1 ? [1, 0] : [0, 1];
+	const planList = [];
+	if (srcUrl && typeof FileTransfer != "undefined") {
+		planList.push(["transfer", () => ktTransferWrite(srcUrl, dir, name)]);
+	}
+	planList.push(
+		["standard", async () => ktGameWrite(ktBinData(bytes), dir, name)],
+		["direct",
+			async () => {
+				const root = localStorage.getItem("noname_inited");
+				const entry = await new Promise((resolve, reject) =>
+					window.resolveLocalFileSystemURL(
+						root + dir,
+						(d) => d.getFile(name, { create: true }, resolve, reject),
+						reject
+					));
+				// 先删残留：损坏落盘比正确内容膨胀约11倍，若覆写不截断会留尾部垃圾导致校验不过
+				await new Promise((resolve) => game.removeFile(local, resolve));
+				await new Promise((resolve, reject) =>
+					cordova.exec(resolve, (e) => reject(new Error(typeof e == "object" ? JSON.stringify(e) : String(e))), "File", "write", [entry.localURL, ktBase64Of(bytes), 0, true]));
+			}],
+	);
+	const order = planList.map(([key]) => key);
+	const preferred = order.indexOf(ktBinWritePlan);
+	if (preferred > 0) {
+		order.unshift(order.splice(preferred, 1)[0]);
+	}
 	const errs = [];
-	for (const idx of order) {
+	for (const key of order) {
+		const plan = planList.find(([k]) => k == key)[1];
 		try {
-			await plans[idx]();
+			await plan();
 			if (!(await verify())) {
 				throw new Error("写入后读回比对不一致（二进制被序列化损坏）");
 			}
-			ktBinWritePlan = idx;
+			ktBinWritePlan = key;
 			return;
 		} catch (e) {
-			errs.push(`${idx == 0 ? "标准写入" : "直调File"}：${(e && e.message) || e}`);
+			errs.push(`${PLAN_LABELS[key]}：${(e && e.message) || e}`);
 		}
 	}
 	throw new Error(`二进制写入${local}失败（${errs.join("；")}）`);
@@ -230,12 +263,17 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		// 更新器只下载这一个压缩包再本地解压覆盖，新增文件无需维护清单
 		const ZIP_NAME = "kirito-extension.zip";
 		const RAW_BASE = `https://raw.githubusercontent.com/${REPO}/main/`;
-		// 下载源：GitHub直连 + gh-proxy.com + gh.llkk.cc 三个（连通性测速后按吞吐自动排序）
-		// 所有源均支持 前缀+完整GitHubURL 的代理格式；raw源用于小文件（清单/版本号/增量文件），release源用于整包与测速
+		// CNB（cnb.cool，腾讯云原生构建）镜像：main分支与GitHub仓库git同步、三个发版资产由工作流
+		// 强推到dist分支；raw直链国内直连快且无第三方代理的缓存滞后问题。测速不可达时自动垫底跳过
+		const CNB_REPO = "kir1ito/kirito-noname-extension";
+		const CNB_BASE = `https://cnb.cool/${CNB_REPO}`;
+		// 下载源：GitHub直连 + gh-proxy.com + gh.llkk.cc + CNB 四个（连通性测速后按吞吐自动排序）
+		// 前缀源均支持 前缀+完整GitHubURL 的代理格式；CNB源用自家raw路径（main=增量文件，dist=发版资产）
 		const SOURCES = [
 			{ label: "GitHub 直连", prefix: "" },
 			{ label: "gh-proxy.com 镜像", prefix: "https://gh-proxy.com/" },
 			{ label: "gh.llkk.cc", prefix: "https://gh.llkk.cc/" },
+			{ label: "CNB 镜像", cnb: true },
 		];
 		let overlay = null;
 		let abortCtrl = null;
@@ -243,8 +281,10 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		let remoteVersion = null;
 		const $ = {};
 		const encodePath = (file) => encodeURIComponent(NAME) + "/" + file.split("/").map(encodeURIComponent).join("/");
-		const rawUrlOf = (src, file) => src.prefix + RAW_BASE + encodePath(file);
-		const relUrlOf = (src, asset) => `${src.prefix}https://github.com/${REPO}/releases/latest/download/${asset}`;
+		const rawUrlOf = (src, file) => (src.cnb ? `${CNB_BASE}/-/raw/main/${encodePath(file)}` : src.prefix + RAW_BASE + encodePath(file));
+		const relUrlOf = (src, asset) => (src.cnb
+			? `${CNB_BASE}/-/raw/dist/${asset}`
+			: `${src.prefix}https://github.com/${REPO}/releases/latest/download/${asset}`);
 		const zipUrlOf = (src) => relUrlOf(src, ZIP_NAME);
 		// 远程版本号权威来源：Release资产version.txt（工作流打包时与zip同批生成、在zip之后上传）
 		// 避免"代码已推到main、压缩包还没打完"窗口期里显示新版本号却下到旧压缩包
@@ -346,14 +386,14 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				return null;
 			}
 		};
-		// 增量：按源顺序下载单个原始文件（小文件，无需流式进度）
+		// 增量：按源顺序下载单个原始文件（小文件，无需流式进度），返回{bytes, src}供FileTransfer直落盘复用同源地址
 		const downloadRaw = async (file) => {
 			let lastError = null;
 			for (const { src } of sourceOrder) {
 				try {
 					const resp = await fetch(bustCache(rawUrlOf(src, file)), { signal: abortCtrl.signal });
 					if (!resp.ok) throw new Error(`RAW ${resp.status}`);
-					return new Uint8Array(await resp.arrayBuffer());
+					return { bytes: new Uint8Array(await resp.arrayBuffer()), src };
 				} catch (e) {
 					if (e.name == "AbortError") throw e;
 					lastError = e;
@@ -449,7 +489,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			}
 			setDisabled($.check, false);
 		}
-		const writeFileTo = async (file, data) => {
+		const writeFileTo = async (file, data, srcUrl) => {
 			const local = `extension/${NAME}/${file}`;
 			const slash = local.lastIndexOf("/");
 			const dir = slash > 0 ? local.slice(0, slash) : local;
@@ -460,8 +500,8 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				// 文本走字符串通道：两端实测字节精确（安卓桥只对二进制参数做JSON序列化损坏）
 				await ktGameWrite(data, dir, local.slice(slash + 1));
 			} else {
-				// 二进制走校验链：安卓损坏内核自动降级直调File插件Base64通道，PC直通
-				await ktWriteBinary(data, dir, local.slice(slash + 1));
+				// 二进制走校验链：安卓损坏内核自动降级FileTransfer直落盘/直调File插件Base64通道，PC直通
+				await ktWriteBinary(data, dir, local.slice(slash + 1), srcUrl);
 			}
 		};
 		async function startUpdate() {
@@ -492,6 +532,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				setStatus("正在下载更新压缩包…");
 				let data = null;
 				let lastError = null;
+				let zipSrc = null; // 实际供包的源：解压后二进制文件写盘失败时按同源raw地址FileTransfer直落盘修复
 				const chunks = [];
 				let received = 0;
 				let zipTotal = 0;
@@ -520,6 +561,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 							if (!resp.ok && !(resp.status == 206 && received > 0)) {
 								throw new Error(`HTTP ${resp.status}`);
 							}
+							zipSrc = src;
 							if (received > 0 && resp.status == 206) {
 								// 续传成功：从content-range解析总大小，已收数据继续有效
 								const cr = resp.headers.get("content-range");
@@ -603,7 +645,8 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 						}
 						continue;
 					}
-					await writeFileTo(rel, /\.(js|json)$/.test(rel) ? new TextDecoder().decode(bytes) : bytes);
+					// 附带供包源的同名raw地址：安卓损坏内核二进制写入走FileTransfer直落盘修复
+					await writeFileTo(rel, /\.(js|json)$/.test(rel) ? new TextDecoder().decode(bytes) : bytes, zipSrc ? rawUrlOf(zipSrc, rel) : undefined);
 				}
 				// 全部覆盖成功 → 最后一步才写版本号文件与本地配置
 				if (!infoJsonBytes) throw new Error("压缩包中缺少 info.json");
@@ -704,9 +747,10 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					$.progress.textContent = `增量下载 · ${done + 1}/${order.length}`;
 					$.cur.textContent = file;
 					curFile = file;
-					const bytes = await downloadRaw(file);
+					const { bytes, src } = await downloadRaw(file);
 					done++;
-					await writeFileTo(file, /\.(js|json)$/.test(file) ? new TextDecoder().decode(bytes) : bytes);
+					// 附带该文件的实际下载源地址：安卓损坏内核二进制写入走FileTransfer直落盘
+					await writeFileTo(file, /\.(js|json)$/.test(file) ? new TextDecoder().decode(bytes) : bytes, rawUrlOf(src, file));
 				}
 				// 全部覆盖成功 → 写新清单作为下次增量基准，再写版本号配置
 				await writeFileTo(LOCAL_MANIFEST, JSON.stringify(remoteManifest));
@@ -1327,7 +1371,8 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					// createDir等目录真正建完再回调（ensureDirectory在cordova端不等待，有竞态）
 					const slash = to.lastIndexOf("/");
 					await new Promise((resolve, reject) => game.createDir(to.slice(0, slash), resolve, reject));
-					await ktWriteBinary(bytes, to.slice(0, slash), to.slice(slash + 1));
+					// 附带源URL：安卓损坏内核走FileTransfer从本机资源服务直落盘（native下载不经JS桥）
+					await ktWriteBinary(bytes, to.slice(0, slash), to.slice(slash + 1), lib.assetURL + from);
 					console.log(`kirito扩展：已镜像 ${to}`);
 				} catch (e) {
 					console.warn(`kirito扩展：镜像 ${to} 失败`, e);
