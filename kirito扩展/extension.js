@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.41";
+const VERSION = "3.42";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1019,52 +1019,44 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				return origDisabled2.apply(this, arguments);
 			};
 		};
-		// 人挑选将对话框过滤（v3.41两级）：玩家禁用武将在选将框置灰不可选
-		// ① 内容级（主）：包装 lib.element.content.chooseButton 首步——执行时对话框按钮已建、
-		//    filterButton已成定局（含国战等模式经set后写入的），在此最终组合，任何创建期遗漏都在此兜住；
-		// ② 创建级（辅）：包装 Player.prototype.chooseButton，创建时即组合（防内容函数被更早编译的极端时序）。
-		// 触发判定用事件父链找chooseCharacter（异步content恢复后_status.event时机不稳，欢乐斗地主实测会漏），
-		// 另兜底"对话框内确有武将按钮"；候选全部被禁时放行，避免强制点选无解卡死
+		// 人挑选将对话框过滤（v3.42）：玩家禁用武将在选将框置灰不可选。包装chooseButton内容首步与
+		// Player.prototype.chooseButton，在filterButton被消费前组合我们的条件。触发判定只看事件自身：
+		// ① event.createDialog 含 [武将名列表,"character"] 规格（欢乐斗地主等对象形态，对话框在内容里才建，
+		//   创建期dialog还不存在）；② event.dialog.buttons 已有武将按钮（对话框节点直传形态，如身份/国战）。
+		// 不看parent——本引擎createEvent不设parent（走eventManager.next），也不依赖_status.event时机。
+		// 候选全部被禁时放行，避免强制点选无解卡死
 		const ktComposeBanFilter = (event) => {
 			if (!event || event.__ktBanComposed) {
-				return;
+				return false;
 			}
 			const banPlayer = getList(KEY_PLAYER);
 			if (!banPlayer.length) {
-				return;
+				return false;
 			}
 			const nameOf = (button) => {
 				const link = button && button.link;
 				return typeof link == "string" ? link : link && link.name;
 			};
-			let evt = event.parent;
-			let isCharPick = false;
-			while (evt) {
-				if (evt.name == "chooseCharacter") {
-					isCharPick = true;
-					break;
-				}
-				evt = evt.parent;
-			}
+			const spec = event.createDialog;
+			const specHit = Array.isArray(spec) && spec.some((item) => Array.isArray(item) && item.length >= 2 && item[1] == "character" && Array.isArray(item[0]) && item[0].some((n) => typeof n == "string" && banPlayer.includes(n)));
 			const buttons = event.dialog && event.dialog.buttons;
-			const hasCharBtn = Array.isArray(buttons) && buttons.some((b) => {
-				const n = nameOf(b);
-				return n && lib.character[n];
-			});
-			if (!isCharPick && !hasCharBtn) {
-				return;
+			const btnHit = Array.isArray(buttons) && buttons.some((b) => banPlayer.includes(nameOf(b)));
+			if (!specHit && !btnHit) {
+				return false;
 			}
 			event.__ktBanComposed = true;
 			const prev = typeof event.filterButton == "function" ? event.filterButton : null;
 			event.filterButton = function (button, player) {
 				if (banPlayer.includes(nameOf(button))) {
-					const all = Array.isArray(buttons) && buttons.length && buttons.every((b) => banPlayer.includes(nameOf(b)));
+					const curButtons = event.dialog && event.dialog.buttons;
+					const all = Array.isArray(curButtons) && curButtons.length && curButtons.every((b) => banPlayer.includes(nameOf(b)));
 					if (!all) {
 						return false;
 					}
 				}
 				return prev ? prev.call(this, button, player) : true;
 			};
+			return true;
 		};
 		const patchContent = () => {
 			const steps = lib.element.content && lib.element.content.chooseButton;
