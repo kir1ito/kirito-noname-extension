@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.46";
+const VERSION = "3.47";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1334,6 +1334,66 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			}
 		};
 	})();
+	// 动皮仅自己展示（v3.47）：动皮按武将名绑定，AI用同款武将也会渲染Spine动皮吃性能。
+	// 包装十周年UI的_decadeUIApplyDynamicSkin与千幻聆音的qhly_changeDynamicSkin两个应用点：
+	// 非玩家操控（game.me）的角色跳过动皮应用并清理已有动皮，回退静态皮肤。配置dynamicSkinSelfOnly可关
+	const ktDynamicSelfOnly = (() => {
+		let timer = null;
+		let doneUI = false;
+		let doneQhly = false;
+		const enabled = () => game.getExtensionConfig("kirito扩展", "dynamicSkinSelfOnly") !== false;
+		const skip = (player) => {
+			if (!enabled() || player == game.me) {
+				return false;
+			}
+			try {
+				if (player.dynamic && typeof player.stopDynamic == "function") {
+					player.stopDynamic();
+				}
+				if (player.$dynamicWrap) {
+					player.$dynamicWrap.style.backgroundImage = "";
+				}
+			} catch (e) {}
+			return true;
+		};
+		const tryInstall = () => {
+			if (!doneUI && typeof Player == "function" && Player.prototype && typeof Player.prototype._decadeUIApplyDynamicSkin == "function") {
+				const origApply = Player.prototype._decadeUIApplyDynamicSkin;
+				Player.prototype._decadeUIApplyDynamicSkin = function (...args) {
+					if (skip(this)) {
+						return;
+					}
+					return origApply.apply(this, args);
+				};
+				doneUI = true;
+			}
+			if (!doneQhly && typeof game.qhly_changeDynamicSkin == "function") {
+				const origQhly = game.qhly_changeDynamicSkin;
+				game.qhly_changeDynamicSkin = function (player) {
+					if (skip(player)) {
+						return;
+					}
+					return origQhly.apply(this, arguments);
+				};
+				doneQhly = true;
+			}
+			return doneUI && doneQhly;
+		};
+		return () => {
+			if (tryInstall()) {
+				return;
+			}
+			if (timer == null) {
+				const start = Date.now();
+				timer = setInterval(() => {
+					if (tryInstall() || Date.now() - start > 60000) {
+						clearInterval(timer);
+						timer = null;
+					}
+				}, 500);
+			}
+		};
+	})();
 	// 配置云同步（精简版）：PC端为唯一配置源。PC游戏每次启动自动把 lib.config（本体配置+全部扩展菜单配置）
 	// 导出为游戏根目录 config-sync.json；更新扩展时由构建流程把该快照复制进扩展包（AGENTS.md规则6），
 	// 手机端随扩展更新拿到快照，点「同步配置」读取本地快照原样覆盖：
@@ -1510,6 +1570,8 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			ktBanCenter.install();
 			// 斗转星移身份选将防崩：补建缺失的identity节点（其特殊身份分支不判空直接读firstChild）
 			ktIdentityGuard();
+			// 动皮仅自己展示：AI用同款武将回退静态皮，省性能
+			ktDynamicSelfOnly();
 			// 灌顶：订阅本体每局 gameStart 广播（订阅方式参照奇妙工具）。开关「自动添加技能」开启且
 			// 灌顶池非空时，创建事件把池内全部技能自动加给玩家操控的角色（addSkills自带获得特效）。
 			// 录像回放不广播gameStart天然跳过；hasSkill去重保证读档/重复广播不会重复添加
@@ -1807,6 +1869,12 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					"8": "8个",
 					"10": "10个",
 				},
+			},
+			// 动皮仅自己展示：AI用同款武将回退静态皮，省性能
+			dynamicSkinSelfOnly: {
+				name: "动皮仅自己展示",
+				intro: "开启后动态皮肤只渲染在你操控的角色上：AI 使用同款武将时回退为静态皮肤，节省性能。关闭则恢复原版（所有同款武将都渲染动皮）。改动对下一局生效，进行中的对局不受影响",
+				init: true,
 			},
 			// 配置云同步：以PC端为准——PC启动自动导出配置快照，扩展更新时随包发布，本机一键原样覆盖
 			cloudSync: {
