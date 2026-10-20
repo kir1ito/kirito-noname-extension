@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.42";
+const VERSION = "3.43";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -993,6 +993,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		const KEY_PLAYER = "extension_kirito扩展_banPlayer";
 		let installed = false;
 		let qhlyPollTimer = null;
+		let dzxyPollTimer = null;
 		const getList = (key) => (Array.isArray(lib.config[key]) ? lib.config[key].filter((n) => typeof n == "string") : []);
 		const saveList = (key, name, checked) => {
 			const list = getList(key);
@@ -1088,6 +1089,91 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				return next;
 			};
 		};
+		// 斗转星移选将界面（欢乐斗地主等模式用其自定义UI渲染选将，不经过chooseButton的filterButton判定，
+		// 「可选武将」框即此）：①openPage渲染前把被禁武将按钮从dialog.buttons剔除（剩余不足requireNum时
+		// 保留，避免凑不齐确认）；②selectChar兜底拦截（自由选将等任何渲染路径点到被禁武将时拒绝）；
+		// ③getRepChar换将候选池剔除被禁武将（滤完为空则放行原池，避免换将无解）
+		const patchDZXProto = (proto) => {
+			if (!proto || proto === Object.prototype || proto.__ktBanPatched) {
+				return;
+			}
+			proto.__ktBanPatched = true;
+			if (typeof proto.openPage == "function") {
+				const origOpenPage = proto.openPage;
+				proto.openPage = function (dialog, requireNum) {
+					try {
+						const banPlayer = getList(KEY_PLAYER);
+						if (dialog && Array.isArray(dialog.buttons) && banPlayer.length) {
+							const nameOf = (b) => (typeof b.link == "string" ? b.link : b.link && b.link.name);
+							const banned = dialog.buttons.filter((b) => banPlayer.includes(nameOf(b)));
+							const need = Math.max(typeof requireNum == "number" ? requireNum : 1, 1);
+							if (banned.length && dialog.buttons.length - banned.length >= need) {
+								banned.forEach((b) => typeof b.remove == "function" && b.remove());
+								dialog.buttons = dialog.buttons.filter((b) => !banned.includes(b));
+							}
+						}
+					} catch (e) {
+						console.warn("kirito扩展：斗转星移禁选过滤失败", e);
+					}
+					return origOpenPage.apply(this, arguments);
+				};
+			}
+			if (typeof proto.selectChar == "function") {
+				const origSelectChar = proto.selectChar;
+				proto.selectChar = function (char, event) {
+					if (char && char.ID && getList(KEY_PLAYER).includes(char.ID)) {
+						alert(`「${get.translation(char.ID) || char.ID}」已被玩家禁用，无法选择`);
+						return;
+					}
+					return origSelectChar.apply(this, arguments);
+				};
+			}
+			if (typeof proto.getRepChar == "function") {
+				const origGetRepChar = proto.getRepChar;
+				proto.getRepChar = function () {
+					const list = origGetRepChar.apply(this, arguments);
+					try {
+						const banPlayer = getList(KEY_PLAYER);
+						if (!banPlayer.length || !Array.isArray(list)) {
+							return list;
+						}
+						const filtered = list.filter((c) => !banPlayer.includes(c));
+						return filtered.length ? filtered : list;
+					} catch (e) {
+						return list;
+					}
+				};
+			}
+		};
+		const installDZX = () => {
+			const dzxy = window.dzxy;
+			if (dzxy) {
+				for (const key of Object.keys(dzxy)) {
+					const inst = dzxy[key];
+					if (inst && typeof inst == "object" && typeof inst.openPage == "function") {
+						let proto = Object.getPrototypeOf(inst);
+						while (proto && proto !== Object.prototype) {
+							patchDZXProto(proto);
+							proto = Object.getPrototypeOf(proto);
+						}
+					}
+				}
+				return;
+			}
+			// 斗转星移可能晚于本扩展加载：轮询等待（最长60秒），缺席则静默放弃
+			if (dzxyPollTimer == null) {
+				const start = Date.now();
+				dzxyPollTimer = setInterval(() => {
+					if (window.dzxy || Date.now() - start > 60000) {
+						clearInterval(dzxyPollTimer);
+						dzxyPollTimer = null;
+						if (window.dzxy) {
+							installDZX();
+						}
+					}
+				}, 500);
+			}
+		};
 		// 千幻聆音武将详情面板：其构建「禁用设置」时会调用 game.qhly_isForbidAI(name)（此时DOM已就绪），
 		// 包装它拿到时机与武将名，在「仅自由选将可选」行后插入两行，复用其复选框组件与交互
 		const injectQhlyRows = (name) => {
@@ -1163,6 +1249,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			patchContent();
 			patchChooseButton();
 			installQhlyBoxes();
+			installDZX();
 		};
 		return { install };
 	})();
