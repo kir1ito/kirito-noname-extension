@@ -787,11 +787,11 @@
 					0
 				],
 				"fan": [
-					59,
+					60,
 					1
 				]
 			},
-			"str": "地主：54胜 0负<br>农民：59胜 1负<br>"
+			"str": "地主：54胜 0负<br>农民：60胜 1负<br>"
 		},
 		"single": {
 			"data": {}
@@ -846,7 +846,7 @@
 	"player_border": "slim",
 	"radius_size": "default",
 	"image_character": "default",
-	"image_background": "ol_bg",
+	"image_background": "wangshi_bg",
 	"asset_image": true,
 	"asset_font": true,
 	"card_font": "xiaozhuan",
@@ -20049,8 +20049,8 @@
 	"extension_斗转星移_RecentChseChar": {
 		"maxNum": 50,
 		"charList": [
-			"shen_ganning",
 			"maliang",
+			"shen_ganning",
 			"shamoke",
 			"dc_huangwudie",
 			"pot_zhaoyun",
@@ -20102,6 +20102,7 @@
 		],
 		"recentCharList": [
 			"maliang",
+			"maliang",
 			"shen_ganning",
 			"pot_zhaoyun",
 			"sb_huanggai",
@@ -20149,8 +20150,7 @@
 			"clan_xunchen",
 			"re_sunquan",
 			"shen_ganning",
-			"sp_liuqi",
-			"shen_ganning"
+			"sp_liuqi"
 		]
 	},
 	"extension_斗转星移_addBanCharToTopMenu": true,
@@ -20199,10 +20199,10 @@
 	},
 	"extension_斗转星移_package": {
 		"huanledou": {
-			"count": 5510
+			"count": 5500
 		},
 		"jinpiao": {
-			"count": 33600
+			"count": 33900
 		},
 		"daojulibao": {
 			"count": 4
@@ -20214,7 +20214,7 @@
 			"count": 261
 		},
 		"jianghun": {
-			"count": 2380
+			"count": 2400
 		},
 		"shenmibaoxiang": {
 			"count": 0
@@ -27554,7 +27554,7 @@
 		"gz_zhangren": 1,
 		"sp_zhonghui": 2,
 		"re_zhangfei": 1,
-		"maliang": 4,
+		"maliang": 5,
 		"liuyan": 1,
 		"zhangxuan": 2,
 		"mb_lingju": 2,
@@ -27616,7 +27616,7 @@
 			"clan_xunchen": "栖木之择.jpg",
 			"re_liru": "烈焰滔天.jpg",
 			"xizhicai": "清风寄傲.jpg",
-			"maliang": "荡然由心.jpg"
+			"maliang": "千计卷来.jpg"
 		},
 		"skinAudioList": {
 			"sunquan": [],
@@ -27707,7 +27707,6 @@
 			"xizhicai": [],
 			"maliang": [
 				"die/maliang",
-				"victory/maliang",
 				"skill/yingyuan1",
 				"skill/yingyuan2",
 				"skill/zishu1",
@@ -27877,12 +27876,11 @@
 			"victory/ol_huban": "../extension/千幻聆音/sanguoaudio/ol_huban/victory",
 			"victory/zhangyao": "../extension/千幻聆音/sanguoaudio/zhangyao/victory",
 			"victory/guansuo": "../extension/千幻聆音/sanguoaudio/guansuo/victory",
-			"die/maliang": "../extension/千幻聆音/sanguoaudio/maliang/荡然由心/maliang",
-			"victory/maliang": "../extension/千幻聆音/sanguoaudio/maliang/荡然由心/victory",
-			"skill/yingyuan1": "../extension/千幻聆音/sanguoaudio/maliang/荡然由心/yingyuan1",
-			"skill/yingyuan2": "../extension/千幻聆音/sanguoaudio/maliang/荡然由心/yingyuan2",
-			"skill/zishu1": "../extension/千幻聆音/sanguoaudio/maliang/荡然由心/zishu1",
-			"skill/zishu2": "../extension/千幻聆音/sanguoaudio/maliang/荡然由心/zishu2"
+			"die/maliang": "../extension/千幻聆音/sanguoaudio/maliang/千计卷来/maliang",
+			"skill/yingyuan1": "../extension/千幻聆音/sanguoaudio/maliang/千计卷来/yingyuan1",
+			"skill/yingyuan2": "../extension/千幻聆音/sanguoaudio/maliang/千计卷来/yingyuan2",
+			"skill/zishu1": "../extension/千幻聆音/sanguoaudio/maliang/千计卷来/zishu1",
+			"skill/zishu2": "../extension/千幻聆音/sanguoaudio/maliang/千计卷来/zishu2"
 		},
 		"djtoggle": {
 			"shen_zhaoyun": {},
@@ -28362,7 +28360,7 @@
 		"maliang": {
 			"doudizhu": {
 				"农民": {
-					"win": 3
+					"win": 4
 				}
 			}
 		},
@@ -43701,9 +43699,10 @@
 	"ziqiCharacters": "ziqi",
 	"zuanzhishixian": "off",
 	"qhly_changeSex": {},
+	"player_number": 3,
 	"__syncMeta": {
-		"time": "2026/10/20 19:35:37",
+		"time": "2026/10/20 19:40:29",
 		"from": "PC",
-		"ext": "3.43"
+		"ext": "3.44"
 	}
 }

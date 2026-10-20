@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.44";
+const VERSION = "3.45";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1031,7 +1031,10 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				return;
 			}
 			const banPlayer = getList(KEY_PLAYER);
-			if (!banPlayer.length) {
+			// 选将候选数量（配置pickCandidateCount，"0"=跟随原版）：候选数组是活引用、渲染长度随数组，
+			// 故从剩余选将池补足到设定值即可控制选将框数量（欢乐斗地主原版在模式代码里写死4个）
+			const wantCount = Number(game.getExtensionConfig ? game.getExtensionConfig("kirito扩展", "pickCandidateCount") : 0) || 0;
+			if (!banPlayer.length && !wantCount) {
 				return;
 			}
 			const need = Math.max(Array.isArray(event.selectButton) ? event.selectButton[0] : 1, 1);
@@ -1060,6 +1063,16 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 							list[i] = sub;
 						} else if (list.length - 1 >= need) {
 							list.splice(i, 1);
+						}
+					}
+					// 候选数补足：非空且未达标时从剩余选将池随机补位（候选为空不补，避免无中生有）
+					if (wantCount && list.length && list.length < wantCount) {
+						let guard = 300;
+						while (list.length < wantCount && pool.length && guard--) {
+							const cand = pool[Math.floor(Math.random() * pool.length)];
+							if (typeof cand == "string" && lib.character[cand] && !banPlayer.includes(cand) && !list.includes(cand)) {
+								list.push(cand);
+							}
 						}
 					}
 				}
@@ -1725,6 +1738,20 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				clear: true,
 				onclick() {
 					ktGuandingManager.open();
+				},
+			},
+			// 选将候选数量：候选数组是活引用，从剩余选将池补足到设定值即可控制选将框数量
+			pickCandidateCount: {
+				name: "选将候选数量",
+				intro: "把选将框的候选武将数量补足到设定值：不足时从本局剩余选将池随机补位，已达标则不变，「跟随原版」不调整。影响欢乐斗地主（原版固定4个）等走选将对话框的界面，下一局生效",
+				init: "0",
+				item: {
+					"0": "跟随原版",
+					"5": "5个",
+					"6": "6个",
+					"7": "7个",
+					"8": "8个",
+					"10": "10个",
 				},
 			},
 			// 配置云同步：以PC端为准——PC启动自动导出配置快照，扩展更新时随包发布，本机一键原样覆盖
