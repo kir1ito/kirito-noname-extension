@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.45";
+const VERSION = "3.46";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1282,6 +1282,58 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		};
 		return { install };
 	})();
+	// 斗转星移身份选将防崩（v3.46）：其重写的game.chooseCharacter在身份场特殊身份（贼首/大将/军师）
+	// 分支直接读 game.me.node.identity.firstChild 不判空（ChooseChar_mod.js:707）——主题/美化扩展重绘
+	// 玩家节点后身份节点可能缺失，选将事件当场TypeError中断（现象：选将界面卡死+报错窗口，event.step:1）。
+	// 检测到其chooseCharacter后包装：调用前为所有玩家补建缺失的identity节点（背面"cai"，与原版步骤0
+	// 行为一致；只补缺不重建，避免重复节点）
+	const ktIdentityGuard = (() => {
+		let timer = null;
+		const isDZXChooseCharacter = () => {
+			if (typeof game.chooseCharacter != "function") {
+				return false;
+			}
+			const src = String(game.chooseCharacter);
+			return src.includes("dzxy") || (window.dzxy != null && src.includes("chooseChar"));
+		};
+		const install = () => {
+			if (!isDZXChooseCharacter()) {
+				return false;
+			}
+			const origChooseCharacter = game.chooseCharacter;
+			game.chooseCharacter = function (...args) {
+				try {
+					const players = Array.isArray(game.players) ? game.players.slice() : [];
+					if (game.me && !players.includes(game.me)) {
+						players.push(game.me);
+					}
+					for (const p of players) {
+						if (p && p.node && !p.node.identity) {
+							p.node.identity = ui.create.div(".identity", p);
+						}
+					}
+				} catch (e) {
+					console.warn("kirito扩展：身份节点补建失败", e);
+				}
+				return origChooseCharacter.apply(this, args);
+			};
+			return true;
+		};
+		return () => {
+			if (install()) {
+				return;
+			}
+			if (timer == null) {
+				const start = Date.now();
+				timer = setInterval(() => {
+					if (install() || Date.now() - start > 60000) {
+						clearInterval(timer);
+						timer = null;
+					}
+				}, 500);
+			}
+		};
+	})();
 	// 配置云同步（精简版）：PC端为唯一配置源。PC游戏每次启动自动把 lib.config（本体配置+全部扩展菜单配置）
 	// 导出为游戏根目录 config-sync.json；更新扩展时由构建流程把该快照复制进扩展包（AGENTS.md规则6），
 	// 手机端随扩展更新拿到快照，点「同步配置」读取本地快照原样覆盖：
@@ -1456,6 +1508,8 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			ktConfigSync.exportSnapshot();
 			// 武将禁选中心：核心闸门包装 + 千幻聆音「禁用设置」弹窗插入 AI 禁用/玩家禁用勾选
 			ktBanCenter.install();
+			// 斗转星移身份选将防崩：补建缺失的identity节点（其特殊身份分支不判空直接读firstChild）
+			ktIdentityGuard();
 			// 灌顶：订阅本体每局 gameStart 广播（订阅方式参照奇妙工具）。开关「自动添加技能」开启且
 			// 灌顶池非空时，创建事件把池内全部技能自动加给玩家操控的角色（addSkills自带获得特效）。
 			// 录像回放不广播gameStart天然跳过；hasSkill去重保证读档/重复广播不会重复添加
