@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.47";
+const VERSION = "3.48";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1343,7 +1343,12 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		let doneQhly = false;
 		const enabled = () => game.getExtensionConfig("kirito扩展", "dynamicSkinSelfOnly") !== false;
 		const skip = (player) => {
-			if (!enabled() || player == game.me) {
+			// 跳过条件收窄为"场上AI玩家"（player在game.players里且不是game.me）：选皮预览/菜单展示/
+			// 临时玩家元素一律放行，否则会误伤自己的动皮（v3.47误伤教训）
+			if (!enabled() || !player || !Array.isArray(game.players) || !game.players.includes(player)) {
+				return false;
+			}
+			if (player == game.me) {
 				return false;
 			}
 			try {
@@ -1353,6 +1358,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				if (player.$dynamicWrap) {
 					player.$dynamicWrap.style.backgroundImage = "";
 				}
+				console.log(`[kirito扩展]已跳过AI动皮：${player.name || player.name1 || "?"}`);
 			} catch (e) {}
 			return true;
 		};
