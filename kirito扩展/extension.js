@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.43";
+const VERSION = "3.44";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1020,44 +1020,60 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				return origDisabled2.apply(this, arguments);
 			};
 		};
-		// 人挑选将对话框过滤（v3.42）：玩家禁用武将在选将框置灰不可选。包装chooseButton内容首步与
-		// Player.prototype.chooseButton，在filterButton被消费前组合我们的条件。触发判定只看事件自身：
-		// ① event.createDialog 含 [武将名列表,"character"] 规格（欢乐斗地主等对象形态，对话框在内容里才建，
-		//   创建期dialog还不存在）；② event.dialog.buttons 已有武将按钮（对话框节点直传形态，如身份/国战）。
-		// 不看parent——本引擎createEvent不设parent（走eventManager.next），也不依赖_status.event时机。
-		// 候选全部被禁时放行，避免强制点选无解卡死
-		const ktComposeBanFilter = (event) => {
-			if (!event || event.__ktBanComposed) {
-				return false;
+		// 人挑选将候选池剔除（v3.44）：核心诉求是"从池子里去掉"而非置灰拦截——被禁武将占一个候选位
+		// 等于浪费，候选位应让给可用武将。包装chooseButton内容首步与Player.prototype.chooseButton：
+		// ① event.createDialog 含 [武将名列表,"character"] 规格（欢乐斗地主等对象形态）：列表是活引用，
+		//   在对话框创建前就地改写——被禁武将从剩余选将池_status.characterlist抽其他武将补位，补不出才剔除；
+		// ② event.dialog.buttons 已有被禁按钮（对话框节点直传形态，如身份/国战）：直接删除该按钮。
+		// 不看parent——本引擎createEvent不设parent（走eventManager.next），也不依赖_status.event时机
+		const ktPurgeBanFromPick = (event) => {
+			if (!event || event.__ktBanPurged) {
+				return;
 			}
 			const banPlayer = getList(KEY_PLAYER);
 			if (!banPlayer.length) {
-				return false;
+				return;
 			}
-			const nameOf = (button) => {
-				const link = button && button.link;
-				return typeof link == "string" ? link : link && link.name;
-			};
-			const spec = event.createDialog;
-			const specHit = Array.isArray(spec) && spec.some((item) => Array.isArray(item) && item.length >= 2 && item[1] == "character" && Array.isArray(item[0]) && item[0].some((n) => typeof n == "string" && banPlayer.includes(n)));
-			const buttons = event.dialog && event.dialog.buttons;
-			const btnHit = Array.isArray(buttons) && buttons.some((b) => banPlayer.includes(nameOf(b)));
-			if (!specHit && !btnHit) {
-				return false;
-			}
-			event.__ktBanComposed = true;
-			const prev = typeof event.filterButton == "function" ? event.filterButton : null;
-			event.filterButton = function (button, player) {
-				if (banPlayer.includes(nameOf(button))) {
-					const curButtons = event.dialog && event.dialog.buttons;
-					const all = Array.isArray(curButtons) && curButtons.length && curButtons.every((b) => banPlayer.includes(nameOf(b)));
-					if (!all) {
-						return false;
+			const need = Math.max(Array.isArray(event.selectButton) ? event.selectButton[0] : 1, 1);
+			if (Array.isArray(event.createDialog)) {
+				for (const item of event.createDialog) {
+					if (!Array.isArray(item) || item.length < 2 || item[1] != "character" || !Array.isArray(item[0])) {
+						continue;
+					}
+					const list = item[0];
+					const pool = Array.isArray(_status.characterlist) ? _status.characterlist : [];
+					for (let i = list.length - 1; i >= 0; i--) {
+						const name = list[i];
+						if (typeof name != "string" || !banPlayer.includes(name)) {
+							continue;
+						}
+						let sub = null;
+						for (let tries = 0; tries < 50 && pool.length; tries++) {
+							const cand = pool[Math.floor(Math.random() * pool.length)];
+							if (typeof cand == "string" && lib.character[cand] && !banPlayer.includes(cand) && !list.includes(cand)) {
+								sub = cand;
+								break;
+							}
+						}
+						// 池里补不出时才直接剔除，且候选数不能被删到低于最低选择数
+						if (sub) {
+							list[i] = sub;
+						} else if (list.length - 1 >= need) {
+							list.splice(i, 1);
+						}
 					}
 				}
-				return prev ? prev.call(this, button, player) : true;
-			};
-			return true;
+			}
+			const buttons = event.dialog && event.dialog.buttons;
+			if (Array.isArray(buttons)) {
+				const nameOf = (button) => (typeof button.link == "string" ? button.link : button.link && button.link.name);
+				const banned = buttons.filter((b) => banPlayer.includes(nameOf(b)));
+				if (banned.length && buttons.length - banned.length >= need) {
+					banned.forEach((b) => typeof b.remove == "function" && b.remove());
+					event.dialog.buttons = buttons.filter((b) => !banned.includes(b));
+				}
+			}
+			event.__ktBanPurged = true;
 		};
 		const patchContent = () => {
 			const steps = lib.element.content && lib.element.content.chooseButton;
@@ -1066,7 +1082,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				const origFirst = steps[0];
 				steps[0] = async function (event) {
 					try {
-						ktComposeBanFilter(event);
+						ktPurgeBanFromPick(event);
 					} catch (e) {
 						console.warn("kirito扩展：玩家禁用过滤失败", e);
 					}
@@ -1082,7 +1098,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			Player.prototype.chooseButton = function (...args) {
 				const next = origChooseButton.apply(this, args);
 				try {
-					ktComposeBanFilter(next);
+					ktPurgeBanFromPick(next);
 				} catch (e) {
 					console.warn("kirito扩展：玩家禁用过滤失败", e);
 				}
