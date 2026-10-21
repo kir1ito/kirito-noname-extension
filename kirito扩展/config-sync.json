@@ -783,15 +783,15 @@
 		"doudizhu": {
 			"data": {
 				"zhu": [
-					97,
+					106,
 					1
 				],
 				"fan": [
-					91,
+					100,
 					1
 				]
 			},
-			"str": "地主：97胜 1负<br>农民：91胜 1负<br>"
+			"str": "地主：106胜 1负<br>农民：100胜 1负<br>"
 		},
 		"single": {
 			"data": {}
@@ -846,7 +846,7 @@
 	"player_border": "slim",
 	"radius_size": "default",
 	"image_character": "default",
-	"image_background": "huangtian_bg",
+	"image_background": "zhanyun_bg",
 	"asset_image": true,
 	"asset_font": true,
 	"card_font": "xiaozhuan",
@@ -19961,7 +19961,40 @@
 		"xin_zhoutai",
 		"re_weiyan",
 		"re_daqiao",
-		"caorui"
+		"caorui",
+		"re_masu",
+		"weizi",
+		"sb_liubiao",
+		"old_zhoutai",
+		"xin_xushu",
+		"chenlin",
+		"re_lvbu",
+		"sunhao",
+		"shen_zhangliao",
+		"huangfusong",
+		"haozhao",
+		"sunluyu",
+		"liuxie",
+		"re_zhaoyun",
+		"re_yuji",
+		"sp_zhugeliang",
+		"zhoutai",
+		"ol_niufu",
+		"liubiao",
+		"mizhu",
+		"ol_pangtong",
+		"re_fazheng",
+		"re_caopi",
+		"xin_xiahoudun",
+		"re_dongzhuo",
+		"zhanglu",
+		"re_huangzhong",
+		"huanghao",
+		"zhangrang",
+		"yangyi",
+		"liyan",
+		"re_zhugeliang",
+		"fuhuanghou"
 	],
 	"extension_kirito扩展_dynamicSkinSelfOnly": true,
 	"extension_kirito扩展_enable": true,
@@ -20186,28 +20219,40 @@
 	"extension_斗转星移_RecentChseChar": {
 		"maxNum": 50,
 		"charList": [
-			"caochun",
 			"maliang",
+			"caochun",
+			"shen_ganning",
+			"mb_lingju",
+			"lvlingqi",
+			"zhangxingcai",
+			"mb_zhugeguo",
+			"mb_luyusheng",
 			"re_xusheng",
+			"quyi",
 			"pot_dengai",
 			"mb_zerong",
 			"sp_zhaoyun",
-			"mb_lingju",
+			"re_madai",
+			"caoying",
+			"dc_huangwudie",
+			"liuzan",
+			"nanhualaoxian",
+			"sb_machao",
+			"pangshanmin",
+			"xizhicai",
+			"xin_wuban",
+			"shen_luxun",
 			"guanning",
 			"miheng",
 			"pot_sunchen",
 			"sunhanhua",
-			"shen_ganning",
-			"lvlingqi",
 			"pot_zhaoyun",
-			"quyi",
 			"ol_huangzhong",
 			"mb_mayunlu",
 			"shamoke",
 			"mb_liuhui",
 			"pot_zhouyu",
 			"sb_daqiao",
-			"dc_huangwudie",
 			"re_zhonghui",
 			"sb_huangzhong",
 			"pot_xiaoqiao",
@@ -20216,28 +20261,34 @@
 			"mb_caochun",
 			"ol_lvlingqi",
 			"sb_caopi",
-			"caoying",
 			"pot_xiahouba",
 			"re_wangji",
 			"sp_maojie",
 			"sb_sp_zhugeliang",
-			"liuzan",
 			"xin_jushou",
 			"zhaoxiang",
 			"zhangchunhua",
-			"re_weiyan",
-			"xuyou",
-			"sb_luxun",
-			"sb_sunquan",
-			"dc_xiahouxuan",
-			"sb_huanggai",
-			"xizhicai",
-			"re_liru",
-			"zhangxuan",
-			"liuyan",
-			"wushangshen"
+			"re_weiyan"
 		],
 		"recentCharList": [
+			"lvlingqi",
+			"zhangxingcai",
+			"mb_zhugeguo",
+			"mb_luyusheng",
+			"re_madai",
+			"maliang",
+			"caoying",
+			"dc_huangwudie",
+			"liuzan",
+			"nanhualaoxian",
+			"sb_machao",
+			"shen_ganning",
+			"pangshanmin",
+			"xizhicai",
+			"xin_wuban",
+			"mb_lingju",
+			"shen_luxun",
+			"quyi",
 			"pot_dengai",
 			"caochun",
 			"guanning",
@@ -20269,25 +20320,7 @@
 			"caochun",
 			"maliang",
 			"sb_huangzhong",
-			"mb_lingju",
-			"maliang",
-			"pot_zhaoyun",
-			"pot_xiaoqiao",
-			"re_xusheng",
-			"maliang",
-			"pot_zhouyu",
-			"zhangyao",
-			"mayunlu",
-			"sp_zhaoyun",
-			"re_xusheng",
-			"quyi",
-			"dc_huangwudie",
-			"dc_huangwudie",
-			"sb_caopi",
-			"sunhanhua",
-			"caoying",
-			"re_xusheng",
-			"pot_xiahouba"
+			"mb_lingju"
 		]
 	},
 	"extension_斗转星移_addBanCharToTopMenu": true,
@@ -20336,22 +20369,22 @@
 	},
 	"extension_斗转星移_package": {
 		"huanledou": {
-			"count": 5200
+			"count": 6130
 		},
 		"jinpiao": {
-			"count": 16400
+			"count": 24500
 		},
 		"daojulibao": {
 			"count": 20
 		},
 		"huanjiangka": {
-			"count": 256
+			"count": 410
 		},
 		"shouqika": {
-			"count": 1051
+			"count": 1335
 		},
 		"jianghun": {
-			"count": 5200
+			"count": 8500
 		},
 		"shenmibaoxiang": {
 			"count": 1
@@ -27683,7 +27716,7 @@
 		"sp_zhaoyun": 8,
 		"shamoke": 8,
 		"re_zhangchunhua": 1,
-		"shen_ganning": 9,
+		"shen_ganning": 10,
 		"sp_liuqi": 2,
 		"re_sunquan": 1,
 		"clan_xunchen": 2,
@@ -27692,9 +27725,9 @@
 		"re_maliang": 2,
 		"re_zhonghui": 4,
 		"zuoci": 1,
-		"quyi": 5,
-		"liuzan": 2,
-		"dc_huangwudie": 10,
+		"quyi": 7,
+		"liuzan": 4,
+		"dc_huangwudie": 11,
 		"caochun": 9,
 		"wangai": 2,
 		"re_guanyu": 2,
@@ -27703,21 +27736,21 @@
 		"shen_caocao": 1,
 		"ol_huangzhong": 4,
 		"shen_lvmeng": 2,
-		"shen_luxun": 2,
+		"shen_luxun": 3,
 		"zhugeguo": 2,
 		"re_jsp_huangyueying": 1,
 		"gz_shen_ganning": 1,
 		"gz_zhangren": 1,
 		"sp_zhonghui": 2,
 		"re_zhangfei": 1,
-		"maliang": 14,
+		"maliang": 16,
 		"liuyan": 1,
 		"zhangxuan": 2,
-		"mb_lingju": 7,
+		"mb_lingju": 9,
 		"sb_huangzhong": 2,
 		"sunhanhua": 5,
 		"miheng": 4,
-		"xizhicai": 2,
+		"xizhicai": 3,
 		"sb_huanggai": 1,
 		"ol_lvlingqi": 4,
 		"mb_zerong": 5,
@@ -27730,12 +27763,12 @@
 		"re_weiyan": 2,
 		"zhaoxiang": 1,
 		"pot_sunchen": 4,
-		"lvlingqi": 3,
+		"lvlingqi": 4,
 		"sb_sp_zhugeliang": 2,
 		"sp_maojie": 2,
 		"re_wangji": 2,
 		"pot_xiahouba": 1,
-		"caoying": 2,
+		"caoying": 3,
 		"sb_caopi": 2,
 		"mayunlu": 1,
 		"sb_daqiao": 1,
@@ -27743,7 +27776,15 @@
 		"mb_mayunlu": 2,
 		"pot_dengai": 3,
 		"gz_mb_luxun": 2,
-		"gz_shixie": 1
+		"gz_shixie": 1,
+		"xin_wuban": 2,
+		"pangshanmin": 1,
+		"sb_machao": 2,
+		"nanhualaoxian": 2,
+		"re_madai": 1,
+		"mb_luyusheng": 1,
+		"mb_zhugeguo": 1,
+		"zhangxingcai": 1
 	},
 	"qhly_forceall": true,
 	"qhly_fullscreenDynamic": true,
@@ -27814,7 +27855,10 @@
 			"pot_zhaoyun": "明良千古.jpg",
 			"mb_lingju": "舞魅蛊心.jpg",
 			"re_zhonghui": "苍隼破穹.jpg",
-			"sb_daqiao": "汀洲夜顾.jpg"
+			"sb_daqiao": "汀洲夜顾.jpg",
+			"shen_ganning": "神威如芒.jpg",
+			"nanhualaoxian": "野鹤闲云.jpg",
+			"zhangxingcai": "惊鸿一瞥.jpg"
 		},
 		"skinAudioList": {
 			"sunquan": [],
@@ -28005,11 +28049,32 @@
 				"lingju"
 			],
 			"re_zhonghui": [],
-			"sb_daqiao": []
+			"sb_daqiao": [],
+			"shen_ganning": [
+				"skill/drlt_jieying1",
+				"skill/drlt_jieying2",
+				"skill/drlt_poxi1",
+				"skill/drlt_poxi2",
+				"die/shen_ganning"
+			],
+			"nanhualaoxian": [
+				"die/nanhualaoxian",
+				"skill/tianshu1",
+				"skill/tianshu2",
+				"victory/nanhualaoxian",
+				"skill/yufeng1",
+				"skill/yufeng2"
+			],
+			"zhangxingcai": [
+				"skill/qiangwu1",
+				"skill/qiangwu2",
+				"skill/shenxian1",
+				"skill/shenxian2",
+				"die/zhangxingcai"
+			]
 		},
 		"audioReplace": {
 			"victory/sunquan": "../extension/千幻聆音/sanguoaudio/sunquan/victory",
-			"victory/shen_ganning": "../extension/千幻聆音/sanguoaudio/shen_ganning/victory",
 			"victory/txhj_huangjinyushi": "../extension/千幻聆音/sanguoaudio/txhj_huangjinyushi/victory",
 			"victory/xin_zhuran": "../extension/千幻聆音/sanguoaudio/xin_zhuran/victory",
 			"victory/god": "../extension/千幻聆音/sanguoaudio/god/victory",
@@ -28058,7 +28123,6 @@
 			"victory/pot_chendao": "../extension/千幻聆音/sanguoaudio/pot_chendao/victory",
 			"victory/yj_sb_guojia": "../extension/千幻聆音/sanguoaudio/yj_sb_guojia/victory",
 			"victory/mb_sunjun": "../extension/千幻聆音/sanguoaudio/mb_sunjun/victory",
-			"victory/shen_zhangliao": "../extension/千幻聆音/sanguoaudio/shen_zhangliao/victory",
 			"victory/shen_guojia": "../extension/千幻聆音/sanguoaudio/shen_guojia/victory",
 			"victory/sb_zhenji": "../extension/千幻聆音/sanguoaudio/zhenji/victory",
 			"victory/sb_lvmeng": "../extension/千幻聆音/sanguoaudio/sb_lvmeng/victory",
@@ -28243,7 +28307,6 @@
 			"victory/pot_xiahouba": "../extension/千幻聆音/sanguoaudio/pot_xiahouba/victory",
 			"skill/repojun1": "../extension/千幻聆音/sanguoaudio/xusheng/破军杀将/xinpojun1",
 			"skill/repojun2": "../extension/千幻聆音/sanguoaudio/xusheng/破军杀将/xinpojun2",
-			"victory/caoying": "../extension/千幻聆音/sanguoaudio/caoying/victory",
 			"victory/jin_zhouchu": "../extension/千幻聆音/sanguoaudio/jin_zhouchu/victory",
 			"victory/jin_guohuai": "../extension/千幻聆音/sanguoaudio/jin_guohuai/victory",
 			"victory/caozhi": "../extension/千幻聆音/sanguoaudio/caozhi/victory",
@@ -28366,14 +28429,12 @@
 			"victory/ol_luyusheng": "../extension/千幻聆音/sanguoaudio/ol_luyusheng/victory",
 			"victory/tengfanglan": "../extension/千幻聆音/sanguoaudio/tengfanglan/victory",
 			"victory/zhoufang": "../extension/千幻聆音/sanguoaudio/zhoufang/victory",
-			"victory/shen_luxun": "../extension/千幻聆音/sanguoaudio/shen_luxun/victory",
 			"victory/chengpu": "../extension/千幻聆音/sanguoaudio/chengpu/victory",
 			"victory/pangtong": "../extension/千幻聆音/sanguoaudio/pangtong/victory",
 			"victory/liuchen": "../extension/千幻聆音/sanguoaudio/liuchen/victory",
 			"victory/ol_miheng": "../extension/千幻聆音/sanguoaudio/ol_miheng/victory",
 			"victory/ol_wangrong": "../extension/千幻聆音/sanguoaudio/ol_wangrong/victory",
 			"victory/xunyu": "../extension/千幻聆音/sanguoaudio/xunyu/victory",
-			"victory/guansuo": "../extension/千幻聆音/sanguoaudio/guansuo/victory",
 			"victory/dc_kongrong": "../extension/千幻聆音/sanguoaudio/kongrong/victory",
 			"victory/re_lusu": "../extension/千幻聆音/sanguoaudio/re_lusu/victory",
 			"victory/re_jianyong": "../extension/千幻聆音/sanguoaudio/jianyong/victory",
@@ -28387,7 +28448,61 @@
 			"victory/xurong": "../extension/千幻聆音/sanguoaudio/xurong/victory",
 			"victory/pangde": "../extension/千幻聆音/sanguoaudio/pangde/victory",
 			"victory/sp_zhonghui": "../extension/千幻聆音/sanguoaudio/sp_zhonghui/victory",
-			"victory/caorui": "../extension/千幻聆音/sanguoaudio/caorui/victory"
+			"victory/caorui": "../extension/千幻聆音/sanguoaudio/caorui/victory",
+			"victory/re_masu": "../extension/千幻聆音/sanguoaudio/re_masu/victory",
+			"victory/weizi": "../extension/千幻聆音/sanguoaudio/weizi/victory",
+			"victory/sb_liubiao": "../extension/千幻聆音/sanguoaudio/liubiao/victory",
+			"victory/shen_luxun": "../extension/千幻聆音/sanguoaudio/shen_luxun/victory",
+			"victory/old_zhoutai": "../extension/千幻聆音/sanguoaudio/zhoutai/victory",
+			"victory/guansuo": "../extension/千幻聆音/sanguoaudio/guansuo/victory",
+			"victory/xin_xushu": "../extension/千幻聆音/sanguoaudio/xushu/victory",
+			"victory/chenlin": "../extension/千幻聆音/sanguoaudio/chenlin/victory",
+			"skill/drlt_jieying1": "../extension/千幻聆音/sanguoaudio/shen_ganning/神威如芒/drlt_jieying1",
+			"skill/drlt_jieying2": "../extension/千幻聆音/sanguoaudio/shen_ganning/神威如芒/drlt_jieying2",
+			"skill/drlt_poxi1": "../extension/千幻聆音/sanguoaudio/shen_ganning/神威如芒/drlt_poxi1",
+			"skill/drlt_poxi2": "../extension/千幻聆音/sanguoaudio/shen_ganning/神威如芒/drlt_poxi2",
+			"die/shen_ganning": "../extension/千幻聆音/sanguoaudio/shen_ganning/神威如芒/shen_ganning",
+			"victory/ol_zhouqun": "../extension/千幻聆音/sanguoaudio/ol_zhouqun/victory",
+			"victory/re_lvbu": "../extension/千幻聆音/sanguoaudio/lvbu/victory",
+			"victory/sunhao": "../extension/千幻聆音/sanguoaudio/sunhao/victory",
+			"victory/shen_zhangliao": "../extension/千幻聆音/sanguoaudio/shen_zhangliao/victory",
+			"victory/huangfusong": "../extension/千幻聆音/sanguoaudio/huangfusong/victory",
+			"victory/haozhao": "../extension/千幻聆音/sanguoaudio/haozhao/victory",
+			"victory/sunluyu": "../extension/千幻聆音/sanguoaudio/sunluyu/victory",
+			"die/nanhualaoxian": "../extension/千幻聆音/sanguoaudio/nanhualaoxian/野鹤闲云/nanhualaoxian",
+			"skill/tianshu1": "../extension/千幻聆音/sanguoaudio/nanhualaoxian/野鹤闲云/tianshu1",
+			"skill/tianshu2": "../extension/千幻聆音/sanguoaudio/nanhualaoxian/野鹤闲云/tianshu2",
+			"victory/nanhualaoxian": "../extension/千幻聆音/sanguoaudio/nanhualaoxian/野鹤闲云/victory",
+			"skill/yufeng1": "../extension/千幻聆音/sanguoaudio/nanhualaoxian/野鹤闲云/yufeng1",
+			"skill/yufeng2": "../extension/千幻聆音/sanguoaudio/nanhualaoxian/野鹤闲云/yufeng2",
+			"victory/liuxie": "../extension/千幻聆音/sanguoaudio/liuxie/victory",
+			"victory/re_zhaoyun": "../extension/千幻聆音/sanguoaudio/re_zhaoyun/victory",
+			"victory/re_yuji": "../extension/千幻聆音/sanguoaudio/re_yuji/victory",
+			"victory/sp_zhugeliang": "../extension/千幻聆音/sanguoaudio/sp_zhugeliang/victory",
+			"victory/zhoutai": "../extension/千幻聆音/sanguoaudio/zhoutai/victory",
+			"victory/ol_niufu": "../extension/千幻聆音/sanguoaudio/ol_niufu/victory",
+			"victory/liubiao": "../extension/千幻聆音/sanguoaudio/liubiao/victory",
+			"victory/caoying": "../extension/千幻聆音/sanguoaudio/caoying/victory",
+			"victory/re_guohuanghou": "../extension/千幻聆音/sanguoaudio/guohuanghou/victory",
+			"victory/mizhu": "../extension/千幻聆音/sanguoaudio/mizhu/victory",
+			"victory/ol_pangtong": "../extension/千幻聆音/sanguoaudio/ol_pangtong/victory",
+			"victory/re_fazheng": "../extension/千幻聆音/sanguoaudio/fazheng/victory",
+			"victory/re_caopi": "../extension/千幻聆音/sanguoaudio/caopi/victory",
+			"victory/xin_xiahoudun": "../extension/千幻聆音/sanguoaudio/xiahoudun/victory",
+			"victory/re_dongzhuo": "../extension/千幻聆音/sanguoaudio/dongzhuo/victory",
+			"victory/zhanglu": "../extension/千幻聆音/sanguoaudio/zhanglu/victory",
+			"victory/re_huangzhong": "../extension/千幻聆音/sanguoaudio/huangzhong/victory",
+			"victory/huanghao": "../extension/千幻聆音/sanguoaudio/huanghao/victory",
+			"victory/zhangrang": "../extension/千幻聆音/sanguoaudio/zhangrang/victory",
+			"victory/yangyi": "../extension/千幻聆音/sanguoaudio/yangyi/victory",
+			"victory/liyan": "../extension/千幻聆音/sanguoaudio/liyan/victory",
+			"victory/re_zhugeliang": "../extension/千幻聆音/sanguoaudio/zhugeliang/victory",
+			"skill/qiangwu1": "../extension/千幻聆音/sanguoaudio/zhangxingcai/惊鸿一瞥/qiangwu1",
+			"skill/qiangwu2": "../extension/千幻聆音/sanguoaudio/zhangxingcai/惊鸿一瞥/qiangwu2",
+			"skill/shenxian1": "../extension/千幻聆音/sanguoaudio/zhangxingcai/惊鸿一瞥/shenxian1",
+			"skill/shenxian2": "../extension/千幻聆音/sanguoaudio/zhangxingcai/惊鸿一瞥/shenxian2",
+			"die/zhangxingcai": "../extension/千幻聆音/sanguoaudio/zhangxingcai/惊鸿一瞥/zhangxingcai",
+			"victory/fuhuanghou": "../extension/千幻聆音/sanguoaudio/fuhuanghou/victory"
 		},
 		"djtoggle": {
 			"shen_zhaoyun": {},
@@ -28680,7 +28795,7 @@
 		"shen_ganning": {
 			"doudizhu": {
 				"农民": {
-					"win": 2
+					"win": 3
 				},
 				"地主": {
 					"win": 4
@@ -28749,14 +28864,14 @@
 		"quyi": {
 			"doudizhu": {
 				"地主": {
-					"win": 3
+					"win": 4
 				}
 			}
 		},
 		"liuzan": {
 			"doudizhu": {
 				"农民": {
-					"win": 1
+					"win": 2
 				},
 				"地主": {
 					"win": 1
@@ -28769,7 +28884,7 @@
 					"win": 2
 				},
 				"地主": {
-					"win": 3
+					"win": 4
 				}
 			}
 		},
@@ -28835,7 +28950,7 @@
 		"shen_luxun": {
 			"doudizhu": {
 				"地主": {
-					"win": 1
+					"win": 2
 				}
 			}
 		},
@@ -28884,7 +28999,7 @@
 		"maliang": {
 			"doudizhu": {
 				"农民": {
-					"win": 10
+					"win": 11
 				}
 			}
 		},
@@ -28905,7 +29020,7 @@
 		"mb_lingju": {
 			"doudizhu": {
 				"地主": {
-					"win": 3
+					"win": 4
 				},
 				"农民": {
 					"win": 1
@@ -28939,7 +29054,7 @@
 		"xizhicai": {
 			"doudizhu": {
 				"农民": {
-					"win": 1
+					"win": 2
 				}
 			}
 		},
@@ -29039,7 +29154,7 @@
 		"lvlingqi": {
 			"doudizhu": {
 				"地主": {
-					"win": 2
+					"win": 3
 				}
 			}
 		},
@@ -29074,6 +29189,9 @@
 		"caoying": {
 			"doudizhu": {
 				"农民": {
+					"win": 1
+				},
+				"地主": {
 					"win": 1
 				}
 			}
@@ -29133,6 +29251,62 @@
 		"gz_shixie": {
 			"guozhan": {
 				"吴国": {
+					"win": 1
+				}
+			}
+		},
+		"xin_wuban": {
+			"doudizhu": {
+				"农民": {
+					"win": 1
+				}
+			}
+		},
+		"pangshanmin": {
+			"doudizhu": {
+				"农民": {
+					"win": 1
+				}
+			}
+		},
+		"sb_machao": {
+			"doudizhu": {
+				"农民": {
+					"win": 1
+				}
+			}
+		},
+		"nanhualaoxian": {
+			"doudizhu": {
+				"地主": {
+					"win": 1
+				}
+			}
+		},
+		"re_madai": {
+			"doudizhu": {
+				"农民": {
+					"win": 1
+				}
+			}
+		},
+		"mb_luyusheng": {
+			"doudizhu": {
+				"地主": {
+					"win": 1
+				}
+			}
+		},
+		"mb_zhugeguo": {
+			"doudizhu": {
+				"地主": {
+					"win": 1
+				}
+			}
+		},
+		"zhangxingcai": {
+			"doudizhu": {
+				"农民": {
 					"win": 1
 				}
 			}
@@ -44434,8 +44608,8 @@
 	"zuanzhishixian": "off",
 	"qhly_changeSex": {},
 	"__syncMeta": {
-		"time": "2026/10/21 23:52:13",
+		"time": "2026/10/22 00:42:03",
 		"from": "PC",
-		"ext": "3.68"
+		"ext": "3.70"
 	}
 }

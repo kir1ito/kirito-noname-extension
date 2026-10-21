@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.70";
+const VERSION = "3.71";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -3019,36 +3019,56 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										player.logSkill("ktleishen_sha", trigger.targets, null, null, [get.rand(1, 4)]);
 										const target = trigger.target;
 										let card = null;
-										let desc = "";
+										let src = "";
 										if (target.countDiscardableCards(player, "he") > 0) {
 											const result = await player
 												.discardPlayerCard(target, "he", true, `雷神：弃置${get.translation(target)}一张牌（手牌/装备）`)
 												.set("ai", (button) => 3 - get.value(button.link));
 											card = result?.links?.[0];
-											desc = get.translation(target) + "的";
+											src = `弃置${get.translation(target)}的`;
 										} else {
-											// 目标手牌/装备区皆空：改为我摸一张牌，按摸到的牌类型决定效果
+											// 目标手牌/装备区皆空：改为我摸一张牌，与弃置同一套类型判定与效果分支
 											const drawEvent = player.draw(1);
 											await drawEvent;
 											card = drawEvent.cards && drawEvent.cards[0];
-											desc = "摸到的";
+											src = "摸到的";
 											game.log(player, "改为摸了一张牌");
 										}
+										// 弃置/摸到两条路径在此对齐：同一张牌、同一套类型判定
 										const type = card ? get.type(card) : null;
 										const targets = trigger.targets.filter((t) => t.isIn());
+										console.log(`[雷神]类型判定：来源=${src}｜牌名=${card && card.name ? card.name : "无"}｜类型=${type}`);
 										if (type == "equip") {
-											game.log(player, "的", desc, "装备牌使", trigger.card, "不可被响应");
-											trigger.getParent().directHit.addArray(targets);
+											console.log(`[雷神]装备分支：此杀不可被响应，目标=[${targets.map((t) => t.name || "?").join(",")}]`);
+											game.log(player, "的", src, "装备牌使", trigger.card, "不可被响应");
+											// 官方伏骑/分糖果同款：useCardToPlayered事件的directHit即useCard.directHit的数组引用
+											if (Array.isArray(trigger.directHit)) {
+												trigger.directHit.addArray(targets);
+												console.log(`[雷神]directHit写入完成，包含目标=${trigger.directHit.includes(target)}`);
+											} else {
+												console.warn("[雷神]directHit异常：", trigger.directHit);
+											}
 										} else if (type == "basic") {
-											game.log(player, "的", desc, "基本牌使", targets.map((t) => get.translation(t)).join("、"), "的所有技能被锁定至回合结束");
+											console.log("[雷神]基本分支：锁定目标技能至回合结束");
+											game.log(player, "的", src, "基本牌使", targets.map((t) => get.translation(t)).join("、"), "的所有技能被锁定至回合结束");
 											for (const t of targets) {
 												t.addTempSkill("ktleishen_fengyin", "phaseEnd");
+												const blocked = t.getSkills(null, false, false).filter((i) => !!lib.skill[i] && lib.skill.ktleishen_fengyin.skillBlocker(i, t));
+												console.log(`[雷神]封印${t.name || "?"}：失效技能=${blocked.length ? blocked.join(",") : "无"}`);
 											}
-} else if (type == "trick" || type == "delay") {
-										game.log(player, "的", desc, "锦囊牌使", trigger.card, "转为雷属性伤害且伤害+1");
-										trigger.getParent().ktleishenBoost = true;
+										} else if (type == "trick" || type == "delay") {
+											console.log("[雷神]锦囊分支：此次伤害转雷+1");
+											game.log(player, "的", src, "锦囊牌使", trigger.card, "转为雷属性伤害且伤害+1");
+											const uc = trigger.getParent("useCard");
+											if (uc && uc.name == "useCard") {
+												uc.ktleishenBoost = true;
+												console.log("[雷神]ktleishenBoost标记已写入useCard事件");
+											} else {
+												console.warn("[雷神]未找到useCard事件，加伤标记丢失：", uc);
+											}
 										} else {
-											game.log(player, "的", desc, "牌未产生额外效果");
+											console.log("[雷神]无分支：未产生额外效果");
+											game.log(player, "的", src, "牌未产生额外效果");
 										}
 									},
 								},
@@ -3082,6 +3102,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										return !!(uc && uc.ktleishenBoost);
 									},
 									async content(event, trigger, player) {
+										console.log(`[雷神]伤害结算：${trigger.num}点，转雷+1生效`);
 										game.setNature(trigger, "thunder");
 										trigger.num++;
 										game.log(player, "的此次伤害转为雷属性伤害且伤害+1");
@@ -3120,6 +3141,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 									init(player, skill) {
 										player.addSkillBlocker(skill);
 										player.addTip(skill, "雷神：非锁定技失效");
+										console.log(`[雷神]封印生效：${player.name || "?"}的非锁定技失效`);
 									},
 									onremove(player, skill) {
 										player.removeSkillBlocker(skill);
@@ -3130,6 +3152,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										return !!lib.skill[skill] && !lib.skill[skill].persevereSkill && !lib.skill[skill].charlotte && !get.is.locked(skill, player);
 									},
 									mark: true,
+									marktext: "锁",
 									intro: {
 										content(storage, player, skill) {
 											const list = player.getSkills(null, false, false).filter((i) => !!lib.skill[i] && lib.skill.ktleishen_fengyin.skillBlocker(i, player));
