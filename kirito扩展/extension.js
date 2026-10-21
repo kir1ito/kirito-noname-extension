@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.52";
+const VERSION = "3.53";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -2613,10 +2613,22 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										}
 										lib._wssJimieBarInstalled = true;
 										const FULL_NUM = 8;
+										// 销毁进度条：移除DOM并停掉满格充电特效（进度条跟随〖雷神〗技能，失去技能即销毁）
+										const destroyBar = (player) => {
+											if (player.storage._fullPowerAnim && typeof window.dcdAnim != "undefined") {
+												dcdAnim.stopSpine(player.storage._fullPowerAnim);
+												player.storage._fullPowerAnim = null;
+											}
+											player.querySelector(".jimiePower")?.remove();
+										};
 										// 刷新进度条：计数数字/clip-path填充/满8格循环特效（特效依赖无名美化的dcdAnim，缺席则只涨进度）
 										const update = (player) => {
 											const powerCon = player.querySelector(".jimiePower");
 											if (!powerCon) {
+												return;
+											}
+											if (!player.hasSkill("ktleishen")) {
+												destroyBar(player);
 												return;
 											}
 											const numEl = powerCon.querySelector(".jimieNum");
@@ -2645,9 +2657,12 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 												barArea.style.clipPath = `inset(${100 - percent}% 0 0 0)`;
 											}
 										};
-										// 创建进度条：仅本地玩家使用无上神时显示；已存在则跳过
+										// 创建进度条：跟随〖雷神〗技能——仅本地玩家拥有该技能时显示（v3.53）；已存在则跳过
 										const create = (player) => {
 											if (game.me !== player || (player.name !== "wushangshen" && player.name2 !== "wushangshen")) {
+												return;
+											}
+											if (!player.hasSkill("ktleishen")) {
 												return;
 											}
 											if (player.querySelector(".jimiePower")) {
@@ -2748,6 +2763,23 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										};
 										watchMark("addMark");
 										watchMark("removeMark");
+										// 拦截技能增减：进度条跟随〖雷神〗——降临选中时创建，技能被移除时连特效一起销毁
+										const watchSkill = (method) => {
+											const origin = Player.prototype[method];
+											Player.prototype[method] = function (name) {
+												const result = origin.apply(this, arguments);
+												if (name == "ktleishen" && this == game.me) {
+													if (this.hasSkill("ktleishen")) {
+														create(this);
+													} else {
+														destroyBar(this);
+													}
+												}
+												return result;
+											};
+										};
+										watchSkill("addSkill");
+										watchSkill("removeSkill");
 										// 接管寂灭释放演出：动画素材为自带副本（animation/shenmachao/SS_smc_dazhao）。
 										// 仅当无名美化的手杀神马超模块未开启时接管（其开启时会自行覆写寂灭内容，
 										// 我们再包一层会与它叠加导致动画播两次）；dcdAnim 即十周年UI动画系统(decadeUI.animation)，
