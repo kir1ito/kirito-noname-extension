@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.59";
+const VERSION = "3.60";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -2912,31 +2912,43 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										if (used >= 1 + (player.storage.ktleishen_killBonus || 0)) {
 											return false;
 										}
-										return event.target && event.target.countDiscardableCards(player, "hej") > 0;
+										return true;
 									},
 									async content(event, trigger, player) {
 										player.setStorage("ktleishen_shaUsed", (player.storage.ktleishen_shaUsed || 0) + 1, true);
 										player.logSkill("ktleishen_sha", trigger.targets, null, null, [get.rand(1, 4)]);
 										const target = trigger.target;
-										const result = await player
-											.discardPlayerCard(target, "hej", true, `雷神：弃置${get.translation(target)}一张牌（所有区域）`)
-											.set("ai", (button) => 3 - get.value(button.link));
-										const card = result?.links?.[0];
+										let card = null;
+										let desc = "";
+										if (target.countDiscardableCards(player, "he") > 0) {
+											const result = await player
+												.discardPlayerCard(target, "he", true, `雷神：弃置${get.translation(target)}一张牌（手牌/装备）`)
+												.set("ai", (button) => 3 - get.value(button.link));
+											card = result?.links?.[0];
+											desc = get.translation(target) + "的";
+										} else {
+											// 目标手牌/装备区皆空：改为我摸一张牌，按摸到的牌类型决定效果
+											const drawEvent = player.draw(1);
+											await drawEvent;
+											card = drawEvent.cards && drawEvent.cards[0];
+											desc = "摸到的";
+											game.log(player, "改为摸了一张牌");
+										}
 										const type = card ? get.type(card) : null;
 										const targets = trigger.targets.filter((t) => t.isIn());
 										if (type == "equip") {
-											game.log(player, "弃置了", target, "的装备牌，", trigger.card, "不可被响应");
+											game.log(player, "的", desc, "装备牌使", trigger.card, "不可被响应");
 											trigger.getParent().directHit.addArray(targets);
 										} else if (type == "basic") {
-											game.log(player, "弃置了", target, "的基本牌，其所有技能被锁定至回合结束");
+											game.log(player, "的", desc, "基本牌使", targets.map((t) => get.translation(t)).join("、"), "的所有技能被锁定至回合结束");
 											for (const t of targets) {
 												t.addTempSkill("ktleishen_fengyin", "phaseEnd");
 											}
 										} else if (type == "trick" || type == "delay") {
-											game.log(player, "弃置了", target, "的锦囊牌，本回合雷电伤害+1");
+											game.log(player, "的", desc, "锦囊牌使本回合雷电伤害+1");
 											player.addTempSkill("ktleishen_boost", "phaseEnd");
 										} else {
-											game.log(player, "弃置了", target, "的一张牌");
+											game.log(player, "的", desc, "牌未产生额外效果");
 										}
 									},
 								},
@@ -3379,7 +3391,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					grytouying: "降临",
 					grytouying_info: "锁定技。游戏开始时，你从技能池中挑选任意个技能加入本局游戏（可多选），挑选完成后失去此技能。技能池默认为本扩展全部技能，可在扩展设置的「降临技能池管理」中增加或排除。",
 					ktleishen: "雷神",
-					ktleishen_info: "①你使用的【杀】造成伤害时均视为雷电伤害；当你受到雷电伤害时，你防止之，然后你摸等量数量的牌并回复等量体力。②每回合你使用的第一张【杀】指定目标后（此【杀】每击杀一名角色，次数+1），你弃置其一张牌（所有区域）：装备牌→此【杀】不可被响应；基本牌→其所有技能锁定至回合结束（有代码保护的除外）；锦囊牌→本回合你的雷电伤害+1。③你造成雷属性伤害后，受击者获得等同于伤害值的“麻”标记（有“麻”标记的角色使用牌时须弃置一张手牌，然后移去1枚“麻”标记），你获得等同于伤害值的“霆”标记（寂灭大招的伤害只施加“麻”）。④弃牌阶段结束时，你可以弃8枚“霆”标记，对一名角色造成等于其体力上限的伤害，然后你可以彻底移除其一个技能（所有技能均可选，也可放弃移除；特殊技能不会被移除）。",
+					ktleishen_info: "①你使用的【杀】造成伤害时均视为雷电伤害；当你受到雷电伤害时，你防止之，然后你摸等量数量的牌并回复等量体力。②每回合你使用的第一张【杀】指定目标后（此【杀】每击杀一名角色，次数+1），你弃置其一张牌（手牌/装备）：装备牌→此【杀】不可被响应；基本牌→其所有技能锁定至回合结束（有代码保护的除外）；锦囊牌→本回合你的雷电伤害+1；若其没有可弃置的牌，你改为摸一张牌，并按摸到的牌的类型决定效果。③你造成雷属性伤害后，受击者获得等同于伤害值的“麻”标记（有“麻”标记的角色使用牌时须弃置一张手牌，然后移去1枚“麻”标记），你获得等同于伤害值的“霆”标记（寂灭大招的伤害只施加“麻”）。④弃牌阶段结束时，你可以弃8枚“霆”标记，对一名角色造成等于其体力上限的伤害，然后你可以彻底移除其一个技能（所有技能均可选，也可放弃移除；特殊技能不会被移除）。",
 					ktleishen_convert: "雷神",
 					ktleishen_immune: "雷神",
 					ktleishen_sha: "雷神",
