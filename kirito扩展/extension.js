@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.63";
+const VERSION = "3.64";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1588,6 +1588,15 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			ktIdentityGuard();
 			// 动皮仅自己展示：AI用同款武将回退静态皮，省性能
 			ktDynamicSelfOnly();
+			// 充能进度条系统提前装载（原在grytouying_bar子技能init时装载，依赖玩家构建时机；
+			// 提前到应用装载即就绪，重复调用由_wssJimieBarInstalled守卫）
+			if (lib.skill.grytouying_bar && typeof lib.skill.grytouying_bar.init == "function") {
+				try {
+					lib.skill.grytouying_bar.init();
+				} catch (e) {
+					console.warn("kirito扩展：充能条系统提前安装失败", e);
+				}
+			}
 			// 灌顶：订阅本体每局 gameStart 广播（订阅方式参照奇妙工具）。开关「自动添加技能」开启且
 			// 灌顶池非空时，创建事件把池内全部技能自动加给玩家操控的角色（addSkills自带获得特效）。
 			// 录像回放不广播gameStart天然跳过；hasSkill去重保证读档/重复广播不会重复添加
@@ -2623,12 +2632,18 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										};
 										// 刷新进度条：计数数字/clip-path填充/满8格循环特效（特效依赖无名美化的dcdAnim，缺席则只涨进度）
 										const update = (player) => {
-											const powerCon = player.querySelector(".jimiePower");
-											if (!powerCon) {
+											if (game.me !== player || !player.hasSkill("ktleishen")) {
+												const stale = player.querySelector && player.querySelector(".jimiePower");
+												if (stale) {
+													destroyBar(player);
+												}
 												return;
 											}
-											if (!player.hasSkill("ktleishen")) {
-												destroyBar(player);
+											if (!player.querySelector(".jimiePower")) {
+												create(player);
+											}
+											const powerCon = player.querySelector(".jimiePower");
+											if (!powerCon) {
 												return;
 											}
 											const numEl = powerCon.querySelector(".jimieNum");
@@ -2679,6 +2694,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 											powerCon.appendChild(barArea);
 											powerCon.appendChild(lock);
 											player.appendChild(powerCon);
+											console.log("[kirito扩展]充能进度条已创建");
 											update(player);
 										};
 										// 演出播放器（供克隆技能与下方接管逻辑共用）：寂灭大招 / 神霈·回天神光
@@ -2777,6 +2793,22 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										};
 										watchSkill("addSkill");
 										watchSkill("removeSkill");
+										// 降临经addSkills/changeSkills的$handle旁路添加技能时可能绕过addSkill拦截——
+										// 在addSkills入口再挂一层，雷神到手即创建进度条
+										const watchAddSkills = () => {
+											const originAddSkills = Player.prototype.addSkills;
+											Player.prototype.addSkills = function (skill) {
+												const result = originAddSkills.apply(this, arguments);
+												try {
+													const list = Array.isArray(skill) ? skill : [skill];
+													if (this == game.me && list.includes("ktleishen") && this.hasSkill("ktleishen")) {
+														create(this);
+													}
+												} catch (e) {}
+												return result;
+											};
+										};
+										watchAddSkills();
 										// 接管寂灭释放演出：动画素材为自带副本（animation/shenmachao/SS_smc_dazhao）。
 										// 仅当无名美化的手杀神马超模块未开启时接管（其开启时会自行覆写寂灭内容，
 										// 我们再包一层会与它叠加导致动画播两次）；dcdAnim 即十周年UI动画系统(decadeUI.animation)，
