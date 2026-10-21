@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.69";
+const VERSION = "3.70";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1341,6 +1341,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		let timer = null;
 		let doneUI = false;
 		let doneQhly = false;
+		let donePlay = false;
 		const enabled = () => game.getExtensionConfig("kirito扩展", "dynamicSkinSelfOnly") !== false;
 		const skip = (player) => {
 			// 跳过条件收窄为"场上AI玩家"（player在game.players里且不是game.me）：选皮预览/菜单展示/
@@ -1361,6 +1362,65 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				console.log(`[kirito扩展]已跳过AI动皮：${player.name || player.name1 || "?"}`);
 			} catch (e) {}
 			return true;
+		};
+		// playDynamic是所有动皮播放的总闸：十周年UI玩家$init直连播放（不经过_decadeUIApplyDynamicSkin
+		// 与qhly_changeDynamicSkin，此前AI动皮漏网根因）、千幻聆音引擎（初始化时会把该槽位整槽换成
+		// qhly_playdynamic）最终都落到这里。用访问器属性锁槽：之后任何扩展覆写该槽位都会被setter
+		// 捕获并即时重新包装，杜绝装载时序竞态
+		let innerPlay = null;
+		const playSkip = function (...args) {
+			if (skip(this)) {
+				// 十周年UI的$init/_decadeUIApplyDynamicSkin在playDynamic返回后自行CUR_DYNAMIC++，
+				// 先-1对冲，防止AI被拦截后配额计数虚增挤占玩家自己的动皮
+				try {
+					if (window.decadeUI && window.decadeUI.CUR_DYNAMIC > 0) {
+						window.decadeUI.CUR_DYNAMIC--;
+					}
+				} catch (e) {}
+				return;
+			}
+			if (typeof innerPlay != "function") {
+				return;
+			}
+			return innerPlay.apply(this, args);
+		};
+		playSkip.__ktSelfOnly = true;
+		const armPlay = () => {
+			const proto = (lib.element && lib.element.player) || (typeof Player == "function" ? Player.prototype : null);
+			if (!proto) {
+				return false;
+			}
+			try {
+				const desc = Object.getOwnPropertyDescriptor(proto, "playDynamic");
+				if (desc && desc.get && desc.get.__ktSelfOnly) {
+					return true;
+				}
+				if (desc && (!desc.configurable || desc.get)) {
+					// 已是别人的访问器或不可配置：退化为对当前占用者一次性包装
+					if (typeof proto.playDynamic == "function" && !proto.playDynamic.__ktSelfOnly) {
+						innerPlay = proto.playDynamic;
+						proto.playDynamic = playSkip;
+						return true;
+					}
+					return false;
+				}
+				innerPlay = typeof proto.playDynamic == "function" ? proto.playDynamic : null;
+				const getter = function () {
+					return playSkip;
+				};
+				getter.__ktSelfOnly = true;
+				Object.defineProperty(proto, "playDynamic", {
+					configurable: true,
+					enumerable: desc ? desc.enumerable : false,
+					get: getter,
+					set: function (v) {
+						innerPlay = v;
+					},
+				});
+				return typeof innerPlay == "function";
+			} catch (e) {
+				return false;
+			}
 		};
 		const tryInstall = () => {
 			if (!doneUI && typeof Player == "function" && Player.prototype && typeof Player.prototype._decadeUIApplyDynamicSkin == "function") {
@@ -1393,8 +1453,26 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				};
 				doneQhly = true;
 			}
-			return doneUI && doneQhly;
+			if (!donePlay) {
+				donePlay = armPlay();
+			}
+			return doneUI && doneQhly && donePlay;
 		};
+		// 每局开始重武装+清场：选将阶段玩家init的时机可能早于装载期轮询窗口，AI动皮若已渲染则在此
+		// 兜底停掉；同时再武装一次playDynamic槽位（千幻聆音引擎初始化晚于轮询窗口时会在此刻补上）
+		lib.announce.subscribe("Noname.Game.Event.GameStart", () => {
+			try {
+				armPlay();
+				if (!enabled() || !Array.isArray(game.players)) {
+					return;
+				}
+				game.players.forEach((p) => {
+					if (p && p != game.me) {
+						skip(p);
+					}
+				});
+			} catch (e) {}
+		});
 		return () => {
 			if (tryInstall()) {
 				return;
