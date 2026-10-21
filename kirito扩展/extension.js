@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.50";
+const VERSION = "3.51";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -79,7 +79,7 @@ export default function () {
 		};
 	};
 // 降临默认候选池：本扩展全部可选技能（可在扩展设置的「降临技能池管理」中增删，存于配置 touyingPool）
-const DEFAULT_TOUYING_POOL = ["gryjuejing", "grylonghun", "gryshenti", "ktyuli", "kttingwei", "ktjimie", "ktxinghun", "ktshenpei"];
+const DEFAULT_TOUYING_POOL = ["gryjuejing", "grylonghun", "gryshenti", "ktleishen", "ktxinghun", "ktshenpei"];
 // 二进制写入统一转ArrayBuffer：安卓cordova桥对Uint8Array按JSON逐字节序列化成{"0":72,"1":101,...}，
 // 几MB的图片/语音就是百万级HashMap键值，直接OOM爆Java堆。注意：ArrayBuffer在本体APK上同样被
 // 逐字节JSON序列化（见ktWriteBinary），只是峰值内存小不再OOM——所以二进制落盘必须走校验链
@@ -2495,7 +2495,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 						},
 						/* ===== 投影（无上神专属）=====
 						 * 游戏开始时从技能池中挑选任意个技能加入本局游戏，然后失去此技能
-						 * 候选池：绝境/龙魂（龙神赵云）+ 驭雳/霆威/寂灭（手杀神马超）+ 天涛/星魂/神霈（手杀神姜维）
+						 * 候选池：绝境/龙魂（龙神赵云）+ 雷神（驭雳/霆威/寂灭三合一，手杀神马超）+ 天涛/星魂/神霈（手杀神姜维）
 						 * 时机写法（enterGame+phaseBefore）与挑选界面（chooseButton+textbutton列表）
 						 * 参照本体潜龙 offline_longxuexuanhuang.js lxqianlong */
 						grytouying: {
@@ -2622,7 +2622,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 											const numEl = powerCon.querySelector(".jimieNum");
 											const barArea = powerCon.querySelector(".jimiePowerBarArea");
 											// 兼容两种标记名：克隆技能加 kttingwei，本体原版霆威加 tingwei
-											const num = player.countMark("kttingwei") + player.countMark("tingwei");
+											const num = player.countMark("kttingwei") + player.countMark("tingwei") + player.countMark("ktleishen_ting");
 											if (typeof window.dcdAnim != "undefined") {
 												if (num >= FULL_NUM) {
 													if (!player.storage._fullPowerAnim) {
@@ -2657,7 +2657,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 											powerCon.classList.add("jimiePower");
 											const num = document.createElement("span");
 											num.classList.add("jimieNum");
-											num.innerHTML = player.countMark("kttingwei") + player.countMark("tingwei") || 0;
+											num.innerHTML = player.countMark("kttingwei") + player.countMark("tingwei") + player.countMark("ktleishen_ting") || 0;
 											powerCon.appendChild(num);
 											const barArea = document.createElement("div");
 											barArea.classList.add("jimiePowerBarArea");
@@ -2740,7 +2740,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 											const origin = Player.prototype[method];
 											Player.prototype[method] = function (name) {
 												const result = origin.apply(this, arguments);
-											if (name == "tingwei" || name == "kttingwei") {
+											if (name == "tingwei" || name == "kttingwei" || name == "ktleishen_ting") {
 												update(this);
 											}
 												return result;
@@ -2797,94 +2797,15 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 						 * 逻辑自本体 character/shiji/skill.js 原样移植：仅改名、音频指向扩展自带副本、内置释放演出
 						 * （寂灭大招/神霈·回天神光，播放器见 grytouying_bar 的 playDazhao/playSjwAn）
 						 * 不依赖本体手杀武将包与无名美化；投影候选池指向本组技能。
-						 * "霆"标记沿用独立名 kttingwei，与本体标记互不干扰 */
-						ktyuli: {
-							audio: "ext:kirito扩展/audio/skill:6",
-							// 移除防护：与绝境/龙魂同列，removeSkill 对 fixed 技能直接拒绝
+						/* ===== 雷神（v3.51：驭雳/霆威/寂灭三合一）=====
+						 * ①你使用的【杀】造成伤害时均视为雷电伤害，你免疫雷电伤害（语音沿用驭雳）；
+						 * ②雷杀指定目标后，其须弃置一张装备牌，否则此杀不可被【闪】响应；雷杀造成伤害后，
+						 *   受击者获得"麻"（用牌须弃一张手牌，然后移去1枚），自己获得"霆"（语音沿用霆威）；
+						 * ③寂灭改非限定：弃牌阶段结束，8枚"霆"可弃置释放（伤害=体力上限+可彻底移除技能，语音沿用寂灭）
+						 * "霆"标记沿用独立名 ktleishen_ting，与本体/手杀标记互不干扰 */
+						ktleishen: {
 							fixed: true,
-							forced: true,
-							trigger: {
-								source: "damageBegin1",
-								player: "damageBegin4",
-							},
-							filter(event, player, name) {
-								// 已是雷电伤害也要触发（damageBegin1），进content的else分支执行伤害+1
-								return name == "damageBegin1" || event.hasNature("thunder");
-							},
-							logAudio(event, player, name) {
-								switch (name) {
-									case "damageBegin1":
-										return ["ext:kirito扩展/audio/skill/ktyuli1.mp3", "ext:kirito扩展/audio/skill/ktyuli2.mp3"];
-									case "damageEnd":
-										return ["ext:kirito扩展/audio/skill/ktyuli3.mp3", "ext:kirito扩展/audio/skill/ktyuli4.mp3"];
-									case "damageBegin4":
-										return ["ext:kirito扩展/audio/skill/ktyuli5.mp3", "ext:kirito扩展/audio/skill/ktyuli6.mp3"];
-								}
-							},
-							async content(event, trigger, player) {
-								switch (event.triggername) {
-									case "damageBegin1":
-										if (!trigger.hasNature("thunder")) {
-											player.logSkill("ktyuli");
-											game.setNature(trigger, "thunder");
-										} else {
-											player.logSkill("ktyuli", null, null, null, [get.rand(3, 4)]);
-											trigger.num++;
-										}
-										updateState(player, "atk");
-										break;
-									case "damageBegin4":
-										player.logSkill("ktyuli", null, null, null, [get.rand(5, 6)]);
-										trigger.cancel();
-										await player.draw(trigger.num);
-										// 受到雷电伤害时回复等量体力（伤害已被防止，按防止前的伤害值计算）
-										if (player.isDamaged()) {
-											await player.recover(trigger.num);
-										}
-										updateState(player, "def");
-										break;
-								}
-								return;
-								function updateState(player, type) {
-									if (!player.awakenedSkills.includes("ktjimie")) {
-										return;
-									}
-									switch (type) {
-										case "atk":
-											player.markAuto("ktyuli", ["atk"]);
-											game.log(player, "触发了", "#g【驭雳】", "的第一项");
-											break;
-										case "def":
-											player.markAuto("ktyuli", ["def"]);
-											game.log(player, "触发了", "#g【驭雳】", "的第二项");
-											break;
-									}
-									if (["atk", "def"].every(item => player.getStorage("ktyuli").includes(item)) && player.hasSkill("ktjimie", null, false, false)) {
-										player.logSkill("ktjimie", null, null, null, [get.rand(3, 4)]);
-										player.refreshSkill("ktjimie");
-										player.setStorage("ktyuli", [], true);
-									}
-								}
-							},
-							onremove: true,
-							intro: {
-								content(storage = []) {
-									if (!storage?.length) {
-										return "尚未触发【驭雳】的任一项";
-									}
-									let str = "已触发【驭雳】的";
-									if (storage.includes("atk")) {
-										str += "第一项";
-										if (storage.includes("def")) {
-											str += "和";
-										}
-									}
-									if (storage.includes("def")) {
-										str += "第二项";
-									}
-									return str;
-								},
-							},
+							group: ["ktleishen_convert", "ktleishen_immune", "ktleishen_sha", "ktleishen_damage", "ktleishen_punish", "ktleishen_release"],
 							ai: {
 								nothunder: true,
 								effect: {
@@ -2895,435 +2816,199 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 									},
 								},
 							},
-						},
-						kttingwei: {
-							audio: "ext:kirito扩展/audio/skill:4",
-							// 移除防护：与绝境/龙魂/驭雳同列，removeSkill 对 fixed 技能直接拒绝
-							fixed: true,
-							logAudio: event =>
-								typeof event == "number"
-									? `ext:kirito扩展/audio/skill/kttingwei${event}.mp3`
-									: [
-											"ext:kirito扩展/audio/skill/kttingwei1.mp3",
-											"ext:kirito扩展/audio/skill/kttingwei2.mp3",
-											"ext:kirito扩展/audio/skill/kttingwei3.mp3",
-											"ext:kirito扩展/audio/skill/kttingwei4.mp3",
-										],
-							trigger: { player: "useCardToPlayered" },
-							filter(event) {
-								return event.isFirstTarget && event.card?.name === "sha";
-							},
-							direct: true,
-							logTarget: "targets",
-							async cost(event, trigger, player) {
-								// 默认发动：不再弹目标确认，按AI评分自动选择收益最高的目标
-								const targets = trigger.targets;
-								if (!targets.length) {
-									event.result = { bool: false };
-									return;
-								}
-								const scoreOf = (target) => {
-									let score = 0;
-									const nature = get.nature(trigger.card);
-									const damage = get.damageEffect(target, player, player, nature);
-									if (damage > 0) {
-										score += damage * 1.8;
-										if (target.hp <= 2) {
-											score += 2;
-										}
-									}
-									const skills = target.getSkills(null, false, false).filter(skill => {
-										const info = get.info(skill);
-										return info && !info.locked && !info.charlotte;
-									});
-									score += skills.length * 1.2;
-									const equips1 = target.getGainableCards(player, "e");
-									const equips2 = target.getGainableCards(player, "h", card => card.isKnownBy(player) && get.type(card) === "equip");
-									const equips = equips1.concat(equips2);
-									if (equips.length) {
-										const values = equips.reduce((sum, card) => sum + get.value(card, target), 0) / equips.length;
-										score += Math.min(3, values);
-									}
-									const cards = target.countDiscardableCards(target, "he");
-									if (cards) {
-										score += Math.min(3, 1 + 4 / cards);
-									}
-									if (!target.isLinked()) {
-										score += 0.8;
-										if (game.hasPlayer(current => current !== player && current.isLinked())) {
-											score += 0.8;
-										}
-										if (nature) {
-											score += 0.6;
-										}
-									}
-									score *= Math.max(1, -get.attitude(player, target) / 3);
-									return score;
-								};
-								let best = null;
-								let bestScore = -Infinity;
-								for (const target of targets) {
-									const score = scoreOf(target);
-									if (score > bestScore) {
-										bestScore = score;
-										best = target;
-									}
-								}
-								event.result = { bool: true, targets: [best] };
-							},
-							async content(event, trigger, player) {
-								player.addMark("kttingwei", 4);
-								const target = event.targets[0];
-								const result = await target
-									.chooseButton({
-										createDialog: [
-											"霆威：请选择任意项，若点击“取消”，则你横置",
-											[
-												[
-													["fengyin", "非锁定技失效至下个回合结束"],
-													["equip", `交给${get.translation(player)}一张装备牌`],
-													["damage", `${get.translation(trigger.card)}对你造成伤害+1`],
-													["discard", "随机弃一张牌"],
-												],
-												"textbutton",
-											],
-										],
-										filterButton(button, player) {
-											const source = get.event().source;
-											const link = button.link;
-											const selected = ui.selected.buttons.map(button => button.link);
-											switch (link) {
-												case "fengyin":
-													return !player.hasSkill("kttingwei_fengyin");
-												case "equip": {
-													const hasEquip = player.hasGainableCards(source, "he", { type: "equip" });
-													if (!hasEquip) {
-														return false;
-													}
-													if (!selected.includes("discard")) {
-														return true;
-													}
-													return player.hasGainableCards(source, "he", card => get.type(card) === "equip" && player.hasDiscardableCards(player, "he", cardx => cardx !== card));
-												}
-												case "discard": {
-													const hasCard = player.hasDiscardableCards(player, "he");
-													if (!hasCard) {
-														return false;
-													}
-													if (!selected.includes("equip")) {
-														return true;
-													}
-													return player.hasGainableCards(source, "he", card => get.type(card) === "equip" && player.hasDiscardableCards(player, "he", cardx => cardx !== card));
-												}
-												default:
-													return true;
-											}
-										},
-										selectButton: [1, 4],
-										processAI() {
-											const event = get.event();
-											const target = event.player;
-											const player = event.source;
-											const parent = event.getParent();
-											if (parent == null) {
-												return { bool: false };
-											}
-											const trigger = parent.getTrigger();
-											const resultLinks = [];
-											const removeMarkValue = getTingValue(player, target);
-											const costs = Array(4).fill(0);
-											if (target.hasSkill("kttingwei_fengyin")) {
-												costs[0] = Infinity;
-											} else {
-												const skills = target.getSkills(null, false, false).filter(skill => {
-													const info = get.info(skill);
-													return info && !info.locked && !info.charlotte;
-												});
-												costs[0] = skills.length * 1.2;
-												if (skills.length >= 2) {
-													costs[0] += 1;
-												}
-											}
-											const equips = target.getGainableCards(player, "he", { type: "equip" });
-											if (equips.length) {
-												costs[1] = Math.min(4, equips.reduce((sum, card) => sum + get.value(card, target), 0) / equips.length);
-											} else {
-												costs[1] = Infinity;
-											}
-											const card = trigger.card;
-											const damageEff = get.damageEffect(target, player, target, get.nature(card));
-											if (damageEff < 0) {
-												costs[2] = -damageEff * 1.8;
-												if (target.hp <= 2) {
-													costs[2] += 3;
-												}
-												if (target.hp <= 1) {
-													costs[2] += 5;
-												}
-											} else {
-												costs[2] = -damageEff;
-											}
-											const cards = target.getDiscardableCards(target, "he");
-											if (cards.length) {
-												const values = cards.reduce((sum, card) => sum + get.value(card, target), 0) / cards.length;
-												costs[3] = Math.min(4, 1 + 4 / values);
-												if (cards.length <= 3) {
-													costs[3] += 2;
-												}
-											} else {
-												costs[3] = Infinity;
-											}
-											const links = ["fengyin", "equip", "damage", "discard"];
-											for (const [i, cost] of costs.entries()) {
-												if (removeMarkValue > cost) {
-													resultLinks.push(links[i]);
-												}
-											}
-											if (resultLinks.includes("equip") && resultLinks.includes("discard")) {
-												if (!equips.some(card => cards.some(cardx => cardx !== card))) {
-													const att = get.attitude(target, player);
-													if (att > 0) {
-														resultLinks.remove("discard");
-													} else {
-														resultLinks.remove("equip");
-													}
-												}
-											}
-											if (!resultLinks.length && !target.isLinked()) {
-												let linkCost = 1;
-												if (game.hasPlayer(current => current !== target && get.attitude(target, current) > 0 && current.isLinked())) {
-													linkCost += 1;
-												}
-												if (get.nature(trigger.card)) {
-													linkCost += 1;
-												}
-												if (get.damageEffect(target, player, target, "fire") < 0) {
-													linkCost += 0.8;
-												}
-												if (get.damageEffect(target, player, target, "thunder") < 0) {
-													linkCost += 0.8;
-												}
-												const minCost = Math.min(...costs);
-												const index = costs.indexOf(minCost);
-												if (linkCost > minCost) {
-													resultLinks.push(links[index]);
-												}
-											}
-											if (resultLinks.length) {
-												return { bool: true, links: resultLinks };
-											}
-											return { bool: false };
-											function getTingValue(player, target) {
-												if (!player.hasSkill("ktjimie")) {
-													return 0;
-												}
-												if (player.awakenedSkills.includes("ktjimie") && !player.hasSkill("ktyuli")) {
-													return 0;
-												}
-												if (get.attitude(target, player) > 0) {
-													return -1;
-												}
-												const mark = player.countMark("kttingwei");
-												let value = 1;
-												if (mark >= 7) {
-													value += 7;
-												} else if (mark === 6) {
-													value += 4;
-												} else if (mark === 5) {
-													value += 2.5;
-												} else if (mark === 4) {
-													value += 1.5;
-												}
-												if (_status.currentPhase === player) {
-													value += 2;
-												}
-												value += Math.min(5, getTingThreat(player, target));
-												return value;
-											}
-											function getTingThreat(player, target) {
-												let threat = 0;
-												for (const current of game.filterPlayer(current => current === target || get.attitude(target, current) > 0)) {
-													const damage = get.damageEffect(current, player, target);
-													if (damage < 0) {
-														threat = Math.max(threat, -damage * Math.max(1, current.maxHp / 2));
-													}
-												}
-												return threat;
-											}
-										},
-									})
-									.set("source", player)
-									.forResult();
-								if (!result?.bool || !result.links?.length) {
-									player.logSkill("kttingwei", [target], null, null, [get.rand(3, 4)]);
-									await target.link(true);
-									return;
-								}
-								const links = ["fengyin", "equip", "damage", "discard"];
-								player.removeMark("kttingwei", result.links.length);
-								for (const link of links) {
-									if (!result.links.includes(link)) {
-										continue;
-									}
-									switch (link) {
-										case "fengyin":
-											target.addTempSkill("kttingwei_fengyin", { player: "phaseEnd" });
-											break;
-										case "equip": {
-											await target
-												.chooseToGive({
-													prompt: `请选择要交给${get.translation(player)}的装备牌`,
-													target: player,
-													filterCard(card) {
-														const event = get.event();
-														const target = get.player();
-														if (get.type(card) !== "equip") {
-															return false;
-														}
-														if (!event.discarding) {
-															return true;
-														}
-														return target.hasDiscardableCards(target, "he", cardx => cardx !== card);
-													},
-													position: "he",
-													forced: true,
-												})
-												.set("discarding", result.links.includes("discard"));
-											break;
-										}
-										case "damage": {
-											const id = target.playerid;
-											if (id == null) {
-												break;
-											}
-											const map = trigger.getParent()?.customArgs;
-											if (map == null) {
-												break;
-											}
-											if (!map[id]) {
-												map[id] = {};
-											}
-											if (typeof map[id].extraDamage !== "number") {
-												map[id].extraDamage = 0;
-											}
-											map[id].extraDamage++;
-											break;
-										}
-										case "discard": {
-											await target.randomDiscard({ position: "he", num: 1 });
-											break;
-										}
-									}
-								}
-								return;
-							},
-							marktext: "霆",
-							intro: {
-								name: "霆",
-								content: "mark",
-							},
 							subSkill: {
-								// 完整定义（引擎fengyin的克隆）：此前用 inherit:"fengyin" 的写法未将
-								// kttingwei_fengyin 注册进 lib.skill，惩罚目标携带幻影ID后
-								// skillBlocker 解引用 undefined 直接报错
-								fengyin: {
-									init(player, skill) {
-										player.addSkillBlocker(skill);
-										player.addTip(skill, "非锁定技失效");
+								convert: {
+									audio: ["ext:kirito扩展/audio/skill/ktyuli1.mp3", "ext:kirito扩展/audio/skill/ktyuli2.mp3"],
+									fixed: true,
+									forced: true,
+									trigger: { source: "damageBegin1" },
+									filter(event) {
+										return event.card?.name == "sha" && !event.hasNature("thunder");
 									},
-									onremove(player, skill) {
-										player.removeSkillBlocker(skill);
-										player.removeTip(skill);
+									async content(event, trigger, player) {
+										player.logSkill("ktleishen_convert", null, null, null, [get.rand(1, 2)]);
+										game.setNature(trigger, "thunder");
+										game.log(player, "的【杀】被赋予了雷电伤害");
 									},
+								},
+								immune: {
+									audio: ["ext:kirito扩展/audio/skill/ktyuli5.mp3", "ext:kirito扩展/audio/skill/ktyuli6.mp3"],
+									fixed: true,
+									forced: true,
+									trigger: { player: "damageBegin4" },
+									filter(event) {
+										return event.hasNature("thunder");
+									},
+									async content(event, trigger, player) {
+										player.logSkill("ktleishen_immune");
+										trigger.cancel();
+										game.log(player, "免疫了雷电伤害");
+									},
+								},
+								sha: {
+									audio: [
+										"ext:kirito扩展/audio/skill/kttingwei1.mp3",
+										"ext:kirito扩展/audio/skill/kttingwei2.mp3",
+										"ext:kirito扩展/audio/skill/kttingwei3.mp3",
+										"ext:kirito扩展/audio/skill/kttingwei4.mp3",
+									],
+									fixed: true,
+									direct: true,
+									trigger: { player: "useCardToPlayered" },
+									filter(event) {
+										return event.isFirstTarget && event.card?.name == "sha";
+									},
+									async content(event, trigger, player) {
+										const target = trigger.target;
+										player.logSkill("ktleishen_sha", target, null, null, [get.rand(1, 4)]);
+										const str = get.translation(trigger.card);
+										if (!target.countDiscardableCards(target, "e")) {
+											trigger.getParent().directHit.add(target);
+											game.log(target, "没有可弃置的装备牌，", str, "不可被【闪】响应");
+											return;
+										}
+										const result = await target
+											.chooseToDiscard("e", 1, `是否弃置一张装备牌？否则${str}不可被【闪】响应`)
+											.set("ai", (card) => 5 - get.value(card))
+											.forResult();
+										if (result?.bool) {
+											game.log(target, "弃置了装备牌");
+										} else {
+											trigger.getParent().directHit.add(target);
+											game.log(target, "未弃置装备牌，", str, "不可被【闪】响应");
+										}
+									},
+								},
+								damage: {
+									fixed: true,
+									direct: true,
+									trigger: { source: "damageSource" },
+									filter(event) {
+										return event.card?.name == "sha" && event.hasNature("thunder");
+									},
+									async content(event, trigger, player) {
+										const target = trigger.player;
+										target.addSkill("ktleishen_ma");
+										target.addMark("ktleishen_ma", 1);
+										game.log(target, "获得了1枚", "#g“麻”标记");
+										player.addSkill("ktleishen_ting");
+										player.addMark("ktleishen_ting", 1);
+										game.log(player, "获得了1枚", "#g“霆”标记");
+									},
+								},
+								ma: {
 									charlotte: true,
-									skillBlocker(skill, player) {
-										return !!lib.skill[skill] && !lib.skill[skill].persevereSkill && !lib.skill[skill].charlotte && !get.is.locked(skill, player);
-									},
 									mark: true,
+									marktext: "麻",
 									intro: {
-										content(storage, player, skill) {
-											const list = player.getSkills(null, false, false).filter((i) => !!lib.skill[i] && lib.skill.kttingwei_fengyin.skillBlocker(i, player));
-											if (list.length) {
-												return "失效技能：" + get.translation(list);
-											}
-											return "无失效技能";
+										name: "麻",
+										name2: "麻",
+										content(storage, player) {
+											return `共有${player.countMark("ktleishen_ma")}枚“麻”标记：使用牌时须弃置一张手牌，然后移去1枚`;
 										},
 									},
 								},
-							},
-						},
-						ktjimie: {
-							audio: "ext:kirito扩展/audio/skill:4",
-							logAudio(event) {
-								if (typeof event === "number") {
-									return `ext:kirito扩展/audio/skill/ktjimie${event}.mp3`;
-								}
-								return [
-									"ext:kirito扩展/audio/skill/ktjimie1.mp3",
-									"ext:kirito扩展/audio/skill/ktjimie2.mp3",
-									"ext:kirito扩展/audio/skill/ktjimie3.mp3",
-									"ext:kirito扩展/audio/skill/ktjimie4.mp3",
-								];
-							},
-							trigger: { player: "phaseDiscardAfter" },
-							limited: true,
-							skillAnimation: true,
-							filter(_event, player) {
-								return player.countMark("kttingwei") >= 8;
-							},
-							async cost(event, trigger, player) {
-								event.result = await player
-									.chooseTarget({
-										prompt: get.prompt(event.skill),
-										prompt2: "弃置8枚“霆”标记，对一名角色造成等于其体力上限的伤害",
-										ai(target) {
-											const player = get.player();
-											return get.damageEffect(target, player, player);
-										},
-									})
-									.forResult();
-							},
-							async content(event, trigger, player) {
-								// 释放演出：自带寂灭大招动画，播完再结算
-								if (lib._wssJimieBar?.playDazhao) {
-									await lib._wssJimieBar.playDazhao();
-								}
-									player.awakenSkill("ktjimie");
-									player.removeMark("kttingwei", 8);
-									const target = event.targets[0];
-									await target.damage({ num: target.maxHp });
-									// 命中后可彻底移除目标的一个技能（fixed技能引擎层面拒绝移除，已从候选排除），也可放弃；自己命中的不询问
-									if (target.isIn() && target != player) {
-										const skills = target.getSkills().filter((skill) => {
-											const info = lib.skill[skill];
-											return info && !info.sub && !info.nopop && !info.fixed && lib.translate[skill] && !skill.startsWith("#");
-										});
-										if (skills.length) {
-											const result = await player
-												.chooseButton([
-													`寂灭：是否彻底移除${get.translation(target)}的一个技能`,
-													[skills.map((skill) => [skill, get.translation(skill)]), "textbutton"],
-												])
-												.set("rmTarget", target)
-												.set("ai", (button) => (get.attitude(get.player(), get.event().rmTarget) < 0 ? 4 + Math.random() : 0))
-												.forResult();
-											if (result.bool && result.links[0]) {
-												const skill = result.links[0];
-												target.removeSkill(skill);
-												game.log(target, "的技能", "#g【" + get.translation(skill) + "】", "被寂灭彻底移除");
+								ting: {
+									charlotte: true,
+									mark: true,
+									marktext: "霆",
+									intro: {
+										name: "霆",
+										name2: "霆",
+										content: "mark",
+									},
+								},
+								punish: {
+									fixed: true,
+									direct: true,
+									trigger: { global: "useCardAfter" },
+									filter(event, player) {
+										const user = event.player;
+										return user.countMark("ktleishen_ma") > 0 && user.countDiscardableCards(user, "h") > 0;
+									},
+									async content(event, trigger, player) {
+										const user = trigger.player;
+										await user.chooseToDiscard("h", 1, true, "麻：弃置一张手牌");
+										user.removeMark("ktleishen_ma", 1);
+										game.log(user, "移去了1枚", "#g“麻”标记");
+										if (!user.countMark("ktleishen_ma")) {
+											user.removeSkill("ktleishen_ma");
+										}
+									},
+								},
+								release: {
+									audio: [
+										"ext:kirito扩展/audio/skill/ktjimie1.mp3",
+										"ext:kirito扩展/audio/skill/ktjimie2.mp3",
+										"ext:kirito扩展/audio/skill/ktjimie3.mp3",
+										"ext:kirito扩展/audio/skill/ktjimie4.mp3",
+									],
+									logAudio(event) {
+										if (typeof event === "number") {
+											return `ext:kirito扩展/audio/skill/ktjimie${event}.mp3`;
+										}
+										return [
+											"ext:kirito扩展/audio/skill/ktjimie1.mp3",
+											"ext:kirito扩展/audio/skill/ktjimie2.mp3",
+											"ext:kirito扩展/audio/skill/ktjimie3.mp3",
+											"ext:kirito扩展/audio/skill/ktjimie4.mp3",
+										];
+									},
+									fixed: true,
+									trigger: { player: "phaseDiscardAfter" },
+									filter(_event, player) {
+										return player.countMark("ktleishen_ting") >= 8;
+									},
+									skillAnimation: true,
+									animationColor: "thunder",
+									async cost(event, trigger, player) {
+										event.result = await player
+											.chooseTarget({
+												prompt: get.prompt(event.skill) + "：弃8枚“霆”标记",
+												prompt2: "弃置8枚“霆”标记，对一名角色造成等于其体力上限的伤害，并可彻底移除其一个技能",
+												ai(target) {
+													const player = get.player();
+													return get.damageEffect(target, player, player);
+												},
+											})
+											.forResult();
+									},
+									async content(event, trigger, player) {
+										// 释放演出：自带寂灭大招动画，播完再结算
+										if (lib._wssJimieBar?.playDazhao) {
+											await lib._wssJimieBar.playDazhao();
+										}
+										player.removeMark("ktleishen_ting", 8);
+										const target = event.targets[0];
+										await target.damage({ num: target.maxHp });
+										// 命中后可彻底移除目标的一个技能（fixed技能引擎层面拒绝移除，已从候选排除），也可放弃；自己命中的不询问
+										if (target.isIn() && target != player) {
+											const skills = target.getSkills().filter((skill) => {
+												const info = lib.skill[skill];
+												return info && !info.sub && !info.nopop && !info.fixed && lib.translate[skill] && !skill.startsWith("#");
+											});
+											if (skills.length) {
+												const result = await player
+													.chooseButton([
+														`雷神：是否彻底移除${get.translation(target)}的一个技能`,
+														[skills.map((skill) => [skill, get.translation(skill)]), "textbutton"],
+													])
+													.set("rmTarget", target)
+													.set("ai", (button) => (get.attitude(get.player(), get.event().rmTarget) < 0 ? 4 + Math.random() : 0))
+													.forResult();
+												if (result.bool && result.links[0]) {
+													const skill = result.links[0];
+													target.removeSkill(skill);
+													game.log(target, "的技能", "#g【" + get.translation(skill) + "】", "被雷神彻底移除");
+												}
 											}
 										}
-									}
-									player.setStorage("ktyuli", [], true);
-								if (lib._wssJimieBar) {
-									lib._wssJimieBar.update(player);
-									const lock = player.querySelector && player.querySelector(".jimieLock");
-									if (lock) {
-										lock.style.display = "block";
-									}
-								}
+										if (lib._wssJimieBar) {
+											lib._wssJimieBar.update(player);
+										}
+									},
+								},
 							},
-							ai: { combo: "kttingwei" },
 						},
 						ktxinghun: {
 							audio: "ext:kirito扩展/audio/skill:2",
@@ -3577,12 +3262,17 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					grylonghun_info: "你可以将同花色的一至两张牌按下列规则使用或打出：红桃当【桃】，方块当火【杀】，梅花当【闪】，黑桃当【无懈可击】。若你以此法转化了两张：红色牌，则此牌回复值或伤害值+1；黑色牌，则你弃置当前回合角色一张牌。每当你以此法使用或打出牌，“魂”计数+X（单张牌+1，两张牌+2，计数持续累计，不会清空）。若计数为1或2的倍数，你摸一张牌。“魂”计数达到12后：你使用【杀】或【决斗】指定目标后，你可以选择一项：1.此伤害+1；2.获得该目标区域内一张牌（其区域内没有牌则不能选择此项）。“魂”计数达到24后：1.你转化发动的【杀】不可被响应，转化的【无懈可击】不可被【无懈可击】响应；2.你以单张牌转化【闪】或【无懈可击】后，获得当前回合角色区域内一张牌；3.你转化发动使用的牌不计入使用次数；4.你转化发动的【桃】自带酒效果（与饮酒效果叠加，且不占用【酒】的使用次数）。",
 					grytouying: "降临",
 					grytouying_info: "锁定技。游戏开始时，你从技能池中挑选任意个技能加入本局游戏（可多选），挑选完成后失去此技能。技能池默认为本扩展全部技能，可在扩展设置的「降临技能池管理」中增加或排除。",
-					ktyuli: "驭雳",
-					ktyuli_info: "锁定技。①你造成的伤害改为雷电伤害，已是雷电伤害则伤害+1；②你受到雷电伤害时，防止之并摸等量牌，然后你回复等量体力（回复量等于该伤害值）。",
-					kttingwei: "霆威",
-					kttingwei_info: "你使用【杀】指定目标后，可获得4枚“霆”标记并选择一名目标角色，其选择任意项并令你弃等量的“霆”标记：1.非锁定技失效至其下个回合结束；2.交给你一张装备牌；3.此牌对其造成伤害+1；4.随机弃一张牌。若其均未选择，其横置。",
-					ktjimie: "寂灭",
-					ktjimie_info: `限定技，弃牌阶段结束时，你可以弃8枚“霆”标记，对一名角色造成等于其体力上限的伤害，然后你可以彻底移除其一个技能（所有技能均可选，也可放弃移除；特殊技能不会被移除）。当你${get.poptip("ktyuli")}的两项均执行后，此技能视为未发动过。`,
+					ktleishen: "雷神",
+					ktleishen_info: "①你使用的【杀】造成伤害时均视为雷电伤害，你免疫雷电伤害。②你使用【杀】指定目标后，其须弃置一张装备牌，否则此杀不可被【闪】响应；此【杀】对其造成伤害后，其获得1枚“麻”标记（有“麻”标记的角色使用牌时须弃置一张手牌，然后移去1枚“麻”标记），你获得1枚“霆”标记。③弃牌阶段结束时，你可以弃8枚“霆”标记，对一名角色造成等于其体力上限的伤害，然后你可以彻底移除其一个技能（所有技能均可选，也可放弃移除；特殊技能不会被移除）。",
+					ktleishen_convert: "雷神",
+					ktleishen_immune: "雷神",
+					ktleishen_sha: "雷神",
+					ktleishen_damage: "雷神",
+					ktleishen_ma: "雷神",
+					ktleishen_punish: "雷神",
+					ktleishen_release: "雷神",
+					ktleishen_ting: "霆",
+					ktleishen_ma_mark: "麻",
 					ktxinghun: "星魂",
 					ktxinghun_info: "出牌阶段限一次，你可以观看牌堆顶五张牌，用任意张手牌与其中的等量张牌进行交换并任意排序，然后你令一名其他角色展示你的手牌与牌堆顶的共计五张牌，你对其依次使用其中的【杀】。",
 					ktshenpei: "神霈",
