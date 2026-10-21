@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.54";
+const VERSION = "3.55";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -2963,9 +2963,12 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										target.addSkill("ktleishen_ma");
 										target.addMark("ktleishen_ma", trigger.num);
 										game.log(target, "获得了", "#g" + trigger.num + "枚“麻”标记");
-										player.addSkill("ktleishen_ting");
-										player.addMark("ktleishen_ting", trigger.num);
-										game.log(player, "获得了", "#g" + trigger.num + "枚“霆”标记");
+										// 寂灭大招的伤害不产生霆（避免释放后立刻回满形成无限连放），仍施加麻
+										if (!trigger.ktNoTing) {
+											player.addSkill("ktleishen_ting");
+											player.addMark("ktleishen_ting", trigger.num);
+											game.log(player, "获得了", "#g" + trigger.num + "枚“霆”标记");
+										}
 									},
 								},
 								fengyin: {
@@ -3088,7 +3091,10 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										}
 										player.removeMark("ktleishen_ting", 8);
 										const target = event.targets[0];
-										await target.damage({ num: target.maxHp });
+										const damageEvent = target.damage({ num: target.maxHp });
+										// 标记本次伤害不产生霆（madamage结算时识别）
+										damageEvent.ktNoTing = true;
+										await damageEvent;
 										// 命中后可彻底移除目标的一个技能（fixed技能引擎层面拒绝移除，已从候选排除），也可放弃；自己命中的不询问
 										if (target.isIn() && target != player) {
 											const skills = target.getSkills().filter((skill) => {
