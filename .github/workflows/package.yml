@@ -87,5 +87,5 @@ jobs:
           CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
         continue-on-error: true
         run: |
-          git push --force "https://cnb:${CNB_TOKEN}@cnb.cool/kir1ito/kirito-noname-extension.git" origin/main:main dist-tmp:dist
-          echo "已同步 main 与 dist 到 cnb.cool/kir1ito/kirito-noname-extension"
+          git push --force "https://cnb:${CNB_TOKEN}@cnb.cool/kirito.gry/kirito-noname-extension.git" refs/remotes/origin/main:refs/heads/main dist-tmp:refs/heads/dist
+          echo "已同步 main 与 dist 到 cnb.cool/kirito.gry/kirito-noname-extension"
