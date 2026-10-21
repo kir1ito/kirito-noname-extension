@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.51";
+const VERSION = "3.52";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -2843,7 +2843,12 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										player.logSkill("ktleishen_immune");
 										trigger.cancel();
 										game.log(player, "免疫了雷电伤害");
-									},
+									// 驭雳额外内容：防止伤害后摸等量牌并回复等量体力（按防止前的伤害值计算）
+									await player.draw(trigger.num);
+									if (player.isDamaged()) {
+										await player.recover(trigger.num);
+									}
+								},
 								},
 								sha: {
 									audio: [
@@ -3263,7 +3268,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					grytouying: "降临",
 					grytouying_info: "锁定技。游戏开始时，你从技能池中挑选任意个技能加入本局游戏（可多选），挑选完成后失去此技能。技能池默认为本扩展全部技能，可在扩展设置的「降临技能池管理」中增加或排除。",
 					ktleishen: "雷神",
-					ktleishen_info: "①你使用的【杀】造成伤害时均视为雷电伤害，你免疫雷电伤害。②你使用【杀】指定目标后，其须弃置一张装备牌，否则此杀不可被【闪】响应；此【杀】对其造成伤害后，其获得1枚“麻”标记（有“麻”标记的角色使用牌时须弃置一张手牌，然后移去1枚“麻”标记），你获得1枚“霆”标记。③弃牌阶段结束时，你可以弃8枚“霆”标记，对一名角色造成等于其体力上限的伤害，然后你可以彻底移除其一个技能（所有技能均可选，也可放弃移除；特殊技能不会被移除）。",
+					ktleishen_info: "①你使用的【杀】造成伤害时均视为雷电伤害；当你受到雷电伤害时，你防止之，然后你摸等量数量的牌并回复等量体力。②你使用【杀】指定目标后，其须弃置一张装备牌，否则此杀不可被【闪】响应；此【杀】对其造成伤害后，其获得1枚“麻”标记（有“麻”标记的角色使用牌时须弃置一张手牌，然后移去1枚“麻”标记），你获得1枚“霆”标记。③弃牌阶段结束时，你可以弃8枚“霆”标记，对一名角色造成等于其体力上限的伤害，然后你可以彻底移除其一个技能（所有技能均可选，也可放弃移除；特殊技能不会被移除）。",
 					ktleishen_convert: "雷神",
 					ktleishen_immune: "雷神",
 					ktleishen_sha: "雷神",
