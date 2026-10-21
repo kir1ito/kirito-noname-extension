@@ -765,11 +765,11 @@
 					0
 				],
 				"wu": [
-					2,
+					3,
 					0
 				]
 			},
-			"str": "魏国: 3胜 0负<br />蜀国: 2胜 0负<br />吴国: 2胜 0负<br />晋朝: 1胜 0负<br />"
+			"str": "魏国: 3胜 0负<br />蜀国: 2胜 0负<br />吴国: 3胜 0负<br />晋朝: 1胜 0负<br />"
 		},
 		"versus": {
 			"data": {}
@@ -841,12 +841,12 @@
 	"layout": "nova",
 	"cardback_style": "ol",
 	"cardshape": "oblong",
-	"hp_style": "xinglass",
+	"hp_style": "round",
 	"menu_style": "music",
 	"player_border": "slim",
 	"radius_size": "default",
 	"image_character": "default",
-	"image_background": "zhulin_bg",
+	"image_background": "ol_bg",
 	"asset_image": true,
 	"asset_font": true,
 	"card_font": "xiaozhuan",
@@ -1944,6 +1944,77 @@
 		"ol_wuanguo",
 		"ol_guanhai",
 		"dc_weifeng",
+		"dc_zhugejun",
+		"dc_xiangchong",
+		"dc_lifeng",
+		"dc_liuba",
+		"dc_huangquan",
+		"furongfuqian",
+		"xianglang",
+		"dc_huojun",
+		"gaoxiang",
+		"dc_wuban",
+		"jiangfei",
+		"dc_zhangyì",
+		"dc_feiyi",
+		"yue_caozhi",
+		"yue_zhouyu",
+		"yue_diaochan",
+		"yue_caiwenji",
+		"yue_zhoufei",
+		"yue_caiyong",
+		"yue_xiaoqiao",
+		"yue_daqiao",
+		"yue_miheng",
+		"yue_zoushi",
+		"yue_zhugeguo",
+		"gongsundu",
+		"mengyou",
+		"dc_sp_menghuo",
+		"gongsunxiu",
+		"dc_sp_zhurong",
+		"dc_mateng",
+		"dc_muludawang",
+		"dc_huanghao",
+		"dc_sunziliufang",
+		"dc_sunchen",
+		"dc_jiachong",
+		"guanhai",
+		"liupi",
+		"peiyuanshao",
+		"zhangchu",
+		"zhangkai",
+		"dc_zhangmancheng",
+		"huaxin",
+		"luyusheng",
+		"re_xunchen",
+		"re_miheng",
+		"fengxi",
+		"re_dengzhi",
+		"dc_yanghu",
+		"zongyu",
+		"mamidi",
+		"dc_jiling",
+		"zhangxun",
+		"dc_yuejiu",
+		"leibo",
+		"qiaorui",
+		"dongwan",
+		"yuanyin",
+		"mamiao",
+		"zangba",
+		"re_kanze",
+		"re_chendeng",
+		"caimaozhangyun",
+		"dc_lvkuanglvxiang",
+		"dc_gaolan",
+		"yinfuren",
+		"chengui",
+		"chenjiao",
+		"dc_sp_jiaxu",
+		"qinlang",
+		"dc_dongzhao",
+		"houcheng",
 		"dc_zhangshiping",
 		"zhugeguo",
 		"ol_peixiu",
@@ -1956,7 +2027,7 @@
 	"bannedpile": {},
 	"customcardpile": {},
 	"addedpile": {},
-	"mode": "guozhan",
+	"mode": "doudizhu",
 	"mode_config": {
 		"global": {
 			"player_number": 8,
@@ -2140,12 +2211,20 @@
 			"change_card": "unlimited",
 			"continue_game": true,
 			"show_replay": true,
-			"aozhan_bgm": "rewrite",
+			"player_number": "8",
+			"auto_identity": "off",
+			"double_character": false,
+			"save_progress": true,
+			"free_choose": true,
+			"swap": true,
+			"change_identity": true,
+			"battle_number": 3,
+			"double_hp": "pingjun",
 			"auto_mark_identity": true,
+			"change_choice": true,
+			"aozhan_bgm": "rewrite",
 			"banGroup": false,
 			"changeViceType": "default",
-			"change_choice": true,
-			"change_identity": true,
 			"connect_aozhan": "normal",
 			"connect_choose_timeout": "30",
 			"connect_guozhan_mode": "normal",
@@ -2160,8 +2239,6 @@
 			"connect_shenInGuozhan": false,
 			"connect_viewnext": false,
 			"connect_zhulian": true,
-			"double_hp": "pingjun",
-			"free_choose": true,
 			"guozhanSkin": true,
 			"guozhan_mode": "yingbian",
 			"jinEx": true,
@@ -2169,9 +2246,10 @@
 			"menu_loadondemand": true,
 			"onlyguozhan": true,
 			"onlyguozhanexpand": false,
-			"player_number": "8",
 			"qunlangCharacters": false,
 			"recentCharacter": [
+				"gz_shixie",
+				"gz_mb_luxun",
 				"gz_zhangren",
 				"gz_shen_ganning",
 				"gz_xurong",
@@ -2181,9 +2259,7 @@
 				"gz_ws_caoying",
 				"gz_zhugejin",
 				"gz_jin_wangyuanji",
-				"gz_caozhen",
-				"gz_weiyan",
-				"gz_mayunlu"
+				"gz_caozhen"
 			],
 			"separatism": false,
 			"shenInGuozhan": true,
@@ -2212,17 +2288,9 @@
 			"change_card": "unlimited",
 			"continue_game": true,
 			"show_replay": true,
-			"player_number": 3,
-			"auto_identity": "off",
-			"double_character": false,
-			"save_progress": true,
-			"free_choose": true,
-			"swap": true,
-			"change_identity": true,
-			"battle_number": 3,
-			"double_hp": "pingjun",
 			"auto_mark_identity": true,
 			"change_choice": true,
+			"change_identity": true,
 			"connect_choose_timeout": "30",
 			"connect_double_character": false,
 			"connect_doudizhu_mode": "normal",
@@ -2233,11 +2301,15 @@
 			"connect_observe_handcard": false,
 			"connect_observe": true,
 			"dierestart": true,
+			"double_character": false,
+			"double_hp": "pingjun",
 			"doudizhu_mode": "huanle",
 			"enhance_dizhu": "disabled",
 			"enhance_nongmin": "mobile",
 			"feiyang_version": "mobile",
+			"free_choose": true,
 			"menu_loadondemand": true,
+			"player_number": 3,
 			"recentCharacter": [
 				"pot_zhouyu",
 				"pot_zhaoyun",
@@ -20279,7 +20351,7 @@
 			"count": 1051
 		},
 		"jianghun": {
-			"count": 5180
+			"count": 5200
 		},
 		"shenmibaoxiang": {
 			"count": 1
@@ -27669,7 +27741,9 @@
 		"sb_daqiao": 1,
 		"mb_liuhui": 2,
 		"mb_mayunlu": 2,
-		"pot_dengai": 1
+		"pot_dengai": 1,
+		"gz_mb_luxun": 2,
+		"gz_shixie": 1
 	},
 	"qhly_forceall": true,
 	"qhly_fullscreenDynamic": true,
@@ -28248,7 +28322,6 @@
 			"victory/xiahoushi": "../extension/千幻聆音/sanguoaudio/xiahoushi/victory",
 			"victory/ol_qinlang": "../extension/千幻聆音/sanguoaudio/ol_qinlang/victory",
 			"victory/re_zhangjiao": "../extension/千幻聆音/sanguoaudio/zhangjiao/victory",
-			"victory/zhonghui": "../extension/千幻聆音/sanguoaudio/zhonghui/victory",
 			"skill/paiyi_re_zhonghui": "../extension/千幻聆音/sanguoaudio/zhonghui/潜蛟觊天/zhibi",
 			"victory/re_caozhang": "../extension/千幻聆音/sanguoaudio/caozhang/victory",
 			"victory/ol_cuiyan": "../extension/千幻聆音/sanguoaudio/ol_cuiyan/victory",
@@ -28309,7 +28382,11 @@
 			"victory/xin_zhoutai": "../extension/千幻聆音/sanguoaudio/zhoutai/victory",
 			"victory/re_weiyan": "../extension/千幻聆音/sanguoaudio/weiyan/victory",
 			"victory/re_daqiao": "../extension/千幻聆音/sanguoaudio/daqiao/victory",
-			"victory/caochun": "../extension/千幻聆音/sanguoaudio/caochun/victory"
+			"victory/caochun": "../extension/千幻聆音/sanguoaudio/caochun/victory",
+			"victory/zhonghui": "../extension/千幻聆音/sanguoaudio/zhonghui/victory",
+			"victory/diaochan": "../extension/千幻聆音/sanguoaudio/diaochan/victory",
+			"victory/xurong": "../extension/千幻聆音/sanguoaudio/xurong/victory",
+			"victory/pangde": "../extension/千幻聆音/sanguoaudio/pangde/victory"
 		},
 		"djtoggle": {
 			"shen_zhaoyun": {},
@@ -29038,6 +29115,20 @@
 		"pot_dengai": {
 			"doudizhu": {
 				"地主": {
+					"win": 1
+				}
+			}
+		},
+		"gz_mb_luxun": {
+			"guozhan": {
+				"吴国": {
+					"win": 1
+				}
+			}
+		},
+		"gz_shixie": {
+			"guozhan": {
+				"吴国": {
 					"win": 1
 				}
 			}
@@ -44338,10 +44429,10 @@
 	"ziqiCharacters": "ziqi",
 	"zuanzhishixian": "off",
 	"qhly_changeSex": {},
-	"player_number": 5,
+	"player_number": 3,
 	"__syncMeta": {
-		"time": "2026/10/21 23:19:04",
+		"time": "2026/10/21 23:47:23",
 		"from": "PC",
-		"ext": "3.65"
+		"ext": "3.67"
 	}
 }
