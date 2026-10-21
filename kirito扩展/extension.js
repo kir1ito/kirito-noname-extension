@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.53";
+const VERSION = "3.54";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -2831,13 +2831,14 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 						 * 不依赖本体手杀武将包与无名美化；投影候选池指向本组技能。
 						/* ===== 雷神（v3.51：驭雳/霆威/寂灭三合一）=====
 						 * ①你使用的【杀】造成伤害时均视为雷电伤害，你免疫雷电伤害（语音沿用驭雳）；
-						 * ②雷杀指定目标后，其须弃置一张装备牌，否则此杀不可被【闪】响应；雷杀造成伤害后，
-						 *   受击者获得"麻"（用牌须弃一张手牌，然后移去1枚），自己获得"霆"（语音沿用霆威）；
+						 * ②每回合第一次【杀】指定目标：自己弃一张牌（所有区域）——装备=不可响应、
+						 *   基本=锁定其技能至回合结束、锦囊=本回合雷伤+1（此杀击杀则次数+1，语音沿用霆威）；
+						 * ③自己造成伤害后：受击者获得等量"麻"（用牌弃手牌后-1）、自己获得等量"霆"；
 						 * ③寂灭改非限定：弃牌阶段结束，8枚"霆"可弃置释放（伤害=体力上限+可彻底移除技能，语音沿用寂灭）
 						 * "霆"标记沿用独立名 ktleishen_ting，与本体/手杀标记互不干扰 */
 						ktleishen: {
 							fixed: true,
-							group: ["ktleishen_convert", "ktleishen_immune", "ktleishen_sha", "ktleishen_damage", "ktleishen_punish", "ktleishen_release"],
+							group: ["ktleishen_convert", "ktleishen_immune", "ktleishen_sha", "ktleishen_madamage", "ktleishen_punish", "ktleishen_reset", "ktleishen_kill", "ktleishen_release"],
 							ai: {
 								nothunder: true,
 								effect: {
@@ -2892,45 +2893,115 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 									fixed: true,
 									direct: true,
 									trigger: { player: "useCardToPlayered" },
-									filter(event) {
-										return event.isFirstTarget && event.card?.name == "sha";
+									filter(event, player) {
+										if (!event.isFirstTarget || event.card?.name != "sha") {
+											return false;
+										}
+										// 本回合第一次【杀】触发；此杀击杀过角色则次数+1
+										const used = player.storage.ktleishen_shaUsed || 0;
+										if (used >= 1 + (player.storage.ktleishen_killBonus || 0)) {
+											return false;
+										}
+										return player.countDiscardableCards(player, "hej") > 0;
 									},
 									async content(event, trigger, player) {
-										const target = trigger.target;
-										player.logSkill("ktleishen_sha", target, null, null, [get.rand(1, 4)]);
-										const str = get.translation(trigger.card);
-										if (!target.countDiscardableCards(target, "e")) {
-											trigger.getParent().directHit.add(target);
-											game.log(target, "没有可弃置的装备牌，", str, "不可被【闪】响应");
-											return;
-										}
-										const result = await target
-											.chooseToDiscard("e", 1, `是否弃置一张装备牌？否则${str}不可被【闪】响应`)
-											.set("ai", (card) => 5 - get.value(card))
+										player.setStorage("ktleishen_shaUsed", (player.storage.ktleishen_shaUsed || 0) + 1, true);
+										player.logSkill("ktleishen_sha", trigger.targets, null, null, [get.rand(1, 4)]);
+										const result = await player
+											.chooseToDiscard("hej", 1, true, "雷神：弃置一张牌（所有区域）")
+											.set("ai", (card) => 3 - get.value(card))
 											.forResult();
-										if (result?.bool) {
-											game.log(target, "弃置了装备牌");
+										const card = result?.links?.[0];
+										const type = card ? get.type(card) : null;
+										const targets = trigger.targets.filter((t) => t.isIn());
+										if (type == "equip") {
+											game.log(player, "弃置了装备牌，", trigger.card, "不可被响应");
+											trigger.getParent().directHit.addArray(targets);
+										} else if (type == "basic") {
+											game.log(player, "弃置了基本牌，其所有技能被锁定至回合结束");
+											for (const t of targets) {
+												t.addTempSkill("ktleishen_fengyin", "phaseEnd");
+											}
+										} else if (type == "trick" || type == "delay") {
+											game.log(player, "弃置了锦囊牌，本回合雷电伤害+1");
+											player.addTempSkill("ktleishen_boost", "phaseEnd");
 										} else {
-											trigger.getParent().directHit.add(target);
-											game.log(target, "未弃置装备牌，", str, "不可被【闪】响应");
+											game.log(player, "弃置了一张牌");
 										}
 									},
 								},
-								damage: {
+								reset: {
+									fixed: true,
+									direct: true,
+									trigger: { global: "phaseBegin" },
+									async content(event, trigger, player) {
+										player.setStorage("ktleishen_shaUsed", 0, true);
+										player.setStorage("ktleishen_killBonus", 0, true);
+									},
+								},
+								kill: {
+									fixed: true,
+									direct: true,
+									trigger: { source: "dieAfter" },
+									filter(event, player) {
+										return event.reason?.card?.name == "sha" && (player.storage.ktleishen_shaUsed || 0) > 0;
+									},
+									async content(event, trigger, player) {
+										player.setStorage("ktleishen_killBonus", (player.storage.ktleishen_killBonus || 0) + 1, true);
+										game.log(player, "使用【杀】击杀了角色，雷神触发次数+1");
+									},
+								},
+								madamage: {
 									fixed: true,
 									direct: true,
 									trigger: { source: "damageSource" },
-									filter(event) {
-										return event.card?.name == "sha" && event.hasNature("thunder");
+									filter(event, player) {
+										return event.num > 0;
 									},
 									async content(event, trigger, player) {
 										const target = trigger.player;
 										target.addSkill("ktleishen_ma");
-										target.addMark("ktleishen_ma", 1);
-										game.log(target, "获得了1枚", "#g“麻”标记");
+										target.addMark("ktleishen_ma", trigger.num);
+										game.log(target, "获得了", "#g" + trigger.num + "枚“麻”标记");
 										player.addSkill("ktleishen_ting");
-										player.addMark("ktleishen_ting", 1);
-										game.log(player, "获得了1枚", "#g“霆”标记");
+										player.addMark("ktleishen_ting", trigger.num);
+										game.log(player, "获得了", "#g" + trigger.num + "枚“霆”标记");
+									},
+								},
+								fengyin: {
+									init(player, skill) {
+										player.addSkillBlocker(skill);
+										player.addTip(skill, "雷神：非锁定技失效");
+									},
+									onremove(player, skill) {
+										player.removeSkillBlocker(skill);
+										player.removeTip(skill);
+									},
+									charlotte: true,
+									skillBlocker(skill, player) {
+										return !!lib.skill[skill] && !lib.skill[skill].persevereSkill && !lib.skill[skill].charlotte && !get.is.locked(skill, player);
+									},
+									mark: true,
+									intro: {
+										content(storage, player, skill) {
+											const list = player.getSkills(null, false, false).filter((i) => !!lib.skill[i] && lib.skill.ktleishen_fengyin.skillBlocker(i, player));
+											if (list.length) {
+												return "失效技能：" + get.translation(list);
+											}
+											return "无失效技能";
+										},
+									},
+								},
+								boost: {
+									charlotte: true,
+									forced: true,
+									trigger: { source: "damageBegin1" },
+									filter(event) {
+										return event.hasNature("thunder") || event.card?.name == "sha";
+									},
+									async content(event, trigger, player) {
+										trigger.num++;
+										player.logSkill("ktleishen_boost");
 									},
 								},
 								ma: {
@@ -3300,11 +3371,15 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					grytouying: "降临",
 					grytouying_info: "锁定技。游戏开始时，你从技能池中挑选任意个技能加入本局游戏（可多选），挑选完成后失去此技能。技能池默认为本扩展全部技能，可在扩展设置的「降临技能池管理」中增加或排除。",
 					ktleishen: "雷神",
-					ktleishen_info: "①你使用的【杀】造成伤害时均视为雷电伤害；当你受到雷电伤害时，你防止之，然后你摸等量数量的牌并回复等量体力。②你使用【杀】指定目标后，其须弃置一张装备牌，否则此杀不可被【闪】响应；此【杀】对其造成伤害后，其获得1枚“麻”标记（有“麻”标记的角色使用牌时须弃置一张手牌，然后移去1枚“麻”标记），你获得1枚“霆”标记。③弃牌阶段结束时，你可以弃8枚“霆”标记，对一名角色造成等于其体力上限的伤害，然后你可以彻底移除其一个技能（所有技能均可选，也可放弃移除；特殊技能不会被移除）。",
+					ktleishen_info: "①你使用的【杀】造成伤害时均视为雷电伤害；当你受到雷电伤害时，你防止之，然后你摸等量数量的牌并回复等量体力。②每回合你使用的第一张【杀】指定目标后（此【杀】每击杀一名角色，次数+1），你须弃置一张牌（所有区域）：装备牌→此【杀】不可被响应；基本牌→其所有技能锁定至回合结束（有代码保护的除外）；锦囊牌→本回合你的雷电伤害+1。③你对其他角色造成伤害后，其获得等同于伤害值的“麻”标记（有“麻”标记的角色使用牌时须弃置一张手牌，然后移去1枚“麻”标记），你获得等同于伤害值的“霆”标记。④弃牌阶段结束时，你可以弃8枚“霆”标记，对一名角色造成等于其体力上限的伤害，然后你可以彻底移除其一个技能（所有技能均可选，也可放弃移除；特殊技能不会被移除）。",
 					ktleishen_convert: "雷神",
 					ktleishen_immune: "雷神",
 					ktleishen_sha: "雷神",
-					ktleishen_damage: "雷神",
+					ktleishen_madamage: "雷神",
+					ktleishen_reset: "雷神",
+					ktleishen_kill: "雷神",
+					ktleishen_fengyin: "雷神·封",
+					ktleishen_boost: "雷神",
 					ktleishen_ma: "雷神",
 					ktleishen_punish: "雷神",
 					ktleishen_release: "雷神",

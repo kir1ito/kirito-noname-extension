@@ -783,7 +783,7 @@
 		"doudizhu": {
 			"data": {
 				"zhu": [
-					87,
+					88,
 					1
 				],
 				"fan": [
@@ -791,7 +791,7 @@
 					1
 				]
 			},
-			"str": "地主：87胜 1负<br>农民：85胜 1负<br>"
+			"str": "地主：88胜 1负<br>农民：85胜 1负<br>"
 		},
 		"single": {
 			"data": {}
@@ -846,7 +846,7 @@
 	"player_border": "slim",
 	"radius_size": "default",
 	"image_character": "default",
-	"image_background": "sanying_bg",
+	"image_background": "xiaowu_bg",
 	"asset_image": true,
 	"asset_font": true,
 	"card_font": "xiaozhuan",
@@ -20146,6 +20146,7 @@
 			"maliang",
 			"caochun",
 			"re_xusheng",
+			"sunhanhua",
 			"shen_ganning",
 			"mb_lingju",
 			"lvlingqi",
@@ -20153,7 +20154,6 @@
 			"pot_zhaoyun",
 			"quyi",
 			"pot_zhouyu",
-			"sunhanhua",
 			"sb_daqiao",
 			"sp_zhaoyun",
 			"dc_huangwudie",
@@ -20195,6 +20195,7 @@
 			"re_jsp_huangyueying"
 		],
 		"recentCharList": [
+			"sunhanhua",
 			"caochun",
 			"shen_ganning",
 			"lvlingqi",
@@ -20243,8 +20244,7 @@
 			"zhaoxiang",
 			"re_weiyan",
 			"caochun",
-			"pot_zhouyu",
-			"xuyou"
+			"pot_zhouyu"
 		]
 	},
 	"extension_斗转星移_addBanCharToTopMenu": true,
@@ -20293,16 +20293,16 @@
 	},
 	"extension_斗转星移_package": {
 		"huanledou": {
-			"count": 4760
+			"count": 4740
 		},
 		"jinpiao": {
-			"count": 8600
+			"count": 9200
 		},
 		"daojulibao": {
 			"count": 20
 		},
 		"huanjiangka": {
-			"count": 210
+			"count": 206
 		},
 		"shouqika": {
 			"count": 885
@@ -27670,7 +27670,7 @@
 		"zhangxuan": 2,
 		"mb_lingju": 5,
 		"sb_huangzhong": 2,
-		"sunhanhua": 4,
+		"sunhanhua": 5,
 		"miheng": 2,
 		"xizhicai": 2,
 		"sb_huanggai": 1,
@@ -28296,7 +28296,8 @@
 			"victory/sb_zhurong": "../extension/千幻聆音/sanguoaudio/zhurong/victory",
 			"victory/sp_zhangjiao": "../extension/千幻聆音/sanguoaudio/zhangjiao/victory",
 			"victory/shen_caocao": "../extension/千幻聆音/sanguoaudio/shen_caocao/victory",
-			"victory/caochun": "../extension/千幻聆音/sanguoaudio/caochun/victory"
+			"victory/caochun": "../extension/千幻聆音/sanguoaudio/caochun/victory",
+			"victory/peixiu": "../extension/千幻聆音/sanguoaudio/peixiu/victory"
 		},
 		"djtoggle": {
 			"shen_zhaoyun": {},
@@ -28834,7 +28835,7 @@
 					"win": 1
 				},
 				"地主": {
-					"win": 2
+					"win": 3
 				}
 			}
 		},
@@ -44300,8 +44301,8 @@
 	"zuanzhishixian": "off",
 	"qhly_changeSex": {},
 	"__syncMeta": {
-		"time": "2026/10/21 21:41:43",
+		"time": "2026/10/21 21:45:14",
 		"from": "PC",
-		"ext": "3.52"
+		"ext": "3.53"
 	}
 }
