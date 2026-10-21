@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.56";
+const VERSION = "3.57";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -2855,13 +2855,22 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 									fixed: true,
 									forced: true,
 									trigger: { source: "damageBegin1" },
-									filter(event) {
-										return event.card?.name == "sha" && !event.hasNature("thunder");
+									// 复刻原版驭雳的单时机写法：转雷与雷伤+1在同一content里顺序结算，
+									// 铁索连环传导的每一环都独立触发本时机，各自转雷并各自+1
+									filter(event, player) {
+										return event.card?.name == "sha" || (event.hasNature("thunder") && player.hasSkill("ktleishen_boost"));
 									},
 									async content(event, trigger, player) {
-										player.logSkill("ktleishen_convert", null, null, null, [get.rand(1, 2)]);
-										game.setNature(trigger, "thunder");
-										game.log(player, "的【杀】被赋予了雷电伤害");
+										if (event.card?.name == "sha" && !trigger.hasNature("thunder")) {
+											player.logSkill("ktleishen_convert", null, null, null, [get.rand(1, 2)]);
+											game.setNature(trigger, "thunder");
+											game.log(player, "的【杀】被赋予了雷电伤害");
+										}
+										if (trigger.hasNature("thunder") && player.hasSkill("ktleishen_boost")) {
+											player.logSkill("ktleishen_boost");
+											trigger.num++;
+											game.log(player, "的雷电伤害+1");
+										}
 									},
 								},
 								immune: {
@@ -2963,8 +2972,8 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										target.addSkill("ktleishen_ma");
 										target.addMark("ktleishen_ma", trigger.num);
 										game.log(target, "获得了", "#g" + trigger.num + "枚“麻”标记");
-										// 寂灭大招的伤害不产生霆（避免释放后立刻回满形成无限连放），仍施加麻
-										if (!trigger.ktNoTing) {
+										// 霆只由雷属性伤害产生；寂灭大招的伤害无属性不产生霆（避免无限连放）
+										if (trigger.hasNature("thunder") && !trigger.ktNoTing) {
 											player.addSkill("ktleishen_ting");
 											player.addMark("ktleishen_ting", trigger.num);
 											game.log(player, "获得了", "#g" + trigger.num + "枚“霆”标记");
@@ -2997,15 +3006,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 								},
 								boost: {
 									charlotte: true,
-									forced: true,
-									trigger: { source: "damageBegin1" },
-									filter(event) {
-										return event.hasNature("thunder") || event.card?.name == "sha";
-									},
-									async content(event, trigger, player) {
-										trigger.num++;
-										player.logSkill("ktleishen_boost");
-									},
 								},
 								ma: {
 									charlotte: true,
@@ -3377,7 +3377,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					grytouying: "降临",
 					grytouying_info: "锁定技。游戏开始时，你从技能池中挑选任意个技能加入本局游戏（可多选），挑选完成后失去此技能。技能池默认为本扩展全部技能，可在扩展设置的「降临技能池管理」中增加或排除。",
 					ktleishen: "雷神",
-					ktleishen_info: "①你使用的【杀】造成伤害时均视为雷电伤害；当你受到雷电伤害时，你防止之，然后你摸等量数量的牌并回复等量体力。②每回合你使用的第一张【杀】指定目标后（此【杀】每击杀一名角色，次数+1），你弃置其一张牌（所有区域）：装备牌→此【杀】不可被响应；基本牌→其所有技能锁定至回合结束（有代码保护的除外）；锦囊牌→本回合你的雷电伤害+1。③你对其他角色造成伤害后，其获得等同于伤害值的“麻”标记（有“麻”标记的角色使用牌时须弃置一张手牌，然后移去1枚“麻”标记），你获得等同于伤害值的“霆”标记。④弃牌阶段结束时，你可以弃8枚“霆”标记，对一名角色造成等于其体力上限的伤害，然后你可以彻底移除其一个技能（所有技能均可选，也可放弃移除；特殊技能不会被移除）。",
+					ktleishen_info: "①你使用的【杀】造成伤害时均视为雷电伤害；当你受到雷电伤害时，你防止之，然后你摸等量数量的牌并回复等量体力。②每回合你使用的第一张【杀】指定目标后（此【杀】每击杀一名角色，次数+1），你弃置其一张牌（所有区域）：装备牌→此【杀】不可被响应；基本牌→其所有技能锁定至回合结束（有代码保护的除外）；锦囊牌→本回合你的雷电伤害+1。③你对其他角色造成伤害后，其获得等同于伤害值的“麻”标记（有“麻”标记的角色使用牌时须弃置一张手牌，然后移去1枚“麻”标记），其中雷电伤害使你获得等同于伤害值的“霆”标记（非雷伤不产生“霆”）。④弃牌阶段结束时，你可以弃8枚“霆”标记，对一名角色造成等于其体力上限的伤害，然后你可以彻底移除其一个技能（所有技能均可选，也可放弃移除；特殊技能不会被移除）。",
 					ktleishen_convert: "雷神",
 					ktleishen_immune: "雷神",
 					ktleishen_sha: "雷神",
