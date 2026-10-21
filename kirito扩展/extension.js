@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.58";
+const VERSION = "3.59";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -2858,10 +2858,11 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 									// 复刻原版驭雳的单时机写法：转雷与雷伤+1在同一content里顺序结算，
 									// 铁索连环传导的每一环都独立触发本时机，各自转雷并各自+1
 									filter(event, player) {
-										return event.card?.name == "sha" || (event.hasNature("thunder") && player.hasSkill("ktleishen_boost"));
+										// get.name统一取名：转化的、虚拟的（含数组形态vcard）、实体的杀都能命中
+										return (event.card && get.name(event.card) == "sha" && !event.hasNature("thunder")) || (event.hasNature("thunder") && player.hasSkill("ktleishen_boost"));
 									},
 									async content(event, trigger, player) {
-										if (event.card?.name == "sha" && !trigger.hasNature("thunder")) {
+										if (event.card && get.name(event.card) == "sha" && !trigger.hasNature("thunder")) {
 											player.logSkill("ktleishen_convert", null, null, null, [get.rand(1, 2)]);
 											game.setNature(trigger, "thunder");
 											game.log(player, "的【杀】被赋予了雷电伤害");
@@ -2903,7 +2904,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 									direct: true,
 									trigger: { player: "useCardToPlayered" },
 									filter(event, player) {
-										if (!event.isFirstTarget || event.card?.name != "sha") {
+										if (!event.isFirstTarget || !event.card || get.name(event.card) != "sha") {
 											return false;
 										}
 										// 本回合第一次【杀】触发；此杀击杀过角色则次数+1
