@@ -783,7 +783,7 @@
 		"doudizhu": {
 			"data": {
 				"zhu": [
-					89,
+					90,
 					1
 				],
 				"fan": [
@@ -791,7 +791,7 @@
 					1
 				]
 			},
-			"str": "地主：89胜 1负<br>农民：85胜 1负<br>"
+			"str": "地主：90胜 1负<br>农民：85胜 1负<br>"
 		},
 		"single": {
 			"data": {}
@@ -846,7 +846,7 @@
 	"player_border": "slim",
 	"radius_size": "default",
 	"image_character": "default",
-	"image_background": "huangtian_bg",
+	"image_background": "sanying_bg",
 	"asset_image": true,
 	"asset_font": true,
 	"card_font": "xiaozhuan",
@@ -19924,7 +19924,9 @@
 		"zhuling",
 		"ol_caizhenji",
 		"tenggongzhu",
-		"menghuo"
+		"menghuo",
+		"ol_zhurong",
+		"ol_huangfusong"
 	],
 	"extension_kirito扩展_dynamicSkinSelfOnly": true,
 	"extension_kirito扩展_enable": true,
@@ -20152,6 +20154,7 @@
 			"maliang",
 			"caochun",
 			"re_xusheng",
+			"pot_sunchen",
 			"sunhanhua",
 			"shen_ganning",
 			"mb_lingju",
@@ -20178,7 +20181,6 @@
 			"re_wangji",
 			"sp_maojie",
 			"sb_sp_zhugeliang",
-			"pot_sunchen",
 			"liuzan",
 			"xin_jushou",
 			"zhaoxiang",
@@ -20201,6 +20203,7 @@
 			"sp_zhonghui"
 		],
 		"recentCharList": [
+			"pot_sunchen",
 			"mb_liuhui",
 			"sunhanhua",
 			"caochun",
@@ -20249,8 +20252,7 @@
 			"xin_jushou",
 			"ol_lvlingqi",
 			"zhaoxiang",
-			"re_weiyan",
-			"caochun"
+			"re_weiyan"
 		]
 	},
 	"extension_斗转星移_addBanCharToTopMenu": true,
@@ -20299,16 +20301,16 @@
 	},
 	"extension_斗转星移_package": {
 		"huanledou": {
-			"count": 4720
+			"count": 4700
 		},
 		"jinpiao": {
-			"count": 9800
+			"count": 10400
 		},
 		"daojulibao": {
 			"count": 20
 		},
 		"huanjiangka": {
-			"count": 197
+			"count": 189
 		},
 		"shouqika": {
 			"count": 885
@@ -27690,7 +27692,7 @@
 		"sb_luxun": 1,
 		"re_weiyan": 2,
 		"zhaoxiang": 1,
-		"pot_sunchen": 2,
+		"pot_sunchen": 4,
 		"lvlingqi": 3,
 		"sb_sp_zhugeliang": 2,
 		"sp_maojie": 2,
@@ -28312,7 +28314,9 @@
 			"victory/ol_caizhenji": "../extension/千幻聆音/sanguoaudio/ol_caizhenji/victory",
 			"victory/tenggongzhu": "../extension/千幻聆音/sanguoaudio/tenggongzhu/victory",
 			"victory/menghuo": "../extension/千幻聆音/sanguoaudio/menghuo/victory",
-			"victory/xin_sunluban": "../extension/千幻聆音/sanguoaudio/sunluban/victory"
+			"victory/xin_sunluban": "../extension/千幻聆音/sanguoaudio/sunluban/victory",
+			"victory/ol_zhurong": "../extension/千幻聆音/sanguoaudio/zhurong/victory",
+			"victory/ol_huangfusong": "../extension/千幻聆音/sanguoaudio/ol_huangfusong/victory"
 		},
 		"djtoggle": {
 			"shen_zhaoyun": {},
@@ -28957,7 +28961,7 @@
 		"pot_sunchen": {
 			"doudizhu": {
 				"地主": {
-					"win": 1
+					"win": 2
 				}
 			}
 		},
@@ -44323,8 +44327,8 @@
 	"zuanzhishixian": "off",
 	"qhly_changeSex": {},
 	"__syncMeta": {
-		"time": "2026/10/21 22:04:28",
+		"time": "2026/10/21 22:13:32",
 		"from": "PC",
-		"ext": "3.54"
+		"ext": "3.57"
 	}
 }
