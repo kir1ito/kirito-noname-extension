@@ -787,11 +787,11 @@
 					1
 				],
 				"fan": [
-					88,
+					89,
 					1
 				]
 			},
-			"str": "地主：94胜 1负<br>农民：88胜 1负<br>"
+			"str": "地主：94胜 1负<br>农民：89胜 1负<br>"
 		},
 		"single": {
 			"data": {}
@@ -846,7 +846,7 @@
 	"player_border": "slim",
 	"radius_size": "default",
 	"image_character": "default",
-	"image_background": "taoyuan_bg",
+	"image_background": "zhulin_bg",
 	"asset_image": true,
 	"asset_font": true,
 	"card_font": "xiaozhuan",
@@ -2019,7 +2019,8 @@
 		"zhugeguo",
 		"ol_peixiu",
 		"hanba",
-		"fengfangnv"
+		"fengfangnv",
+		"ol_miheng"
 	],
 	"bannedcards": [],
 	"forbidlist": [],
@@ -4386,7 +4387,8 @@
 		"zhugeguo",
 		"ol_peixiu",
 		"hanba",
-		"fengfangnv"
+		"fengfangnv",
+		"ol_miheng"
 	],
 	"boss_enable_playpackconfig": false,
 	"boss_enableai_playpackconfig": false,
@@ -5353,7 +5355,8 @@
 		"zhugeguo",
 		"ol_peixiu",
 		"hanba",
-		"fengfangnv"
+		"fengfangnv",
+		"ol_miheng"
 	],
 	"buttoncharacter_style": "default",
 	"card_animation_info": false,
@@ -6334,7 +6337,8 @@
 		"zhugeguo",
 		"ol_peixiu",
 		"hanba",
-		"fengfangnv"
+		"fengfangnv",
+		"ol_miheng"
 	],
 	"coin_canvas_playpackconfig": false,
 	"coin_display_playpackconfig": "text",
@@ -19788,7 +19792,8 @@
 		"zhugeguo",
 		"ol_peixiu",
 		"hanba",
-		"fengfangnv"
+		"fengfangnv",
+		"ol_miheng"
 	],
 	"dynamicSkin": true,
 	"enable_dragline": true,
@@ -19803,7 +19808,9 @@
 		}
 	},
 	"extension_kirito扩展_autoAddSkills": true,
-	"extension_kirito扩展_banAI": [],
+	"extension_kirito扩展_banAI": [
+		"ol_miheng"
+	],
 	"extension_kirito扩展_banPlayer": [
 		"ruiji",
 		"ol_lifeng",
@@ -19942,7 +19949,10 @@
 		"caoang",
 		"ol_wujing",
 		"tengfanglan",
-		"zhoufang"
+		"zhoufang",
+		"chengpu",
+		"pangtong",
+		"liuchen"
 	],
 	"extension_kirito扩展_dynamicSkinSelfOnly": true,
 	"extension_kirito扩展_enable": true,
@@ -20168,15 +20178,15 @@
 		"maxNum": 50,
 		"charList": [
 			"maliang",
+			"caochun",
 			"re_xusheng",
+			"mb_zerong",
 			"sp_zhaoyun",
 			"mb_lingju",
-			"caochun",
 			"pot_sunchen",
 			"sunhanhua",
 			"shen_ganning",
 			"lvlingqi",
-			"mb_zerong",
 			"pot_zhaoyun",
 			"quyi",
 			"ol_huangzhong",
@@ -20219,6 +20229,9 @@
 			"xushao"
 		],
 		"recentCharList": [
+			"maliang",
+			"caochun",
+			"mb_zerong",
 			"sp_zhaoyun",
 			"ol_huangzhong",
 			"mb_mayunlu",
@@ -20265,10 +20278,7 @@
 			"maliang",
 			"sp_maojie",
 			"maliang",
-			"mb_lingju",
-			"sb_sp_zhugeliang",
-			"mb_zerong",
-			"lvlingqi"
+			"mb_lingju"
 		]
 	},
 	"extension_斗转星移_addBanCharToTopMenu": true,
@@ -20317,22 +20327,22 @@
 	},
 	"extension_斗转星移_package": {
 		"huanledou": {
-			"count": 4590
+			"count": 5280
 		},
 		"jinpiao": {
-			"count": 13700
+			"count": 14000
 		},
 		"daojulibao": {
 			"count": 20
 		},
 		"huanjiangka": {
-			"count": 144
+			"count": 294
 		},
 		"shouqika": {
-			"count": 885
+			"count": 1051
 		},
 		"jianghun": {
-			"count": 4540
+			"count": 5140
 		},
 		"shenmibaoxiang": {
 			"count": 1
@@ -26659,7 +26669,8 @@
 		"zhugeguo",
 		"ol_peixiu",
 		"hanba",
-		"fengfangnv"
+		"fengfangnv",
+		"ol_miheng"
 	],
 	"hide_card_image": false,
 	"hide_card_prompt_basic": false,
@@ -27627,7 +27638,8 @@
 		"zhugeguo",
 		"ol_peixiu",
 		"hanba",
-		"fengfangnv"
+		"fengfangnv",
+		"ol_miheng"
 	],
 	"ignore_error": false,
 	"image_background_blur": false,
@@ -27699,7 +27711,7 @@
 		"xizhicai": 2,
 		"sb_huanggai": 1,
 		"ol_lvlingqi": 4,
-		"mb_zerong": 4,
+		"mb_zerong": 5,
 		"re_xusheng": 8,
 		"mb_caochun": 3,
 		"dc_xiahouxuan": 2,
@@ -28233,7 +28245,6 @@
 			"victory/re_yanyan": "../extension/千幻聆音/sanguoaudio/yanyan/victory",
 			"victory/shixie": "../extension/千幻聆音/sanguoaudio/shixie/victory",
 			"die/re_xusheng": "../extension/千幻聆音/sanguoaudio/xusheng/破军杀将/xusheng",
-			"victory/ol_miheng": "../extension/千幻聆音/sanguoaudio/ol_miheng/victory",
 			"victory/buzhi": "../extension/千幻聆音/sanguoaudio/buzhi/victory",
 			"victory/o_guanyu": "../extension/千幻聆音/sanguoaudio/o_guanyu/victory",
 			"victory/wolongfengchu": "../extension/千幻聆音/sanguoaudio/wolongfengchu/victory",
@@ -28315,7 +28326,6 @@
 			"victory/sb_zhurong": "../extension/千幻聆音/sanguoaudio/zhurong/victory",
 			"victory/sp_zhangjiao": "../extension/千幻聆音/sanguoaudio/zhangjiao/victory",
 			"victory/shen_caocao": "../extension/千幻聆音/sanguoaudio/shen_caocao/victory",
-			"victory/caochun": "../extension/千幻聆音/sanguoaudio/caochun/victory",
 			"victory/peixiu": "../extension/千幻聆音/sanguoaudio/peixiu/victory",
 			"victory/re_sunluyu": "../extension/千幻聆音/sanguoaudio/sunluyu/victory",
 			"victory/wangtao": "../extension/千幻聆音/sanguoaudio/wangtao/victory",
@@ -28348,7 +28358,12 @@
 			"victory/ol_luyusheng": "../extension/千幻聆音/sanguoaudio/ol_luyusheng/victory",
 			"victory/tengfanglan": "../extension/千幻聆音/sanguoaudio/tengfanglan/victory",
 			"victory/zhoufang": "../extension/千幻聆音/sanguoaudio/zhoufang/victory",
-			"victory/shen_luxun": "../extension/千幻聆音/sanguoaudio/shen_luxun/victory"
+			"victory/shen_luxun": "../extension/千幻聆音/sanguoaudio/shen_luxun/victory",
+			"victory/chengpu": "../extension/千幻聆音/sanguoaudio/chengpu/victory",
+			"victory/pangtong": "../extension/千幻聆音/sanguoaudio/pangtong/victory",
+			"victory/liuchen": "../extension/千幻聆音/sanguoaudio/liuchen/victory",
+			"victory/caochun": "../extension/千幻聆音/sanguoaudio/caochun/victory",
+			"victory/ol_miheng": "../extension/千幻聆音/sanguoaudio/ol_miheng/victory"
 		},
 		"djtoggle": {
 			"shen_zhaoyun": {},
@@ -28924,7 +28939,7 @@
 					"win": 2
 				},
 				"农民": {
-					"win": 1
+					"win": 2
 				}
 			}
 		},
@@ -30072,7 +30087,8 @@
 		"zhugeguo",
 		"ol_peixiu",
 		"hanba",
-		"fengfangnv"
+		"fengfangnv",
+		"ol_miheng"
 	],
 	"splash_style": "style-rzsh",
 	"stone_banned": [
@@ -31039,7 +31055,8 @@
 		"o_chenlan",
 		"ol_peixiu",
 		"hanba",
-		"fengfangnv"
+		"fengfangnv",
+		"ol_miheng"
 	],
 	"suits_font": true,
 	"sw_serverNotice": {},
@@ -32009,7 +32026,8 @@
 		"zhugeguo",
 		"ol_peixiu",
 		"hanba",
-		"fengfangnv"
+		"fengfangnv",
+		"ol_miheng"
 	],
 	"taixuhuanjing": {
 		"name": null,
@@ -43043,7 +43061,8 @@
 		"hanba",
 		"fengfangnv",
 		"zuoci",
-		"re_sunben"
+		"re_sunben",
+		"ol_miheng"
 	],
 	"target_shake": "zoom",
 	"totouched": true,
@@ -44356,7 +44375,8 @@
 		"zhugeguo",
 		"ol_peixiu",
 		"hanba",
-		"fengfangnv"
+		"fengfangnv",
+		"ol_miheng"
 	],
 	"video_default_play_speed": "1x",
 	"watchface": "none",
@@ -44365,9 +44385,10 @@
 	"ziqiCharacters": "ziqi",
 	"zuanzhishixian": "off",
 	"qhly_changeSex": {},
+	"player_number": 3,
 	"__syncMeta": {
-		"time": "2026/10/21 22:55:20",
+		"time": "2026/10/21 23:00:56",
 		"from": "PC",
-		"ext": "3.63"
+		"ext": "3.64"
 	}
 }

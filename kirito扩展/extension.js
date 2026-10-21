@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.64";
+const VERSION = "3.65";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1588,14 +1588,29 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			ktIdentityGuard();
 			// 动皮仅自己展示：AI用同款武将回退静态皮，省性能
 			ktDynamicSelfOnly();
-			// 充能进度条系统提前装载（原在grytouying_bar子技能init时装载，依赖玩家构建时机；
-			// 提前到应用装载即就绪，重复调用由_wssJimieBarInstalled守卫）
-			if (lib.skill.grytouying_bar && typeof lib.skill.grytouying_bar.init == "function") {
-				try {
-					lib.skill.grytouying_bar.init();
-				} catch (e) {
-					console.warn("kirito扩展：充能条系统提前安装失败", e);
+			// 充能进度条系统提前装载（原在grytouying_bar子技能init时装载，依赖玩家构建时机）。
+			// content执行时扩展技能包尚未注册完毕，轮询等待注册出现后再装载（最长60秒）
+			const tryInstallBarSystem = () => {
+				if (lib.skill.grytouying_bar && typeof lib.skill.grytouying_bar.init == "function") {
+					try {
+						lib.skill.grytouying_bar.init();
+						console.log("[kirito扩展]充能条系统已安装");
+					} catch (e) {
+						console.warn("kirito扩展：充能条系统提前安装失败", e);
+					}
+					return true;
 				}
+				return false;
+			};
+			if (!tryInstallBarSystem()) {
+				let barTimer = null;
+				const barStart = Date.now();
+				barTimer = setInterval(() => {
+					if (tryInstallBarSystem() || Date.now() - barStart > 60000) {
+						clearInterval(barTimer);
+						barTimer = null;
+					}
+				}, 500);
 			}
 			// 灌顶：订阅本体每局 gameStart 广播（订阅方式参照奇妙工具）。开关「自动添加技能」开启且
 			// 灌顶池非空时，创建事件把池内全部技能自动加给玩家操控的角色（addSkills自带获得特效）。
@@ -2762,6 +2777,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 											});
 										lib._wssJimieBar = { create, update, playDazhao };
 										lib._wssSJWPlay = playSjwAn;
+										console.log("[kirito扩展]充能条系统已安装");
 										// 拦截标记增减：霆标记变动即刷新（不依赖无名美化是否开启；
 										// countMark 为纯存储读取，不会回调本拦截，无递归风险）
 										const watchMark = (method) => {
