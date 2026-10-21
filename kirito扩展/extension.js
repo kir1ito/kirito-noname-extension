@@ -3263,6 +3263,10 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										});
 								lib.skill.ktleishen_state.updateState(player, "def");
 								}
+								// 免伤同时增长等量霆标记
+								player.addSkill("ktleishen_ting");
+								player.addMark("ktleishen_ting", trigger.num);
+								game.log(player, "获得了", "#g" + trigger.num + "枚“霆”标记");
 								if (!game.hasPlayer(current => current !== player)) {
 									return;
 								}
