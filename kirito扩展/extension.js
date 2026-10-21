@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.48";
+const VERSION = "3.49";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1375,8 +1375,18 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			}
 			if (!doneQhly && typeof game.qhly_changeDynamicSkin == "function") {
 				const origQhly = game.qhly_changeDynamicSkin;
-				game.qhly_changeDynamicSkin = function (player) {
-					if (skip(player)) {
+				// 千幻聆音首参是字符串或节点（str），字符串时内部经qhly_getCurrentPlayer解析成玩家——
+				// 不能直接当玩家对象判定，先解析出全部目标玩家再判定（v3.48漏网根因）
+				game.qhly_changeDynamicSkin = function (str) {
+					let targets = [];
+					if (str && typeof str == "object") {
+						targets = [str];
+					} else if (typeof str == "string" && typeof game.qhly_getCurrentPlayer == "function") {
+						try {
+							targets = (game.qhly_getCurrentPlayer(str) || []).map((pair) => pair && pair[0]).filter(Boolean);
+						} catch (e) {}
+					}
+					if (targets.length && targets.every((p) => skip(p))) {
 						return;
 					}
 					return origQhly.apply(this, arguments);
