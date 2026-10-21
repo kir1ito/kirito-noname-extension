@@ -2827,7 +2827,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 						 * （寂灭大招/神霈·回天神光，播放器见 grytouying_bar 的 playDazhao/playSjwAn）
 						 * 不依赖本体手杀武将包与无名美化；投影候选池指向本组技能。
 						/* ===== 雷神（v3.51：驭雳/霆威/寂灭三合一）=====
-						 * ①你使用的【杀】造成伤害时均视为雷电伤害，你免疫雷电伤害（语音沿用驭雳）；
+						 * ①你造成的所有伤害均转为雷电伤害，你免疫雷电伤害（语音沿用驭雳）；
 						 * ②每回合第一次【杀】指定目标：弃置其一张牌（所有区域）——装备=不可响应、
 						 *   基本=锁定其技能至回合结束、锦囊=本回合雷伤+1（此杀击杀则次数+1，语音沿用霆威）；
 						 * ③自己造成伤害后：受击者获得等量"麻"（用牌弃手牌后-1）、自己获得等量"霆"；
@@ -2851,20 +2851,15 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 									audio: ["ext:kirito扩展/audio/skill/ktyuli1.mp3", "ext:kirito扩展/audio/skill/ktyuli2.mp3"],
 									fixed: true,
 									forced: true,
+									// 复刻原版驭雳：所有伤害转雷伤（不判卡牌，转化/虚拟杀天然覆盖）；
+									// 非雷→转雷，已雷且弃过锦囊（boost旗标）→+1，二者互斥同原版
 									trigger: { source: "damageBegin1" },
-									// 复刻原版驭雳的单时机写法：转雷与雷伤+1在同一content里顺序结算，
-									// 铁索连环传导的每一环都独立触发本时机，各自转雷并各自+1
-									filter(event, player) {
-										// get.name统一取名：转化的、虚拟的（含数组形态vcard）、实体的杀都能命中
-										return (event.card && get.name(event.card) == "sha" && !event.hasNature("thunder")) || (event.hasNature("thunder") && player.hasSkill("ktleishen_boost"));
-									},
 									async content(event, trigger, player) {
-										if (event.card && get.name(event.card) == "sha" && !trigger.hasNature("thunder")) {
+										if (!trigger.hasNature("thunder")) {
 											player.logSkill("ktleishen_convert", null, null, null, [get.rand(1, 2)]);
 											game.setNature(trigger, "thunder");
-											game.log(player, "的【杀】被赋予了雷电伤害");
-										}
-										if (trigger.hasNature("thunder") && player.hasSkill("ktleishen_boost")) {
+											game.log(player, "的伤害被赋予了雷电属性");
+										} else if (player.hasSkill("ktleishen_boost")) {
 											player.logSkill("ktleishen_boost");
 											trigger.num++;
 											game.log(player, "的雷电伤害+1");
@@ -3388,7 +3383,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					grytouying: "降临",
 					grytouying_info: "锁定技。游戏开始时，你从技能池中挑选任意个技能加入本局游戏（可多选），挑选完成后失去此技能。技能池默认为本扩展全部技能，可在扩展设置的「降临技能池管理」中增加或排除。",
 					ktleishen: "雷神",
-					ktleishen_info: "①你使用的【杀】造成伤害时均视为雷电伤害；当你受到雷电伤害时，你防止之，然后你摸等量数量的牌并回复等量体力。②每回合你使用的第一张【杀】指定目标后（此【杀】每击杀一名角色，次数+1），你弃置其一张牌（手牌/装备）：装备牌→此【杀】不可被响应；基本牌→其所有技能锁定至回合结束（有代码保护的除外）；锦囊牌→本回合你的雷电伤害+1；若其没有可弃置的牌，你改为摸一张牌，并按摸到的牌的类型决定效果。③你造成雷属性伤害后，受击者获得等同于伤害值的“麻”标记（有“麻”标记的角色使用牌时须弃置一张手牌，然后移去1枚“麻”标记），你获得等同于伤害值的“霆”标记（寂灭大招的伤害只施加“麻”）。④弃牌阶段结束时，你可以弃8枚“霆”标记，对一名角色造成等于其体力上限的伤害，然后你可以彻底移除其一个技能（所有技能均可选，也可放弃移除；特殊技能不会被移除）。",
+					ktleishen_info: "①你造成的所有伤害均视为雷电伤害；当你受到雷电伤害时，你防止之，然后你摸等量数量的牌并回复等量体力。②每回合你使用的第一张【杀】指定目标后（此【杀】每击杀一名角色，次数+1），你弃置其一张牌（手牌/装备）：装备牌→此【杀】不可被响应；基本牌→其所有技能锁定至回合结束（有代码保护的除外）；锦囊牌→本回合你的雷电伤害+1；若其没有可弃置的牌，你改为摸一张牌，并按摸到的牌的类型决定效果。③你造成雷属性伤害后，受击者获得等同于伤害值的“麻”标记（有“麻”标记的角色使用牌时须弃置一张手牌，然后移去1枚“麻”标记），你获得等同于伤害值的“霆”标记（寂灭大招的伤害只施加“麻”）。④弃牌阶段结束时，你可以弃8枚“霆”标记，对一名角色造成等于其体力上限的伤害，然后你可以彻底移除其一个技能（所有技能均可选，也可放弃移除；特殊技能不会被移除）。",
 					ktleishen_convert: "雷神",
 					ktleishen_immune: "雷神",
 					ktleishen_sha: "雷神",
