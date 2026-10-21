@@ -2657,12 +2657,9 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 												barArea.style.clipPath = `inset(${100 - percent}% 0 0 0)`;
 											}
 										};
-										// 创建进度条：跟随〖雷神〗技能——仅本地玩家拥有该技能时显示（v3.53）；已存在则跳过
+										// 创建进度条：跟随〖雷神〗技能——本地玩家拥有该技能即显示（不限定武将名：国战暗置阶段player.name并非wushangshen，v3.61前会被误拦）；已存在则跳过
 										const create = (player) => {
-											if (game.me !== player || (player.name !== "wushangshen" && player.name2 !== "wushangshen")) {
-												return;
-											}
-											if (!player.hasSkill("ktleishen")) {
+											if (game.me !== player || !player.hasSkill("ktleishen")) {
 												return;
 											}
 											if (player.querySelector(".jimiePower")) {
