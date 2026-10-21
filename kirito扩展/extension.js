@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.62";
+const VERSION = "3.63";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -2859,12 +2859,29 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 											player.logSkill("ktleishen_convert", null, null, null, [get.rand(1, 2)]);
 											game.setNature(trigger, "thunder");
 											game.log(player, "的伤害被赋予了雷电属性");
-										} else if (player.hasSkill("ktleishen_boost")) {
-											player.logSkill("ktleishen_boost");
-											trigger.num++;
-											game.log(player, "的雷电伤害+1");
+} else {
+										player.logSkill("ktleishen_convert", null, null, null, [get.rand(3, 4)]);
+										await player.draw(1);
+										game.log(player, "摸了一张牌");
+									}
+									updateState(player, "atk");
+									function updateState(player, type) {
+										if (!player.awakenedSkills.includes("ktleishen_release")) {
+											return;
 										}
-									},
+										if (type == "atk") {
+											player.markAuto("ktleishen", ["atk"]);
+										} else {
+											player.markAuto("ktleishen", ["def"]);
+										}
+										if (["atk", "def"].every((item) => player.getStorage("ktleishen").includes(item))) {
+											player.logSkill("ktleishen_release", null, null, null, [get.rand(3, 4)]);
+											player.refreshSkill("ktleishen_release");
+											player.setStorage("ktleishen", [], true);
+											game.log(player, "的〖雷神〗寂灭已重置");
+										}
+									}
+								},
 								},
 								immune: {
 									audio: ["ext:kirito扩展/audio/skill/ktyuli5.mp3", "ext:kirito扩展/audio/skill/ktyuli6.mp3"],
@@ -2937,8 +2954,9 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 												t.addTempSkill("ktleishen_fengyin", "phaseEnd");
 											}
 										} else if (type == "trick" || type == "delay") {
-											game.log(player, "的", desc, "锦囊牌使本回合雷电伤害+1");
-											player.addTempSkill("ktleishen_boost", "phaseEnd");
+										game.log(player, "的", desc, "锦囊牌使", get.translation(target), "获得1枚“麻”标记");
+										target.addSkill("ktleishen_ma");
+										target.addMark("ktleishen_ma", 1);
 										} else {
 											game.log(player, "的", desc, "牌未产生额外效果");
 										}
@@ -3010,9 +3028,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										},
 									},
 								},
-								boost: {
-									charlotte: true,
-								},
 								ma: {
 									charlotte: true,
 									mark: true,
@@ -3072,6 +3087,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										];
 									},
 									fixed: true,
+									limited: true,
 									trigger: { player: "phaseDiscardAfter" },
 									filter(_event, player) {
 										return player.countMark("ktleishen_ting") >= 8;
@@ -3095,6 +3111,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										if (lib._wssJimieBar?.playDazhao) {
 											await lib._wssJimieBar.playDazhao();
 										}
+										player.awakenSkill("ktleishen_release");
 										player.removeMark("ktleishen_ting", 8);
 										const target = event.targets[0];
 										const damageEvent = target.damage({ num: target.maxHp });
@@ -3191,6 +3208,23 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 											await game.cardsGotoPile(moved[0].slice().reverse(), ["insert_card", true]);
 											game.addCardKnower(moved[0], player);
 										});
+								updateState(player, "def");
+								function updateState(player, type) {
+									if (!player.awakenedSkills.includes("ktleishen_release")) {
+										return;
+									}
+									if (type == "atk") {
+										player.markAuto("ktleishen", ["atk"]);
+									} else {
+										player.markAuto("ktleishen", ["def"]);
+									}
+									if (["atk", "def"].every((item) => player.getStorage("ktleishen").includes(item))) {
+										player.logSkill("ktleishen_release", null, null, null, [get.rand(3, 4)]);
+										player.refreshSkill("ktleishen_release");
+										player.setStorage("ktleishen", [], true);
+										game.log(player, "的〖雷神〗寂灭已重置");
+									}
+								}
 								}
 								if (!game.hasPlayer(current => current !== player)) {
 									return;
@@ -3383,7 +3417,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					grytouying: "降临",
 					grytouying_info: "锁定技。游戏开始时，你从技能池中挑选任意个技能加入本局游戏（可多选），挑选完成后失去此技能。技能池默认为本扩展全部技能，可在扩展设置的「降临技能池管理」中增加或排除。",
 					ktleishen: "雷神",
-					ktleishen_info: "①你造成的所有伤害均视为雷电伤害；当你受到雷电伤害时，你防止之，然后你摸等量数量的牌并回复等量体力。②每回合你使用的第一张【杀】指定目标后（此【杀】每击杀一名角色，次数+1），你弃置其一张牌（手牌/装备）：装备牌→此【杀】不可被响应；基本牌→其所有技能锁定至回合结束（有代码保护的除外）；锦囊牌→本回合你的雷电伤害+1；若其没有可弃置的牌，你改为摸一张牌，并按摸到的牌的类型决定效果。③你造成雷属性伤害后，受击者获得等同于伤害值的“麻”标记（有“麻”标记的角色使用牌时须弃置一张手牌，然后移去1枚“麻”标记），你获得等同于伤害值的“霆”标记（寂灭大招的伤害只施加“麻”）。④弃牌阶段结束时，你可以弃8枚“霆”标记，对一名角色造成等于其体力上限的伤害，然后你可以彻底移除其一个技能（所有技能均可选，也可放弃移除；特殊技能不会被移除）。",
+					ktleishen_info: "①你造成的所有伤害均视为雷电伤害；当你受到雷电伤害时，你防止之，然后你摸等量数量的牌并回复等量体力；当你的伤害本就是雷电伤害时，你摸一张牌。②每回合你使用的第一张【杀】指定目标后（此【杀】每击杀一名角色，次数+1），你弃置其一张牌（手牌/装备）：装备牌→此【杀】不可被响应；基本牌→其所有技能锁定至回合结束（有代码保护的除外）；锦囊牌→其获得1枚“麻”标记；若其没有可弃置的牌，你改为摸一张牌，并按摸到的牌的类型决定效果。③你造成雷属性伤害后，受击者获得等同于伤害值的“麻”标记（有“麻”标记的角色使用牌时须弃置一张手牌，然后移去1枚“麻”标记），你获得等同于伤害值的“霆”标记（寂灭大招的伤害只施加“麻”）。④限定技，弃牌阶段结束时，你可以弃8枚“霆”标记，对一名角色造成等于其体力上限的伤害，然后你可以彻底移除其一个技能（所有技能均可选，也可放弃移除；特殊技能不会被移除）。当你造成过一次雷电伤害并受到过一次雷电伤害后，重置此技能。",
 					ktleishen_convert: "雷神",
 					ktleishen_immune: "雷神",
 					ktleishen_sha: "雷神",
@@ -3391,7 +3425,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					ktleishen_reset: "雷神",
 					ktleishen_kill: "雷神",
 					ktleishen_fengyin: "雷神·封",
-					ktleishen_boost: "雷神",
 					ktleishen_ma: "雷神",
 					ktleishen_punish: "雷神",
 					ktleishen_release: "雷神",
