@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.72";
+const VERSION = "3.73";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -326,13 +326,62 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			const timer = setTimeout(() => ctrl.abort(), ms);
 			return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(timer));
 		};
+		// CNB跨域限制（v3.73）：cnb.cool的raw服务ACAO只允许docs.cnb.cool，安卓WebView强制执行CORS必拦
+		// （PC懒人包主窗口webSecurity:false不受影响）。安卓端CNB源统一降级FileTransfer原生通道：
+		// native HTTP不经WebView，下载到临时文件读回后即删
+		const ktNativeReady = () =>
+			typeof window != "undefined" && !!window.cordova &&
+			typeof FileTransfer != "undefined" && typeof game.readFile == "function" &&
+			!!localStorage.getItem("noname_inited");
+		const ktNativeFetch = (srcUrl, tmpName, onprogress) => new Promise((resolve, reject) => {
+			const root = localStorage.getItem("noname_inited");
+			const local = `extension/${NAME}/${tmpName}`;
+			game.ensureDirectory(`extension/${NAME}`, () => {
+				try {
+					const ft = new FileTransfer();
+					if (onprogress) {
+						ft.onprogress = (ev) => {
+							if (ev.lengthComputable) onprogress(ev.loaded, ev.total);
+						};
+					}
+					ft.download(
+						encodeURI(srcUrl),
+						encodeURI(`${root}${local}`),
+						() => {
+							game.readFile(local, (data) => {
+								try { game.removeFile(local, () => {}); } catch {}
+								resolve(data);
+							}, (e) => {
+								try { game.removeFile(local, () => {}); } catch {}
+								reject(e);
+							});
+						},
+						(e) => reject(new Error(`FileTransfer code=${e && e.code}`))
+					);
+				} catch (e) {
+					reject(e);
+				}
+			}, true);
+		});
+		const ktWithTimeout = (promise, ms) => new Promise((resolve, reject) => {
+			const timer = setTimeout(() => reject(new Error("超时")), ms);
+			promise.then((v) => { clearTimeout(timer); resolve(v); }, (e) => { clearTimeout(timer); reject(e); });
+		});
+		// 单源取文本：安卓CNB走原生通道，其余走页面fetch（统一20秒上限）
+		const ktSrcText = async (src, asset, tmpName) => {
+			if (src.cnb && ktNativeReady()) {
+				const data = await ktWithTimeout(ktNativeFetch(bustCache(relUrlOf(src, asset)), tmpName), 20000);
+				return new TextDecoder().decode(data instanceof ArrayBuffer ? data : new Uint8Array(data));
+			}
+			const resp = await fetchTimeout(bustCache(relUrlOf(src, asset)), 20000);
+			if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+			return resp.text();
+		};
 		// 拉Release的version.txt作为远程版本号（按测速排序的源依次尝试）
 		const fetchReleaseVersion = async () => {
 			for (const { src } of sourceOrder) {
 				try {
-					const resp = await fetch(bustCache(relUrlOf(src, VER_NAME)));
-					if (!resp.ok) continue;
-					const text = (await resp.text()).trim();
+					const text = (await ktSrcText(src, VER_NAME, ".ktver_cnb")).trim();
 					if (text) return text;
 				} catch {}
 			}
@@ -369,9 +418,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		const fetchReleaseManifest = async () => {
 			for (const { src } of sourceOrder) {
 				try {
-					const resp = await fetch(bustCache(relUrlOf(src, MANIFEST_NAME)), { signal: abortCtrl ? abortCtrl.signal : undefined });
-					if (!resp.ok) continue;
-					const json = await resp.json();
+					const json = JSON.parse(await ktSrcText(src, MANIFEST_NAME, ".ktman_cnb"));
 					if (json && typeof json == "object") return normManifest(json);
 				} catch {}
 			}
@@ -391,6 +438,10 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			let lastError = null;
 			for (const { src } of sourceOrder) {
 				try {
+					if (src.cnb && ktNativeReady()) {
+						const data = await ktWithTimeout(ktNativeFetch(bustCache(rawUrlOf(src, file)), ".ktraw_cnb"), 60000);
+						return { bytes: data instanceof Uint8Array ? data : new Uint8Array(data), src };
+					}
 					const resp = await fetch(bustCache(rawUrlOf(src, file)), { signal: abortCtrl.signal });
 					if (!resp.ok) throw new Error(`RAW ${resp.status}`);
 					return { bytes: new Uint8Array(await resp.arrayBuffer()), src };
@@ -404,6 +455,18 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		// 单源测速：试拉Release压缩包前1.5MB计算真实吞吐（延迟低≠带宽高，按吞吐排序才是真快）
 		const PROBE_BYTES = 1572864;
 		const measureSpeed = async (src) => {
+			// 安卓端CNB被CORS拦截：FileTransfer原生下载manifest（12KB）估算吞吐，省流量且足以验证可用性
+			if (src.cnb && ktNativeReady()) {
+				const t0 = Date.now();
+				try {
+					const data = await ktWithTimeout(ktNativeFetch(bustCache(relUrlOf(src, MANIFEST_NAME)), ".ktprobe_cnb"), 20000);
+					const size = (data && (data.byteLength || data.length)) || 0;
+					if (!size) throw new Error("空响应");
+					return { ok: true, speed: size / Math.max((Date.now() - t0) / 1000, 0.05) };
+				} catch (e) {
+					return { ok: false, speed: 0, error: e.name == "AbortError" ? "超时" : fmtErr(e) };
+				}
+			}
 			const t0 = Date.now();
 			const ctrl = new AbortController();
 			const timer = setTimeout(() => ctrl.abort(), 20000);
@@ -553,6 +616,23 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					}
 					for (const { src } of sourceOrder) {
 						try {
+							// 安卓端CNB：CORS拦截+不支持Range断点，整包改走FileTransfer原生通道（native自带进度，
+							// 一次性读回；失败恢复received断点基线后照常降级下一源）
+							if (src.cnb && ktNativeReady()) {
+								setStatus(`正在通过原生通道下载（${src.label}）…`);
+								const buf = await ktWithTimeout(
+									ktNativeFetch(bustCache(zipUrlOf(src)), ".ktzip_cnb", (loaded, total) => setZipProgress(loaded, total || 0)),
+									600000
+								);
+								const u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+								chunks.length = 0;
+								chunks.push(u8);
+								received = u8.length;
+								zipTotal = u8.length;
+								assemble();
+								zipSrc = src;
+								break;
+							}
 							const headers = { signal: abortCtrl.signal };
 							if (received > 0) {
 								headers.headers = { Range: `bytes=${received}-` };
