@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.73";
+const VERSION = "3.74";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -193,15 +193,6 @@ const ktWriteBinary = async (data, dir, name, srcUrl) => {
 		}
 	}
 	throw new Error(`二进制写入${local}失败（${errs.join("；")}）`);
-};
-// 更新清单值格式"md5:size"（v3.36+）：安卓历史版本落盘的损坏二进制非空但膨胀约11倍，
-// 仅凭哈希比对与判空永远发现不了，按尺寸体检才能触发重下自愈；旧格式纯md5返回null（跳过尺寸校验）
-const ktManifestSize = (v) => {
-	if (typeof v != "string") return null;
-	const i = v.lastIndexOf(":");
-	if (i < 0) return null;
-	const n = Number(v.slice(i + 1));
-	return Number.isFinite(n) && n >= 0 ? n : null;
 };
 	// 在线更新中心：点按钮弹出独立遮罩窗口（形态复刻十周年UI配置中心，非系统窗口）
 	// 流程：检测连通性（各源拉info.json测延迟）→ 通过后才可开始更新 → 进度条逐文件流式下载
@@ -404,35 +395,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			return 0;
 		};
 		const MANIFEST_NAME = "manifest.json";
-		const LOCAL_MANIFEST = ".update_manifest.json";
-		// manifest键统一为相对扩展根目录的路径：工作流生成的键带"kirito扩展/"前缀，而downloadRaw/writeFileTo
-		// 会自己拼前缀——不去前缀则raw地址双重前缀必404（3.23增量首用即暴露）
-		const normManifest = (manifest) => {
-			const out = {};
-			const prefix = `${NAME}/`;
-			for (const key of Object.keys(manifest)) {
-				out[key.startsWith(prefix) ? key.slice(prefix.length) : key] = manifest[key];
-			}
-			return out;
-		};
-		const fetchReleaseManifest = async () => {
-			for (const { src } of sourceOrder) {
-				try {
-					const json = JSON.parse(await ktSrcText(src, MANIFEST_NAME, ".ktman_cnb"));
-					if (json && typeof json == "object") return normManifest(json);
-				} catch {}
-			}
-			return null;
-		};
-		const readStoredManifest = async () => {
-			try {
-				const text = await game.promises.readFileAsText(`extension/${NAME}/${LOCAL_MANIFEST}`);
-				const json = JSON.parse(text);
-				return json && typeof json == "object" ? normManifest(json) : null;
-			} catch {
-				return null;
-			}
-		};
 		// 增量：按源顺序下载单个原始文件（小文件，无需流式进度），返回{bytes, src}供FileTransfer直落盘复用同源地址
 		const downloadRaw = async (file) => {
 			let lastError = null;
@@ -532,9 +494,8 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			}
 			if (anyOk) {
 				setDisabled($.start, false);
-				// 增量按钮：需要本地已有基准清单（首次/手动安装后需先全量一次）
-				const hasBaseline = !!(await readStoredManifest());
-				setDisabled($.inc, !hasBaseline);
+				// 增量按钮：v3.74起固定只拉主文件+版本号，不再依赖本地基准清单
+				setDisabled($.inc, false);
 				const newest = remoteVersion && remoteVersion == localVersion();
 				const behind = remoteVersion && cmpVersion(remoteVersion, localVersion()) < 0;
 				let msg = `测速完成，最快源：${sourceOrder.find((s) => s.res.ok).src.label}`;
@@ -543,9 +504,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					: newest
 						? `。当前已是最新版本（v${localVersion()}），可强制重装`
 						: `。发现新版本：${localVersion()} → ${remoteVersion || "未知"}`;
-				if (!hasBaseline) {
-					msg += "。本地无增量基准，请先执行一次全量更新";
-				}
 				setStatus(msg);
 			} else {
 				setStatus("所有下载源均不可达，请检查网络（或系统代理）后重新测速", "err");
@@ -734,11 +692,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				const finalVersion = infoJsonVersion || remoteVersion;
 				if (finalVersion) game.saveConfig(`extension_${NAME}_version`, finalVersion);
 				game.saveConfig(`extension_${NAME}_updateTime`, new Date().toLocaleString());
-				// 写入增量基准清单，下次可选择增量更新（失败不影响本次结果）
-				const remoteManifest = await fetchReleaseManifest();
-				if (remoteManifest) {
-					await writeFileTo(LOCAL_MANIFEST, JSON.stringify(remoteManifest));
-				}
 				$.fill.style.width = "100%";
 				$.progress.textContent = `${entries.length} 个文件全部完成`;
 				$.cur.textContent = "";
@@ -758,16 +711,17 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				abortCtrl = null;
 			}
 		}
-		// 增量更新：对比Release清单与本地基准清单，仅下载有变化的文件（info.json最后写）
+		// 增量更新（v3.74简化）：固定只下载主文件extension.js+版本号info.json两个文件直接覆盖，
+		// 不再做清单对比——音效/动画/图片等资源极少变动，资源有变动时走全量更新
 		async function startIncremental() {
 			setDisabled($.check, true);
 			setDisabled($.start, true);
-		setDisabled($.inc, true);
-		$.restart.style.display = "none";
-		abortCtrl = new AbortController();
-		let curFile = "";
+			setDisabled($.inc, true);
+			$.restart.style.display = "none";
+			abortCtrl = new AbortController();
+			let curFile = "";
 			try {
-				setStatus("正在获取最新 Release 清单…");
+				setStatus("正在获取最新版本号…");
 				const releaseVersion = await fetchReleaseVersion();
 				if (releaseVersion) {
 					remoteVersion = releaseVersion;
@@ -777,50 +731,8 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				if (releaseVersion && cmpVersion(releaseVersion, localVersion()) < 0) {
 					throw new Error(`下载源缓存的版本（v${releaseVersion}）落后于本地（v${localVersion()}），缓存尚未更新，请稍后重试或换网络环境`);
 				}
-				const remoteManifest = await fetchReleaseManifest();
-				if (!remoteManifest) {
-					throw new Error("清单获取失败，请改用全量更新");
-				}
-				const storedManifest = await readStoredManifest();
-				if (!storedManifest) {
-					throw new Error("本地无增量基准，请先执行一次全量更新");
-				}
-				const changeList = [];
-				for (const path of Object.keys(remoteManifest)) {
-					if (storedManifest[path] !== remoteManifest[path]) {
-						changeList.push(path);
-						continue;
-					}
-					// 哈希一致也做本地体检：缺失/为空/尺寸不符都补下——安卓历史版本落盘的二进制损坏为
-					// 逐字节JSON文本（非空但膨胀约11倍），只判空永远发现不了，按清单size才能触发重下自愈
-					try {
-						const data = await game.promises.readFile(`extension/${NAME}/${path}`);
-						if (!data || !data.byteLength) {
-							changeList.push(path);
-						} else {
-							const expect = ktManifestSize(remoteManifest[path]);
-							if (expect != null && expect !== data.byteLength) {
-								changeList.push(path);
-							}
-						}
-					} catch {
-						changeList.push(path);
-					}
-				}
-				if (!changeList.length) {
-					$.fill.style.width = "100%";
-					$.progress.textContent = "增量检查完成：0 个文件需要更新";
-					$.cur.textContent = "";
-					setStatus(`本地文件与最新版（v${remoteVersion || "?"}）完全一致`, "ok");
-					setDisabled($.check, false);
-					setDisabled($.start, false);
-					return;
-				}
-				// info.json（版本号）排到最后写
-				const order = changeList.filter((f) => f != "info.json");
-				if (changeList.includes("info.json")) {
-					order.push("info.json");
-				}
+				// info.json（版本号）排到最后写：全部写入成功才算更新完成
+				const order = ["extension.js", "info.json"];
 				let done = 0;
 				for (const file of order) {
 					$.fill.style.width = `${((done / order.length) * 100).toFixed(1)}%`;
@@ -830,20 +742,18 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					const { bytes, src } = await downloadRaw(file);
 					done++;
 					// 附带该文件的实际下载源地址：安卓损坏内核二进制写入走FileTransfer直落盘
-					await writeFileTo(file, /\.(js|json)$/.test(file) ? new TextDecoder().decode(bytes) : bytes, rawUrlOf(src, file));
+					await writeFileTo(file, /\.json$/.test(file) ? new TextDecoder().decode(bytes) : bytes, rawUrlOf(src, file));
 				}
-				// 全部覆盖成功 → 写新清单作为下次增量基准，再写版本号配置
-				await writeFileTo(LOCAL_MANIFEST, JSON.stringify(remoteManifest));
 				const finalVersion = releaseVersion || remoteVersion;
 				if (finalVersion) game.saveConfig(`extension_${NAME}_version`, finalVersion);
 				game.saveConfig(`extension_${NAME}_updateTime`, new Date().toLocaleString());
 				$.fill.style.width = "100%";
-				$.progress.textContent = `${order.length} 个文件增量完成`;	
+				$.progress.textContent = `${order.length} 个文件增量完成`;
 				$.cur.textContent = "";
-				setStatus(`增量更新完成（v${finalVersion || "?"}），重启游戏后生效`, "ok");
+				setStatus(`增量更新完成（v${finalVersion || "?"}），重启游戏后生效。音效/动画等资源变动需用全量更新`, "ok");
 				$.restart.style.display = "";
 			} catch (e) {
-				const where = curFile ? `（出错于 ${curFile}）` : "（清单/基准阶段）";
+				const where = curFile ? `（出错于 ${curFile}）` : "（版本号获取阶段）";
 				setStatus(`增量更新失败${where}：${fmtErr(e)}\n版本号未变更，可重试或改用全量更新`, "err");
 				setDisabled($.check, false);
 				setDisabled($.start, false);
@@ -889,7 +799,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			};
 			$.srcs = SOURCES.map((src) => el("ktupd-src", dialog, `● ${src.label} — 未检测`));
 			el("ktupd-section", dialog, "② 下载更新");
-			el("ktupd-hint", dialog, "增量：仅下载有变化的文件（几秒完成，需已有增量基准）；全量：下载完整压缩包解压覆盖（约86MB）");
+			el("ktupd-hint", dialog, "增量：只更新主文件和版本号（几秒完成）；全量：下载完整压缩包解压覆盖（约86MB，资源变动时用）");
 			$.inc = el("ktupd-btn", dialog, "增量更新（仅变化文件）");
 			setDisabled($.inc, true);
 			$.inc.onclick = function () {
@@ -2020,7 +1930,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			// 在线更新：独立更新中心窗口（连通性检测→进度条下载→全部成功才写版本号，失败版本号不变）
 			checkUpdate: {
 				name: "更新中心（独立窗口）",
-				intro: "多源自动测速择优。增量更新：仅下载有变化的文件，几秒完成（首次需先全量一次建立基准）；全量更新：下载整包压缩包解压覆盖。两者均在全部写入成功后才写版本号，中途出错版本号不变。完成后需重启游戏生效",
+				intro: "多源自动测速择优。增量更新：只下载主文件extension.js和版本号info.json，几秒完成（音效/动画等资源变动时需全量更新）；全量更新：下载整包压缩包解压覆盖。两者均在全部写入成功后才写版本号，中途出错版本号不变。完成后需重启游戏生效",
 				clear: true,
 				onclick() {
 					ktUpdateCenter.open();
