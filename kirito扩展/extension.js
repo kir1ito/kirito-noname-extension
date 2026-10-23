@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.74";
+const VERSION = "3.75";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1339,17 +1339,22 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			if (!enabled() || !player || !Array.isArray(game.players) || !game.players.includes(player)) {
 				return false;
 			}
-			if (player == game.me) {
+			// game.me尚未指派的早期窗口不拦截任何人（无法区分人与AI，误拦会锁死玩家自己的动皮）；
+			// 该窗口内已渲染的AI动皮由gameStart后的持续校正兜底
+			if (!game.me || player == game.me) {
 				return false;
 			}
 			try {
+				const had = !!(player.dynamic || (player.$dynamicWrap && player.$dynamicWrap.style.backgroundImage));
 				if (player.dynamic && typeof player.stopDynamic == "function") {
 					player.stopDynamic();
 				}
 				if (player.$dynamicWrap) {
 					player.$dynamicWrap.style.backgroundImage = "";
 				}
-				console.log(`[kirito扩展]已跳过AI动皮：${player.name || player.name1 || "?"}`);
+				if (had) {
+					console.log(`[kirito扩展]已跳过AI动皮：${player.name || player.name1 || "?"}`);
+				}
 			} catch (e) {}
 			return true;
 		};
@@ -1375,43 +1380,45 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			return innerPlay.apply(this, args);
 		};
 		playSkip.__ktSelfOnly = true;
-		const armPlay = () => {
-			const proto = (lib.element && lib.element.player) || (typeof Player == "function" ? Player.prototype : null);
-			if (!proto) {
-				return false;
-			}
-			try {
-				const desc = Object.getOwnPropertyDescriptor(proto, "playDynamic");
-				if (desc && desc.get && desc.get.__ktSelfOnly) {
-					return true;
-				}
-				if (desc && (!desc.configurable || desc.get)) {
-					// 已是别人的访问器或不可配置：退化为对当前占用者一次性包装
-					if (typeof proto.playDynamic == "function" && !proto.playDynamic.__ktSelfOnly) {
-						innerPlay = proto.playDynamic;
-						proto.playDynamic = playSkip;
-						return true;
-					}
+			const armPlay = () => {
+				const proto = (lib.element && lib.element.player) || (typeof Player == "function" ? Player.prototype : null);
+				if (!proto) {
 					return false;
 				}
-				innerPlay = typeof proto.playDynamic == "function" ? proto.playDynamic : null;
-				const getter = function () {
-					return playSkip;
-				};
-				getter.__ktSelfOnly = true;
-				Object.defineProperty(proto, "playDynamic", {
-					configurable: true,
-					enumerable: desc ? desc.enumerable : false,
-					get: getter,
-					set: function (v) {
-						innerPlay = v;
-					},
-				});
-				return typeof innerPlay == "function";
-			} catch (e) {
-				return false;
-			}
-		};
+				try {
+					const desc = Object.getOwnPropertyDescriptor(proto, "playDynamic");
+					if (desc && desc.get && desc.get.__ktSelfOnly) {
+						return true;
+					}
+					if (desc && !desc.configurable) {
+						// 不可配置槽位：退化为一次性包装（赋值可能被原setter吞掉，尽力而为）
+						if (typeof proto.playDynamic == "function" && !proto.playDynamic.__ktSelfOnly) {
+							innerPlay = proto.playDynamic;
+							proto.playDynamic = playSkip;
+							return true;
+						}
+						return false;
+					}
+					// 可配置槽位（含千幻聆音的访问器——其setter为空操作，普通赋值会被静默吞掉，
+					// 这也是此前"AI仍渲染"的一环）：defineProperty整体接管，捕获当前占用者为底层函数
+					innerPlay = typeof proto.playDynamic == "function" ? proto.playDynamic : null;
+					const getter = function () {
+						return playSkip;
+					};
+					getter.__ktSelfOnly = true;
+					Object.defineProperty(proto, "playDynamic", {
+						configurable: true,
+						enumerable: desc ? desc.enumerable : false,
+						get: getter,
+						set: function (v) {
+							innerPlay = v;
+						},
+					});
+					return true;
+				} catch (e) {
+					return false;
+				}
+			};
 		const tryInstall = () => {
 			if (!doneUI && typeof Player == "function" && Player.prototype && typeof Player.prototype._decadeUIApplyDynamicSkin == "function") {
 				const origApply = Player.prototype._decadeUIApplyDynamicSkin;
@@ -1448,19 +1455,40 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			}
 			return doneUI && doneQhly && donePlay;
 		};
-		// 每局开始重武装+清场：选将阶段玩家init的时机可能早于装载期轮询窗口，AI动皮若已渲染则在此
-		// 兜底停掉；同时再武装一次playDynamic槽位（千幻聆音引擎初始化晚于轮询窗口时会在此刻补上）
+		// 持续校正（v3.75根因修复）：欢乐斗地主等模式选将后会swapPlayer把game.me换到新节点——
+		// gameStart那一刻的"me"可能变成AI、而被清场的节点反而成为玩家，只清一次场必然两头出错。
+		// 改为gameStart起30秒内每秒校正：非me停皮；me若无活动动皮则重挂自己的（皮肤配置为空时自动无操作）
+		const sweep = () => {
+			if (!enabled() || !Array.isArray(game.players)) {
+				return;
+			}
+			game.players.forEach((p) => {
+				if (!p) {
+					return;
+				}
+				if (p != game.me) {
+					skip(p);
+				} else if (!p.dynamic && typeof p._decadeUIApplyDynamicSkin == "function") {
+					try {
+						p._decadeUIApplyDynamicSkin();
+						if (p.dynamic) {
+							console.log("[kirito扩展]已恢复玩家自己的动皮");
+						}
+					} catch (e) {}
+				}
+			});
+		};
 		lib.announce.subscribe("Noname.Game.Event.GameStart", () => {
 			try {
 				armPlay();
-				if (!enabled() || !Array.isArray(game.players)) {
-					return;
-				}
-				game.players.forEach((p) => {
-					if (p && p != game.me) {
-						skip(p);
+				sweep();
+				let ticks = 0;
+				const timer = setInterval(() => {
+					sweep();
+					if (++ticks >= 30) {
+						clearInterval(timer);
 					}
-				});
+				}, 1000);
 			} catch (e) {}
 		});
 		return () => {
