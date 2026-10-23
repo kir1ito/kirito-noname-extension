@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.75";
+const VERSION = "3.76";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -3009,6 +3009,11 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 									if (player.isDamaged()) {
 										await player.recover(trigger.num);
 									}
+										// 免伤同时增长等量霆标记，并驱动寂灭重置（def）——v3.76自星魂错位处落回正确位置
+										player.addSkill("ktleishen_ting");
+										player.addMark("ktleishen_ting", trigger.num);
+										game.log(player, "获得了", "#g" + trigger.num + "枚“霆”标记");
+										lib.skill.ktleishen_state.updateState(player, "def");
 								},
 								},
 								sha: {
@@ -3295,12 +3300,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 											await game.cardsGotoPile(moved[0].slice().reverse(), ["insert_card", true]);
 											game.addCardKnower(moved[0], player);
 										});
-								lib.skill.ktleishen_state.updateState(player, "def");
 								}
-								// 免伤同时增长等量霆标记
-								player.addSkill("ktleishen_ting");
-								player.addMark("ktleishen_ting", trigger.num);
-								game.log(player, "获得了", "#g" + trigger.num + "枚“霆”标记");
 								if (!game.hasPlayer(current => current !== player)) {
 									return;
 								}
