@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.79";
+const VERSION = "3.80";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1068,12 +1068,43 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				}
 			}
 			const buttons = event.dialog && event.dialog.buttons;
-			if (Array.isArray(buttons)) {
+			if (Array.isArray(buttons) && buttons.length) {
 				const nameOf = (button) => (typeof button.link == "string" ? button.link : button.link && button.link.name);
 				const banned = buttons.filter((b) => banPlayer.includes(nameOf(b)));
 				if (banned.length && buttons.length - banned.length >= need) {
+					const dialog = event.dialog;
+					// 样式基准与挂载容器先取（被禁按钮删除前）
+					const sample = buttons.find((b) => !banned.includes(b)) || buttons[0];
+					const parent = sample && sample.parentNode;
+					const type = sample && sample.classList && sample.classList.contains("characterx") ? "characterx" : "character";
 					banned.forEach((b) => typeof b.remove == "function" && b.remove());
-					event.dialog.buttons = buttons.filter((b) => !banned.includes(b));
+					dialog.buttons = buttons.filter((b) => !banned.includes(b));
+					// v3.80补位：对话框直传形态（身份/国战等）此前只删不补致候选框直接变少——按官方换将弹窗
+					// 同款ui.create.buttons从剩余选将池抽等量非禁武将补回，候选数量保持不变
+					if (parent) {
+						const pool = Array.isArray(_status.characterlist) ? _status.characterlist : [];
+						const existing = new Set(dialog.buttons.map((b) => nameOf(b)));
+						const adds = [];
+						let guard = 200;
+						while (adds.length < banned.length && pool.length && guard--) {
+							const cand = pool[Math.floor(Math.random() * pool.length)];
+							if (typeof cand == "string" && lib.character[cand] && !banPlayer.includes(cand) && !existing.has(cand)) {
+								existing.add(cand);
+								adds.push(cand);
+							}
+						}
+						if (adds.length) {
+							const created = ui.create.buttons(adds, type, parent);
+							if (Array.isArray(created)) {
+								dialog.buttons.push(...created);
+							} else if (created) {
+								dialog.buttons.push(created);
+							}
+							if (typeof ui.update == "function") {
+								ui.update();
+							}
+						}
+					}
 				}
 			}
 			event.__ktBanPurged = true;
