@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.77";
+const VERSION = "3.78";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -3086,8 +3086,11 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										// 麻不施加给玩家自己
 										if (target != game.me) {
 											target.addSkill("ktleishen_ma");
-											target.addMark("ktleishen_ma", trigger.num);
-											game.log(target, "获得了", "#g" + trigger.num + "枚“麻”标记");
+											// 麻上限1：已有麻则不再叠加（v3.78）
+											if (target.countMark("ktleishen_ma") < 1) {
+												target.addMark("ktleishen_ma", 1);
+											}
+												game.log(target, "获得了", "#g“麻”标记（至多1枚）");
 										}
 										// 寂灭大招的伤害不产生霆（仍施加麻）
 										if (!trigger.ktNoTing) {
@@ -3128,7 +3131,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										name: "麻",
 										name2: "麻",
 										content(storage, player) {
-											return `共有${player.countMark("ktleishen_ma")}枚“麻”标记：使用牌时须弃置一张装备牌并移去1枚“麻”标记，装备区无牌时不消耗`;
+											return "至多1枚：使用牌时须弃置一张装备牌并移去“麻”标记，装备区无牌时不消耗";
 										},
 									},
 								},
@@ -3493,7 +3496,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					grytouying: "降临",
 					grytouying_info: "锁定技。游戏开始时，你从技能池中挑选任意个技能加入本局游戏（可多选），挑选完成后失去此技能。技能池默认为本扩展全部技能，可在扩展设置的「降临技能池管理」中增加或排除。",
 					ktleishen: "雷神",
-					ktleishen_info: "①当你受到雷电伤害时，你防止之，然后你摸等量数量的牌并回复等量体力。②每回合你使用的第一张【杀】指定目标后（此【杀】每击杀一名角色，次数+1），你弃置其一张牌（手牌/装备），若其没有可弃置的牌，你改为摸一张牌。③你造成伤害后，其他角色获得等同于伤害值的“麻”标记（有“麻”标记的角色使用牌时须弃置一张装备牌并移去1枚“麻”标记，装备区无牌时不消耗；不会施加给你自己），你获得等同于伤害值的“霆”标记（寂灭大招的伤害只施加“麻”）。④限定技，弃牌阶段结束时，你可以弃8枚“霆”标记，对一名角色造成等于其体力上限的雷电伤害，然后你可以彻底移除其一个技能（所有技能均可选，也可放弃移除；特殊技能不会被移除）。当你造成过一次雷电伤害并受到过一次雷电伤害后，重置此技能。",
+					ktleishen_info: "①当你受到雷电伤害时，你防止之，然后你摸等量数量的牌并回复等量体力。②每回合你使用的第一张【杀】指定目标后（此【杀】每击杀一名角色，次数+1），你弃置其一张牌（手牌/装备），若其没有可弃置的牌，你改为摸一张牌。③你造成伤害后，其他角色获得1枚“麻”标记（至多1枚；其使用牌时须弃置一张装备牌并移去“麻”标记，装备区无牌时不消耗；不会施加给你自己），你获得等同于伤害值的“霆”标记（寂灭大招的伤害只施加“麻”）。④限定技，弃牌阶段结束时，你可以弃8枚“霆”标记，对一名角色造成等于其体力上限的雷电伤害，然后你可以彻底移除其一个技能（所有技能均可选，也可放弃移除；特殊技能不会被移除）。当你造成过一次雷电伤害并受到过一次雷电伤害后，重置此技能。",
 					ktleishen_immune: "雷神",
 					ktleishen_sha: "雷神",
 					ktleishen_state: "雷神",
