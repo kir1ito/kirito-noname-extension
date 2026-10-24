@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.81";
+const VERSION = "3.82";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -254,8 +254,8 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		// 更新器只下载这一个压缩包再本地解压覆盖，新增文件无需维护清单
 		const ZIP_NAME = "kirito-extension.zip";
 		const RAW_BASE = `https://raw.githubusercontent.com/${REPO}/main/`;
-		// CNB（cnb.cool，腾讯云原生构建）镜像：main分支与GitHub仓库git同步、三个发版资产由工作流
-		// 强推到dist分支；raw直链国内直连快且无第三方代理的缓存滞后问题。测速不可达时自动垫底跳过
+		// CNB（cnb.cool，腾讯云原生构建）镜像：dist分支携带发版资产+增量raw文件（extension.js/info.json，
+		// 与version.txt同批落库保证版本一致）；raw直链国内直连快且无第三方代理的缓存滞后问题。测速不可达时自动垫底跳过
 		const CNB_REPO = "kirito.gry/kirito-noname-extension";
 		const CNB_BASE = `https://cnb.cool/${CNB_REPO}`;
 		// 下载源：GitHub直连 + gh-proxy.com + gh.llkk.cc + CNB 四个（连通性测速后按吞吐自动排序）
@@ -272,7 +272,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		let remoteVersion = null;
 		const $ = {};
 		const encodePath = (file) => encodeURIComponent(NAME) + "/" + file.split("/").map(encodeURIComponent).join("/");
-		const rawUrlOf = (src, file) => (src.cnb ? `${CNB_BASE}/-/git/raw/main/${encodePath(file)}` : src.prefix + RAW_BASE + encodePath(file));
+		const rawUrlOf = (src, file) => (src.cnb ? `${CNB_BASE}/-/git/raw/dist/${encodePath(file)}` : src.prefix + RAW_BASE + encodePath(file));
 		const relUrlOf = (src, asset) => (src.cnb
 			? `${CNB_BASE}/-/git/raw/dist/${asset}`
 			: `${src.prefix}https://github.com/${REPO}/releases/latest/download/${asset}`);

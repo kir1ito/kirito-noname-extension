@@ -7,6 +7,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# 串行化：连续push时两个run并行使CNB/GitHub的dist推送互相顶掉（ref竞态），排队执行根除
+concurrency:
+  group: package-release
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -62,8 +67,11 @@ jobs:
           gh release upload latest version.txt --clobber
           echo "已上传 kirito-extension.zip + manifest.json + version.txt（commit $GITHUB_SHA）"
 
-      # dist分支只含三个发版资产（zip/manifest/version.txt）：供CNB等纯git镜像走raw直链，
-      # 无需在CNB侧另建Release；[skip ci]防触发自身，且workflow只监听main不受影响
+      # dist分支含发版资产（zip/manifest/version.txt）+ 增量更新raw文件（kirito扩展/extension.js、
+      # kirito扩展/info.json）：供CNB等纯git镜像走raw直链，无需在CNB侧另建Release。
+      # 增量文件与version.txt同批落库保证版本一致；不再镜像main（浅克隆推送被CNB拒绝，
+      # 仓库181MB全量拉取代价过高，且增量更新已不依赖main）。
+      # [skip ci]防触发自身，且workflow只监听main不受影响
       - name: 发布资产到 dist 分支
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -73,13 +81,18 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout --orphan dist-tmp
           git rm -rf --cached . -q
-          find . -mindepth 1 -maxdepth 1 ! -name 'kirito-extension.zip' ! -name 'manifest.json' ! -name 'version.txt' ! -name '.git' -exec rm -rf {} +
-          git add -f kirito-extension.zip manifest.json version.txt
+          cp kirito扩展/extension.js /tmp/kt-extension.js
+          cp kirito扩展/info.json /tmp/kt-info.json
+          find kirito扩展 -mindepth 1 -delete
+          find . -mindepth 1 -maxdepth 1 ! -name 'kirito-extension.zip' ! -name 'manifest.json' ! -name 'version.txt' ! -name 'kirito扩展' ! -name '.git' -exec rm -rf {} +
+          cp /tmp/kt-extension.js kirito扩展/extension.js
+          cp /tmp/kt-info.json kirito扩展/info.json
+          git add -f kirito-extension.zip manifest.json version.txt kirito扩展/extension.js kirito扩展/info.json
           git commit -m "发版资产 v$(cat version.txt) [skip ci]"
           git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist-tmp:dist
-          echo "已推送 dist 分支（zip + manifest.json + version.txt）"
+          echo "已推送 dist 分支（zip + manifest.json + version.txt + 增量raw文件）"
 
-      # CNB（cnb.cool）镜像同步：main（增量raw源）+ dist（发版资产）。需在GitHub Secrets配置CNB_TOKEN
+      # CNB（cnb.cool）镜像同步：仅dist（发版资产+增量raw）。需在GitHub Secrets配置CNB_TOKEN
       # （cnb.cool 个人设置生成的访问令牌），未配置时本步跳过；同步失败不影响Release发布
       - name: 同步到 CNB 镜像
         if: env.CNB_TOKEN != ''
@@ -87,5 +100,5 @@ jobs:
           CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
         continue-on-error: true
         run: |
-          git push --force "https://cnb:${CNB_TOKEN}@cnb.cool/kirito.gry/kirito-noname-extension.git" refs/remotes/origin/main:refs/heads/main dist-tmp:refs/heads/dist
-          echo "已同步 main 与 dist 到 cnb.cool/kirito.gry/kirito-noname-extension"
+          git push --force "https://cnb:${CNB_TOKEN}@cnb.cool/kirito.gry/kirito-noname-extension.git" dist-tmp:refs/heads/dist
+          echo "已同步 dist 到 cnb.cool/kirito.gry/kirito-noname-extension"
