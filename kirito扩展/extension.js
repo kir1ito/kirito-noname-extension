@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.78";
+const VERSION = "3.79";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -2975,8 +2975,8 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 						 * ②每回合第一次【杀】指定目标：弃置其一张牌（所有区域），无牌可弃则改为你摸一张牌
 						 *   （无任何类型附加效果；此杀击杀则次数+1，语音沿用霆威）；
 						 * ③造成伤害后：受击者获得等量"麻"（用牌弃手牌后-1）、自己获得等量"霆"（寂灭大招只施加麻）；
-						 * ④寂灭为限定技：弃牌阶段结束，8枚"霆"可弃置释放（对一名角色造成等于其体力上限的
-						 *   雷电伤害+可彻底移除其一个技能，语音沿用寂灭）；造成一次雷伤+受到一次雷伤后重置
+						 * ④寂灭为限定技：弃牌阶段结束霆≥8时自动触发——清空全部"霆"并进入"神降"状态（语音沿用寂灭，
+ *   此后寂灭不再触发）；神降后按"霆"数获得被动：≥4受击给伤害来源1麻、≥8每回合一次手牌换判定拿原牌、≥12拼点+13
 						 * "霆"标记沿用独立名 ktleishen_ting，与本体/手杀标记互不干扰 */
 						ktleishen: {
 							fixed: true,
@@ -3009,11 +3009,10 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 									if (player.isDamaged()) {
 										await player.recover(trigger.num);
 									}
-										// 免伤同时增长等量霆标记，并驱动寂灭重置（def）——v3.76自星魂错位处落回正确位置
+										// 免伤同时增长等量霆标记
 										player.addSkill("ktleishen_ting");
 										player.addMark("ktleishen_ting", trigger.num);
 										game.log(player, "获得了", "#g" + trigger.num + "枚“霆”标记");
-										lib.skill.ktleishen_state.updateState(player, "def");
 								},
 								},
 								sha: {
@@ -3098,29 +3097,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 											player.addMark("ktleishen_ting", trigger.num);
 											game.log(player, "获得了", "#g" + trigger.num + "枚“霆”标记");
 										}
-										// 造成雷属性伤害：驱动寂灭重置状态（atk）
-										if (trigger.hasNature("thunder")) {
-											lib.skill.ktleishen_state.updateState(player, "atk");
-										}
-									},
-								},
-								state: {
-									charlotte: true,
-									updateState(player, type) {
-										if (!player.awakenedSkills.includes("ktleishen_release")) {
-											return;
-										}
-										if (type == "atk") {
-											player.markAuto("ktleishen", ["atk"]);
-										} else {
-											player.markAuto("ktleishen", ["def"]);
-										}
-										if (["atk", "def"].every((item) => player.getStorage("ktleishen").includes(item))) {
-											player.logSkill("ktleishen_release", null, null, null, [get.rand(3, 4)]);
-											player.refreshSkill("ktleishen_release");
-											player.setStorage("ktleishen", [], true);
-											game.log(player, "的〖雷神〗寂灭已重置");
-										}
 									},
 								},
 								ma: {
@@ -3164,84 +3140,157 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										}
 									},
 								},
-								release: {
-									audio: [
-										"ext:kirito扩展/audio/skill/ktjimie1.mp3",
-										"ext:kirito扩展/audio/skill/ktjimie2.mp3",
-										"ext:kirito扩展/audio/skill/ktjimie3.mp3",
-										"ext:kirito扩展/audio/skill/ktjimie4.mp3",
-									],
-									logAudio(event) {
-										if (typeof event === "number") {
-											return `ext:kirito扩展/audio/skill/ktjimie${event}.mp3`;
-										}
-										return [
+									shenjiang: {
+										charlotte: true,
+										mark: true,
+										marktext: "神",
+										intro: {
+											name: "神降",
+											name2: "神降",
+											content(storage, player) {
+												const n = player.countMark("ktleishen_ting");
+												const list = [`<li>当前“霆”：${n}`];
+												if (n >= 4) {
+													list.push("<li>4霆：受到伤害后，伤害来源获得1枚“麻”（至多1枚）");
+												}
+												if (n >= 8) {
+													list.push("<li>8霆：每回合限一次，你可以用手牌替换判定牌并获得原判定牌");
+												}
+												if (n >= 12) {
+													list.push("<li>12霆：你的拼点点数+13");
+												}
+												return list.join("");
+											},
+										},
+										group: ["ktleishen_fanma", "ktleishen_huanpan", "ktleishen_pd13"],
+									},
+									fanma: {
+										fixed: true,
+										forced: true,
+										// 神降4霆：受击后给伤害来源加麻（与造成伤害的麻同标记同上限）
+										trigger: { player: "damageAfter" },
+										filter(event, player) {
+											if (player.countMark("ktleishen_ting") < 4) {
+												return false;
+											}
+											const source = event.source;
+											return !!(source && source != player && source.isIn() && source.countMark("ktleishen_ma") < 1);
+										},
+										logTarget: "source",
+										async content(event, trigger, player) {
+											const source = trigger.source;
+											source.addSkill("ktleishen_ma");
+											source.addMark("ktleishen_ma", 1);
+											game.log(player, "的“神降”使", source, "获得了", "#g“麻”标记（至多1枚）");
+										},
+									},
+									huanpan: {
+										fixed: true,
+										// 神降8霆：每回合限一次，手牌替换判定牌并获得原判定牌（官方鬼道式respond+judging互换）
+										trigger: { global: "judge" },
+										filter(event, player) {
+											if (player.countMark("ktleishen_ting") < 8 || player.hasSkill("ktleishen_huanpanUsed")) {
+												return false;
+											}
+											return player.countCards("h") > 0 && !!(event.player.judging && event.player.judging.length);
+										},
+										async cost(event, trigger, player) {
+											event.result = await player
+												.chooseCard(
+													`${get.translation(trigger.player)}的${trigger.judgestr || ""}判定为${get.translation(trigger.player.judging[0])}，是否用手牌替换判定牌并获得原判定牌？（每回合限一次）`,
+													"h"
+												)
+												.set("ai", () => 0)
+												.forResult();
+											if (event.result.bool) {
+												player.addTempSkill("ktleishen_huanpanUsed", "phaseAfter");
+											}
+										},
+										async content(event, trigger, player) {
+											const next = player.respond(event.cards, event.name, "highlight", "noOrdering");
+											await next;
+											const { cards: cards2 } = next;
+											if (cards2 && cards2.length) {
+												player.$gain2(trigger.player.judging[0]);
+												await player.gain(trigger.player.judging[0]);
+												trigger.player.judging[0] = cards2[0];
+												trigger.orderingCards.addArray(cards2);
+												game.log(trigger.player, "的判定牌改为", cards2, "，", player, "获得了原判定牌");
+												await game.delay(2);
+											}
+										},
+										ai: { rejudge: true, tag: { rejudge: 1 } },
+									},
+									huanpanUsed: {
+										charlotte: true,
+										onremove: true,
+										mark: true,
+										intro: { content: "本回合已用过神降换判" },
+									},
+									pd13: {
+										fixed: true,
+										forced: true,
+										// 神降12霆：拼点点数+13（官方传书式compare加值，上限13即稳K）
+										trigger: { player: "compare", target: "compare" },
+										filter(event, player) {
+											if (player.countMark("ktleishen_ting") < 12) {
+												return false;
+											}
+											return (player == event.player ? event.num1 : event.num2) < 13;
+										},
+										async content(event, trigger, player) {
+											game.log(player, "的拼点点数+13");
+											if (player == trigger.player) {
+												trigger.num1 = Math.min(13, trigger.num1 + 13);
+											} else {
+												trigger.num2 = Math.min(13, trigger.num2 + 13);
+											}
+										},
+									},
+									release: {
+										audio: [
 											"ext:kirito扩展/audio/skill/ktjimie1.mp3",
 											"ext:kirito扩展/audio/skill/ktjimie2.mp3",
 											"ext:kirito扩展/audio/skill/ktjimie3.mp3",
 											"ext:kirito扩展/audio/skill/ktjimie4.mp3",
-										];
-									},
-									fixed: true,
-									limited: true,
-									trigger: { player: "phaseDiscardAfter" },
-									filter(_event, player) {
-										return player.countMark("ktleishen_ting") >= 8;
-									},
-									skillAnimation: true,
-									animationColor: "thunder",
-									async cost(event, trigger, player) {
-										event.result = await player
-											.chooseTarget({
-												prompt: get.prompt(event.skill) + "：弃8枚“霆”标记",
-												prompt2: "弃置8枚“霆”标记，对一名角色造成等于其体力上限的雷电伤害，并可彻底移除其一个技能",
-												ai(target) {
-													const player = get.player();
-													return get.damageEffect(target, player, player);
-												},
-											})
-											.forResult();
-									},
-									async content(event, trigger, player) {
-										// 释放演出：自带寂灭大招动画，播完再结算
-										if (lib._wssJimieBar?.playDazhao) {
-											await lib._wssJimieBar.playDazhao();
-										}
-										player.awakenSkill("ktleishen_release");
-										player.removeMark("ktleishen_ting", 8);
-										const target = event.targets[0];
-										const damageEvent = target.damage({ num: target.maxHp, nature: "thunder" });
-										// 标记本次伤害不产生霆（madamage结算时识别）
-										damageEvent.ktNoTing = true;
-										await damageEvent;
-										// 命中后可彻底移除目标的一个技能（fixed技能引擎层面拒绝移除，已从候选排除），也可放弃；自己命中的不询问
-										if (target.isIn() && target != player) {
-											const skills = target.getSkills().filter((skill) => {
-												const info = lib.skill[skill];
-												return info && !info.sub && !info.nopop && !info.fixed && lib.translate[skill] && !skill.startsWith("#");
-											});
-											if (skills.length) {
-												const result = await player
-													.chooseButton([
-														`雷神：是否彻底移除${get.translation(target)}的一个技能`,
-														[skills.map((skill) => [skill, get.translation(skill)]), "textbutton"],
-													])
-													.set("rmTarget", target)
-													.set("ai", (button) => (get.attitude(get.player(), get.event().rmTarget) < 0 ? 4 + Math.random() : 0))
-													.forResult();
-												if (result.bool && result.links[0]) {
-													const skill = result.links[0];
-													target.removeSkill(skill);
-													game.log(target, "的技能", "#g【" + get.translation(skill) + "】", "被雷神彻底移除");
-												}
+										],
+										logAudio(event) {
+											if (typeof event === "number") {
+												return `ext:kirito扩展/audio/skill/ktjimie${event}.mp3`;
 											}
-										}
-										if (lib._wssJimieBar) {
-											lib._wssJimieBar.update(player);
-										}
+											return [
+												"ext:kirito扩展/audio/skill/ktjimie1.mp3",
+												"ext:kirito扩展/audio/skill/ktjimie2.mp3",
+												"ext:kirito扩展/audio/skill/ktjimie3.mp3",
+												"ext:kirito扩展/audio/skill/ktjimie4.mp3",
+											];
+										},
+										fixed: true,
+										forced: true,
+										limited: true,
+										trigger: { player: "phaseDiscardAfter" },
+										filter(_event, player) {
+											// 神降后寂灭永久失效（awakenSkill已锁，此处双保险）
+											return !player.hasSkill("ktleishen_shenjiang") && player.countMark("ktleishen_ting") >= 8;
+										},
+										skillAnimation: true,
+										animationColor: "thunder",
+										async content(event, trigger, player) {
+											// 释放演出：自带寂灭大招动画，播完再结算
+											if (lib._wssJimieBar && lib._wssJimieBar.playDazhao) {
+												await lib._wssJimieBar.playDazhao();
+											}
+											player.awakenSkill("ktleishen_release");
+											const all = player.countMark("ktleishen_ting");
+											player.removeMark("ktleishen_ting", all);
+											player.addSkill("ktleishen_shenjiang");
+											game.log(player, "清空了全部", `#g${all}枚“霆”标记`, "，进入了", "#g【神降】", "状态");
+											if (lib._wssJimieBar) {
+												lib._wssJimieBar.update(player);
+											}
+										},
 									},
 								},
-							},
 						},
 						ktxinghun: {
 							audio: "ext:kirito扩展/audio/skill:2",
@@ -3496,7 +3545,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					grytouying: "降临",
 					grytouying_info: "锁定技。游戏开始时，你从技能池中挑选任意个技能加入本局游戏（可多选），挑选完成后失去此技能。技能池默认为本扩展全部技能，可在扩展设置的「降临技能池管理」中增加或排除。",
 					ktleishen: "雷神",
-					ktleishen_info: "①当你受到雷电伤害时，你防止之，然后你摸等量数量的牌并回复等量体力。②每回合你使用的第一张【杀】指定目标后（此【杀】每击杀一名角色，次数+1），你弃置其一张牌（手牌/装备），若其没有可弃置的牌，你改为摸一张牌。③你造成伤害后，其他角色获得1枚“麻”标记（至多1枚；其使用牌时须弃置一张装备牌并移去“麻”标记，装备区无牌时不消耗；不会施加给你自己），你获得等同于伤害值的“霆”标记（寂灭大招的伤害只施加“麻”）。④限定技，弃牌阶段结束时，你可以弃8枚“霆”标记，对一名角色造成等于其体力上限的雷电伤害，然后你可以彻底移除其一个技能（所有技能均可选，也可放弃移除；特殊技能不会被移除）。当你造成过一次雷电伤害并受到过一次雷电伤害后，重置此技能。",
+					ktleishen_info: "①当你受到雷电伤害时，你防止之，然后你摸等量数量的牌并回复等量体力。②每回合你使用的第一张【杀】指定目标后（此【杀】每击杀一名角色，次数+1），你弃置其一张牌（手牌/装备），若其没有可弃置的牌，你改为摸一张牌。③你造成伤害后，其他角色获得1枚“麻”标记（至多1枚；其使用牌时须弃置一张装备牌并移去“麻”标记，装备区无牌时不消耗；不会施加给你自己），你获得等同于伤害值的“霆”标记（寂灭大招的伤害只施加“麻”）。④限定技，弃牌阶段结束时，若你的“霆”标记数不小于8，你清空全部“霆”标记并进入“神降”状态（此后寂灭不再触发，“霆”持续累积）：“霆”数≥4，你受到伤害后，伤害来源获得1枚“麻”标记（至多1枚）；“霆”数≥8，每回合限一次，你可以用一张手牌替换判定牌并获得原判定牌；“霆”数≥12，你的拼点点数+13。",
 					ktleishen_immune: "雷神",
 					ktleishen_sha: "雷神",
 					ktleishen_state: "雷神",
@@ -3506,6 +3555,11 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					ktleishen_ma: "雷神",
 					ktleishen_punish: "雷神",
 					ktleishen_release: "雷神",
+					ktleishen_shenjiang: "神降",
+					ktleishen_fanma: "雷神",
+					ktleishen_huanpan: "雷神",
+					ktleishen_huanpanUsed: "神降",
+					ktleishen_pd13: "雷神",
 					ktleishen_ting: "霆",
 					ktleishen_ma_mark: "麻",
 					ktxinghun: "星魂",
