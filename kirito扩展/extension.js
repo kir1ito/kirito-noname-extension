@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.85";
+const VERSION = "3.86";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -3295,94 +3295,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 												return `已使用或打出的基本牌：${storage.map((name) => get.translation(name)).join("")}`;
 											},
 										},
-										group: ["ktleishen_weijing", "ktleishen_wuyi_nores"],
-									},
-									weijing: {
-										fixed: true,
-										// 武翊第1档：每轮限一次，视为使用一张任意【杀】或【闪】（移植potwuyi_weijing）
-										enable: "chooseToUse",
-										filter(event, player) {
-											if (player.countMark("ktleishen_ting") < 16 || player.getStorage("ktleishen_wuyi").length < 1) {
-												return false;
-											}
-											if (player.hasSkill("ktleishen_weijingRound")) {
-												return false;
-											}
-											return get.inpileVCardList((info) => {
-												if (!["sha", "shan"].includes(info[2])) {
-													return false;
-												}
-												const card = get.autoViewAs({ name: info[2], nature: info[3] }, "unsure");
-												return event.filterCard(card, player, event);
-											}).length;
-										},
-										chooseButton: {
-											dialog(event, player) {
-												const list = get.inpileVCardList((info) => {
-													if (!["sha", "shan"].includes(info[2])) {
-														return false;
-													}
-													const card = get.autoViewAs({ name: info[2], nature: info[3] }, "unsure");
-													return event.filterCard(card, player, event);
-												});
-												return ui.create.dialog("武翊", [list, "vcard"]);
-											},
-											filter(button, player) {
-												return _status.event.getParent().filterCard({ name: button.link[2] }, player, _status.event.getParent());
-											},
-											check(button) {
-												if (_status.event.getParent().type != "phase") {
-													return 1;
-												}
-												const player = get.player();
-												return player.getUseValue({ name: button.link[2], nature: button.link[3] });
-											},
-											backup(links, player) {
-												return {
-													filterCard: () => false,
-													selectCard: -1,
-													popname: true,
-													viewAs: { name: links[0][2], nature: links[0][3] },
-													log: false,
-													async precontent(event, trigger, player2) {
-														player2.logSkill("ktleishen_weijing");
-														player2.addTempSkill("ktleishen_weijingRound", "roundStart");
-													},
-												};
-											},
-											prompt(links, player) {
-												return "视为使用一张" + (get.translation(links[0][3]) || "") + get.translation(links[0][2]);
-											},
-										},
-										hiddenCard(player, name) {
-											if (player.countMark("ktleishen_ting") < 16 || player.getStorage("ktleishen_wuyi").length < 1) {
-												return false;
-											}
-											return !player.hasSkill("ktleishen_weijingRound") && ["sha", "shan"].includes(name);
-										},
-										ai: {
-											order: 3,
-											result: { player: 1 },
-											fireAttack: true,
-											respondSha: true,
-											respondShan: true,
-											skillTagFilter(player, tag, arg) {
-												if (arg === "respond") {
-													return false;
-												}
-												return (() => {
-													switch (tag) {
-														case "fireAttack":
-															return ["sha"];
-														default:
-															return [tag.slice("respond".length).toLowerCase()];
-													}
-												})().some((name) => get.info("ktleishen_weijing").hiddenCard(player, name));
-											},
-										},
-									},
-									weijingRound: {
-										charlotte: true,
+										group: ["ktleishen_wuyi_nores"],
 									},
 									wuyi_nores: {
 										fixed: true,
@@ -3740,8 +3653,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					ktleishen_release: "雷神",
 					ktleishen_fanma: "雷神",
 					ktleishen_wuyi: "武翊",
-					ktleishen_weijing: "武翊",
-					ktleishen_weijingRound: "武翊",
 					ktleishen_wuyi_nores: "武翊",
 					ktleishen_huanpan: "雷神",
 					ktleishen_huanpanUsed: "神降",
