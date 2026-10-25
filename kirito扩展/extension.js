@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.84";
+const VERSION = "3.85";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -3419,7 +3419,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										// 12霆触发寂灭选择：上限雷伤+抹技能；不消耗霆、每局游戏限一次（released标记）
 										trigger: { player: "phaseDiscardAfter" },
 										filter(_event, player) {
-											return player.countMark("ktleishen_ting") >= 12 && !player.getStorage("ktleishen_released");
+											return player.countMark("ktleishen_ting") >= 12 && !player.storage.ktleishen_released;
 										},
 										skillAnimation: true,
 										animationColor: "thunder",
