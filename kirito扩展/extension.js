@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.82";
+const VERSION = "3.83";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -3006,12 +3006,13 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 						 * ②每回合第一次【杀】指定目标：弃置其一张牌（所有区域），无牌可弃则改为你摸一张牌
 						 *   （无任何类型附加效果；此杀击杀则次数+1，语音沿用霆威）；
 						 * ③造成伤害后：受击者获得等量"麻"（用牌弃手牌后-1）、自己获得等量"霆"（寂灭大招只施加麻）；
-						 * ④弃牌阶段结束霆≥16可触发寂灭：清空全部霆+对一名角色造成其体力上限的雷伤+可抹一个技能（可反复
- *   触发）；霆数常驻被动：≥4受击给伤害来源1麻、≥8每回合一次手牌换判定拿原牌、≥12拼点+13
+						 * ④弃牌阶段结束霆≥12可触发寂灭：对一名角色造成其体力上限的雷伤+可抹一个技能（不消耗霆、每局一次）；
+ *   霆数常驻被动：≥4拼点+3、≥8每回合一次手牌换判定拿原牌、≥16武翊（基本牌牌名解锁：每轮一次视为杀/闪、
+ *   无次数限制、无距离限制、不可被响应）
 						 * "霆"标记沿用独立名 ktleishen_ting，与本体/手杀标记互不干扰 */
 						ktleishen: {
 							fixed: true,
-							group: ["ktleishen_immune", "ktleishen_sha", "ktleishen_madamage", "ktleishen_punish", "ktleishen_reset", "ktleishen_kill", "ktleishen_fanma", "ktleishen_huanpan", "ktleishen_pd13", "ktleishen_release"],
+							group: ["ktleishen_immune", "ktleishen_sha", "ktleishen_madamage", "ktleishen_punish", "ktleishen_reset", "ktleishen_kill", "ktleishen_wuyi", "ktleishen_huanpan", "ktleishen_pd13", "ktleishen_release"],
 							ai: {
 								nothunder: true,
 								effect: {
@@ -3171,26 +3172,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										}
 									},
 								},
-									fanma: {
-										fixed: true,
-										forced: true,
-										// 4霆：受击后给伤害来源加麻（与造成伤害的麻同标记同上限）
-										trigger: { player: "damageAfter" },
-										filter(event, player) {
-											if (player.countMark("ktleishen_ting") < 4) {
-												return false;
-											}
-											const source = event.source;
-											return !!(source && source != player && source.isIn() && source.countMark("ktleishen_ma") < 1);
-										},
-										logTarget: "source",
-										async content(event, trigger, player) {
-											const source = trigger.source;
-											source.addSkill("ktleishen_ma");
-											source.addMark("ktleishen_ma", 1);
-											game.log(player, "的“神降”使", source, "获得了", "#g“麻”标记（至多1枚）");
-										},
-									},
 									huanpan: {
 										fixed: true,
 										// 8霆：每回合限一次，手牌替换判定牌并获得原判定牌（官方鬼道式respond+judging互换）
@@ -3237,21 +3218,163 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 									pd13: {
 										fixed: true,
 										forced: true,
-										// 12霆：拼点点数+13（官方传书式compare加值，上限13即稳K）
+										// 4霆：拼点点数+3（官方传书式compare加值，上限13）
 										trigger: { player: "compare", target: "compare" },
 										filter(event, player) {
-											if (player.countMark("ktleishen_ting") < 12) {
+											if (player.countMark("ktleishen_ting") < 4) {
 												return false;
 											}
 											return (player == event.player ? event.num1 : event.num2) < 13;
 										},
 										async content(event, trigger, player) {
-											game.log(player, "的拼点点数+13");
+											game.log(player, "的拼点点数+3");
 											if (player == trigger.player) {
-												trigger.num1 = Math.min(13, trigger.num1 + 13);
+												trigger.num1 = Math.min(13, trigger.num1 + 3);
 											} else {
-												trigger.num2 = Math.min(13, trigger.num2 + 13);
+												trigger.num2 = Math.min(13, trigger.num2 + 3);
 											}
+										},
+									},
+									wuyi: {
+										fixed: true,
+										// 16霆·武翊式（移植势赵云potwuyi，第4档手牌恒4已替换为基本牌不可响应）：
+										// 记录从手牌使用或打出的基本牌牌名，按牌名数解锁：≥1每轮一次视为使用杀/闪、
+										// ≥2基本牌无次数限制、≥3基本牌无距离限制、≥4基本牌不可被响应
+										mod: {
+											cardUsable(card, player) {
+												if (player.countMark("ktleishen_ting") >= 16 && player.getStorage("ktleishen_wuyi").length > 1 && get.type(card) == "basic") {
+													return Infinity;
+												}
+											},
+											targetInRange(card, player) {
+												if (player.countMark("ktleishen_ting") >= 16 && player.getStorage("ktleishen_wuyi").length > 2 && get.type(card) == "basic") {
+													return true;
+												}
+											},
+										},
+										forced: true,
+										trigger: { player: ["useCard", "respond"] },
+										filter(event, player) {
+											if (player.countMark("ktleishen_ting") < 16) {
+												return false;
+											}
+											if (player.getStorage("ktleishen_wuyi").length >= 4) {
+												return false;
+											}
+											return player.hasHistory("lose", (evt) => evt.getParent() == event && evt.hs && evt.hs.length) && !player.getStorage("ktleishen_wuyi").includes(event.card.name) && get.type(event.card) == "basic";
+										},
+										async content(event, trigger, player) {
+											player.markAuto("ktleishen_wuyi", [trigger.card.name]);
+											game.log(player, "的武翊已记录牌名", "#g【" + get.translation(trigger.card.name) + "】");
+										},
+										intro: {
+											content(storage, player) {
+												if (!storage || !storage.length) {
+													return "尚未记录任何基本牌牌名";
+												}
+												return `已使用或打出的基本牌：${storage.map((name) => get.translation(name)).join("")}`;
+											},
+										},
+										group: ["ktleishen_weijing", "ktleishen_wuyi_nores"],
+									},
+									weijing: {
+										fixed: true,
+										// 武翊第1档：每轮限一次，视为使用一张任意【杀】或【闪】（移植potwuyi_weijing）
+										enable: "chooseToUse",
+										filter(event, player) {
+											if (player.countMark("ktleishen_ting") < 16 || player.getStorage("ktleishen_wuyi").length < 1) {
+												return false;
+											}
+											if (player.hasSkill("ktleishen_weijingRound")) {
+												return false;
+											}
+											return get.inpileVCardList((info) => {
+												if (!["sha", "shan"].includes(info[2])) {
+													return false;
+												}
+												const card = get.autoViewAs({ name: info[2], nature: info[3] }, "unsure");
+												return event.filterCard(card, player, event);
+											}).length;
+										},
+										chooseButton: {
+											dialog(event, player) {
+												const list = get.inpileVCardList((info) => {
+													if (!["sha", "shan"].includes(info[2])) {
+														return false;
+													}
+													const card = get.autoViewAs({ name: info[2], nature: info[3] }, "unsure");
+													return event.filterCard(card, player, event);
+												});
+												return ui.create.dialog("武翊", [list, "vcard"]);
+											},
+											filter(button, player) {
+												return _status.event.getParent().filterCard({ name: button.link[2] }, player, _status.event.getParent());
+											},
+											check(button) {
+												if (_status.event.getParent().type != "phase") {
+													return 1;
+												}
+												const player = get.player();
+												return player.getUseValue({ name: button.link[2], nature: button.link[3] });
+											},
+											backup(links, player) {
+												return {
+													filterCard: () => false,
+													selectCard: -1,
+													popname: true,
+													viewAs: { name: links[0][2], nature: links[0][3] },
+													log: false,
+													async precontent(event, trigger, player2) {
+														player2.logSkill("ktleishen_weijing");
+														player2.addTempSkill("ktleishen_weijingRound", "roundStart");
+													},
+												};
+											},
+											prompt(links, player) {
+												return "视为使用一张" + (get.translation(links[0][3]) || "") + get.translation(links[0][2]);
+											},
+										},
+										hiddenCard(player, name) {
+											if (player.countMark("ktleishen_ting") < 16 || player.getStorage("ktleishen_wuyi").length < 1) {
+												return false;
+											}
+											return !player.hasSkill("ktleishen_weijingRound") && ["sha", "shan"].includes(name);
+										},
+										ai: {
+											order: 3,
+											result: { player: 1 },
+											fireAttack: true,
+											respondSha: true,
+											respondShan: true,
+											skillTagFilter(player, tag, arg) {
+												if (arg === "respond") {
+													return false;
+												}
+												return (() => {
+													switch (tag) {
+														case "fireAttack":
+															return ["sha"];
+														default:
+															return [tag.slice("respond".length).toLowerCase()];
+													}
+												})().some((name) => get.info("ktleishen_weijing").hiddenCard(player, name));
+											},
+										},
+									},
+									weijingRound: {
+										charlotte: true,
+									},
+									wuyi_nores: {
+										fixed: true,
+										forced: true,
+										// 武翊第4档（替换原手牌恒4）：使用基本牌不可被响应（伏骑式directHit）
+										trigger: { player: "useCard" },
+										filter(event, player) {
+											return player.countMark("ktleishen_ting") >= 16 && player.getStorage("ktleishen_wuyi").length >= 4 && get.type(event.card) == "basic";
+										},
+										async content(event, trigger, player) {
+											trigger.directHit.addArray(game.players);
+											game.log(trigger.card, "不可被响应");
 										},
 									},
 									release: {
@@ -3273,18 +3396,18 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 											];
 										},
 										fixed: true,
-										// 16霆触发寂灭选择：清空全部霆+上限雷伤+抹技能，可反复触发（非限定）
+										// 12霆触发寂灭选择：上限雷伤+抹技能；不消耗霆、每局游戏限一次（released标记）
 										trigger: { player: "phaseDiscardAfter" },
 										filter(_event, player) {
-											return player.countMark("ktleishen_ting") >= 16;
+											return player.countMark("ktleishen_ting") >= 12 && !player.getStorage("ktleishen_released");
 										},
 										skillAnimation: true,
 										animationColor: "thunder",
 										async cost(event, trigger, player) {
 											event.result = await player
 												.chooseTarget({
-													prompt: get.prompt(event.skill) + "：清空全部“霆”标记",
-													prompt2: "清空全部“霆”标记，对一名角色造成等于其体力上限的雷电伤害，并可彻底移除其一个技能",
+													prompt: get.prompt(event.skill) + "：寂灭（每局游戏限一次）",
+													prompt2: "对一名角色造成等于其体力上限的雷电伤害，并可彻底移除其一个技能（不消耗“霆”标记，每局游戏限一次）",
 													ai(target) {
 														const player = get.player();
 														return get.damageEffect(target, player, player);
@@ -3297,8 +3420,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 											if (lib._wssJimieBar && lib._wssJimieBar.playDazhao) {
 												await lib._wssJimieBar.playDazhao();
 											}
-											const all = player.countMark("ktleishen_ting");
-											player.removeMark("ktleishen_ting", all);
+											player.setStorage("ktleishen_released", true);
 											const target = event.targets[0];
 											const damageEvent = target.damage({ num: target.maxHp, nature: "thunder" });
 											// 标记本次伤害不产生霆（madamage结算时识别，防止大招自我回充）
@@ -3586,7 +3708,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					grytouying: "降临",
 					grytouying_info: "锁定技。游戏开始时，你从技能池中挑选任意个技能加入本局游戏（可多选），挑选完成后失去此技能。技能池默认为本扩展全部技能，可在扩展设置的「降临技能池管理」中增加或排除。",
 					ktleishen: "雷神",
-					ktleishen_info: "①当你受到雷电伤害时，你防止之，然后你摸等量数量的牌并回复等量体力。②每回合你使用的第一张【杀】指定目标后（此【杀】每击杀一名角色，次数+1），你弃置其一张牌（手牌/装备），若其没有可弃置的牌，你改为摸一张牌。③你造成伤害后，其他角色获得1枚“麻”标记（至多1枚；其使用牌时须弃置一张装备牌并移去“麻”标记，装备区无牌时不消耗；不会施加给你自己），你获得等同于伤害值的“霆”标记（寂灭大招的伤害只施加“麻”）。“霆”标记达到阈值时获得对应效果：≥4，你受到伤害后，伤害来源获得1枚“麻”标记（至多1枚）；≥8，每回合限一次，你可以用一张手牌替换判定牌并获得原判定牌；≥12，你的拼点点数+13。④弃牌阶段结束时，若你的“霆”标记数不小于16，你可以清空全部“霆”标记并选择一名角色，对其造成等于其体力上限的雷电伤害，然后你可以彻底移除其一个技能（此伤害不产生“霆”，可反复触发）。",
+					ktleishen_info: "①当你受到雷电伤害时，你防止之，然后你摸等量数量的牌并回复等量体力。②每回合你使用的第一张【杀】指定目标后（此【杀】每击杀一名角色，次数+1），你弃置其一张牌（手牌/装备），若其没有可弃置的牌，你改为摸一张牌。③你造成伤害后，其他角色获得1枚“麻”标记（至多1枚；其使用牌时须弃置一张装备牌并移去“麻”标记，装备区无牌时不消耗；不会施加给你自己），你获得等同于伤害值的“霆”标记（寂灭大招的伤害只施加“麻”）。“霆”标记达到阈值时获得对应效果：≥4，你的拼点点数+3；≥8，每回合限一次，你可以用一张手牌替换判定牌并获得原判定牌；≥12，弃牌阶段结束时，你可以对一名角色造成等于其体力上限的雷电伤害，然后你可以彻底移除其一个技能（不消耗“霆”标记，每局游戏限一次）；≥16，获得“武翊”效果：记录你从手牌使用或打出的基本牌牌名，牌名数不小于1时每轮限一次你可视为使用一张任意【杀】或【闪】，不小于2时你使用基本牌无次数限制，不小于3时你使用基本牌无距离限制，不小于4时你使用的基本牌不可被响应。",
 					ktleishen_immune: "雷神",
 					ktleishen_sha: "雷神",
 					ktleishen_state: "雷神",
@@ -3596,7 +3718,10 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					ktleishen_ma: "雷神",
 					ktleishen_punish: "雷神",
 					ktleishen_release: "雷神",
-					ktleishen_fanma: "雷神",
+					ktleishen_wuyi: "武翊",
+					ktleishen_weijing: "武翊",
+					ktleishen_weijingRound: "武翊",
+					ktleishen_wuyi_nores: "武翊",
 					ktleishen_huanpan: "雷神",
 					ktleishen_huanpanUsed: "神降",
 					ktleishen_pd13: "雷神",
