@@ -67,10 +67,9 @@ jobs:
           gh release upload latest version.txt --clobber
           echo "已上传 kirito-extension.zip + manifest.json + version.txt（commit $GITHUB_SHA）"
 
-      # dist分支含发版资产（zip/manifest/version.txt）+ 增量更新raw文件（kirito扩展/extension.js、
-      # kirito扩展/info.json）：供CNB等纯git镜像走raw直链，无需在CNB侧另建Release。
-      # 增量文件与version.txt同批落库保证版本一致；不再镜像main（浅克隆推送被CNB拒绝，
-      # 仓库181MB全量拉取代价过高，且增量更新已不依赖main）。
+      # dist分支含发版资产（zip/manifest/version.txt）+ 全量raw文件树（整个kirito扩展/目录）：
+      # 供CNB等纯git镜像走raw直链，无需在CNB侧另建Release。全量raw保证安卓端图片等二进制
+      # 落盘失败时FileTransfer按同源raw直落盘自愈有址可用；不再镜像main（浅克隆推送被CNB拒绝）。
       # [skip ci]防触发自身，且workflow只监听main不受影响
       - name: 发布资产到 dist 分支
         env:
@@ -81,16 +80,12 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout --orphan dist-tmp
           git rm -rf --cached . -q
-          cp kirito扩展/extension.js /tmp/kt-extension.js
-          cp kirito扩展/info.json /tmp/kt-info.json
-          find kirito扩展 -mindepth 1 -delete
           find . -mindepth 1 -maxdepth 1 ! -name 'kirito-extension.zip' ! -name 'manifest.json' ! -name 'version.txt' ! -name 'kirito扩展' ! -name '.git' -exec rm -rf {} +
-          cp /tmp/kt-extension.js kirito扩展/extension.js
-          cp /tmp/kt-info.json kirito扩展/info.json
-          git add -f kirito-extension.zip manifest.json version.txt kirito扩展/extension.js kirito扩展/info.json
+          find kirito扩展 -type f \( -name '*.bak' -o -name '*.tmp' -o -name 'README.md' -o -name '.gitignore' \) -delete
+          git add -f kirito-extension.zip manifest.json version.txt kirito扩展
           git commit -m "发版资产 v$(cat version.txt) [skip ci]"
           git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist-tmp:dist
-          echo "已推送 dist 分支（zip + manifest.json + version.txt + 增量raw文件）"
+          echo "已推送 dist 分支（zip + manifest.json + version.txt + 全量raw文件树）"
 
       # CNB（cnb.cool）镜像同步：仅dist（发版资产+增量raw）。需在GitHub Secrets配置CNB_TOKEN
       # （cnb.cool 个人设置生成的访问令牌），未配置时本步跳过；同步失败不影响Release发布

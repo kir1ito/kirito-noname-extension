@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.88";
+const VERSION = "3.89";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -157,7 +157,8 @@ const ktWriteBinary = async (data, dir, name, srcUrl) => {
 		planList.push(["transfer", () => ktTransferWrite(srcUrl, dir, name)]);
 	}
 	planList.push(
-		["standard", async () => ktGameWrite(ktBinData(bytes), dir, name)],
+				// 安卓毒桥对二进制参数必损坏（v3.36取证），标准写入在cordova端只产出垃圾并触发FileError噪音，跳过
+				...(typeof window != "undefined" && window.cordova ? [] : [["standard", async () => ktGameWrite(ktBinData(bytes), dir, name)]]),
 		["direct",
 			async () => {
 				const root = localStorage.getItem("noname_inited");
@@ -340,10 +341,15 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 						encodeURI(`${root}${local}`),
 						() => {
 							game.readFile(local, (data) => {
-								try { game.removeFile(local, () => {}); } catch {}
-								resolve(data);
-							}, (e) => {
-								try { game.removeFile(local, () => {}); } catch {}
+					try { game.removeFile(local, () => {}); } catch {}
+					// 嗅探：FileTransfer对404/错误页也报成功，HTML内容一律按下载失败降级下一源
+					const u8 = data instanceof Uint8Array ? data : new Uint8Array(data || []);
+					const head = new TextDecoder().decode(u8.subarray(0, 256)).trim().toLowerCase();
+					if (head.startsWith("<!doctype") || head.startsWith("<html") || head.includes("<!doctype html")) {
+						reject(new Error("源返回了HTML错误页"));
+						return;
+					}
+					resolve(u8);
 								reject(e);
 							});
 						},
@@ -396,16 +402,30 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		};
 		const MANIFEST_NAME = "manifest.json";
 		// 增量：按源顺序下载单个原始文件（小文件，无需流式进度），返回{bytes, src}供FileTransfer直落盘复用同源地址
-		const downloadRaw = async (file) => {
+		const downloadRaw = async (file, expectVersion) => {
 			let lastError = null;
 			for (const { src } of sourceOrder) {
 				try {
 					if (src.cnb && ktNativeReady()) {
 						const data = await ktWithTimeout(ktNativeFetch(bustCache(rawUrlOf(src, file)), ".ktraw_cnb"), 60000);
+				// 版本校验：源返回的文件必须与Release报出的版本一致（防陈旧镜像/错误页写坏本地）
+				if (expectVersion) {
+					const text = new TextDecoder().decode(data instanceof Uint8Array ? data : new Uint8Array(data));
+					if (!text.includes(`VERSION = "${expectVersion}"`)) {
+						throw new Error(`内容与版本v${expectVersion}不符（源缓存陈旧或返回错误页）`);
+					}
+				}
 						return { bytes: data instanceof Uint8Array ? data : new Uint8Array(data), src };
 					}
 					const resp = await fetch(bustCache(rawUrlOf(src, file)), { signal: abortCtrl.signal });
 					if (!resp.ok) throw new Error(`RAW ${resp.status}`);
+					if (expectVersion) {
+						const text = new TextDecoder().decode(new Uint8Array(await resp.arrayBuffer()));
+						if (!text.includes(`VERSION = "${expectVersion}"`)) {
+							throw new Error(`内容与版本v${expectVersion}不符（源缓存陈旧或返回错误页）`);
+					}
+						return { bytes: new TextEncoder().encode(text), src };
+					}
 					return { bytes: new Uint8Array(await resp.arrayBuffer()), src };
 				} catch (e) {
 					if (e.name == "AbortError") throw e;
@@ -739,7 +759,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					$.progress.textContent = `增量下载 · ${done + 1}/${order.length}`;
 					$.cur.textContent = file;
 					curFile = file;
-					const { bytes, src } = await downloadRaw(file);
+					const { bytes, src } = await downloadRaw(file, file == "extension.js" ? releaseVersion : null);
 					done++;
 					// 附带该文件的实际下载源地址：安卓损坏内核二进制写入走FileTransfer直落盘
 					await writeFileTo(file, /\.json$/.test(file) ? new TextDecoder().decode(bytes) : bytes, rawUrlOf(src, file));
