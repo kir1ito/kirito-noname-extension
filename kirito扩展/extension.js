@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.83";
+const VERSION = "3.84";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -3007,12 +3007,12 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 						 *   （无任何类型附加效果；此杀击杀则次数+1，语音沿用霆威）；
 						 * ③造成伤害后：受击者获得等量"麻"（用牌弃手牌后-1）、自己获得等量"霆"（寂灭大招只施加麻）；
 						 * ④弃牌阶段结束霆≥12可触发寂灭：对一名角色造成其体力上限的雷伤+可抹一个技能（不消耗霆、每局一次）；
- *   霆数常驻被动：≥4拼点+3、≥8每回合一次手牌换判定拿原牌、≥16武翊（基本牌牌名解锁：每轮一次视为杀/闪、
- *   无次数限制、无距离限制、不可被响应）
+ *   霆数常驻被动：≥4拼点+13与受击反麻、≥8每回合一次手牌换判定拿原牌、≥16武翊（基本牌牌名解锁：
+ *   每轮一次视为杀/闪、无次数限制、无距离限制、不可被响应）
 						 * "霆"标记沿用独立名 ktleishen_ting，与本体/手杀标记互不干扰 */
 						ktleishen: {
 							fixed: true,
-							group: ["ktleishen_immune", "ktleishen_sha", "ktleishen_madamage", "ktleishen_punish", "ktleishen_reset", "ktleishen_kill", "ktleishen_wuyi", "ktleishen_huanpan", "ktleishen_pd13", "ktleishen_release"],
+							group: ["ktleishen_immune", "ktleishen_sha", "ktleishen_madamage", "ktleishen_punish", "ktleishen_reset", "ktleishen_kill", "ktleishen_fanma", "ktleishen_wuyi", "ktleishen_huanpan", "ktleishen_pd13", "ktleishen_release"],
 							ai: {
 								nothunder: true,
 								effect: {
@@ -3172,6 +3172,26 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										}
 									},
 								},
+									fanma: {
+										fixed: true,
+										forced: true,
+										// 4霆：受击后给伤害来源加麻（与造成伤害的麻同标记同上限），与拼点+13同为4档效果
+										trigger: { player: "damageAfter" },
+										filter(event, player) {
+											if (player.countMark("ktleishen_ting") < 4) {
+												return false;
+											}
+											const source = event.source;
+											return !!(source && source != player && source.isIn() && source.countMark("ktleishen_ma") < 1);
+										},
+										logTarget: "source",
+										async content(event, trigger, player) {
+											const source = trigger.source;
+											source.addSkill("ktleishen_ma");
+											source.addMark("ktleishen_ma", 1);
+											game.log(player, "的雷神使", source, "获得了", "#g“麻”标记（至多1枚）");
+										},
+									},
 									huanpan: {
 										fixed: true,
 										// 8霆：每回合限一次，手牌替换判定牌并获得原判定牌（官方鬼道式respond+judging互换）
@@ -3218,7 +3238,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 									pd13: {
 										fixed: true,
 										forced: true,
-										// 4霆：拼点点数+3（官方传书式compare加值，上限13）
+										// 4霆：拼点点数+13（官方传书式compare加值，上限13即稳K）
 										trigger: { player: "compare", target: "compare" },
 										filter(event, player) {
 											if (player.countMark("ktleishen_ting") < 4) {
@@ -3227,11 +3247,11 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 											return (player == event.player ? event.num1 : event.num2) < 13;
 										},
 										async content(event, trigger, player) {
-											game.log(player, "的拼点点数+3");
+											game.log(player, "的拼点点数+13");
 											if (player == trigger.player) {
-												trigger.num1 = Math.min(13, trigger.num1 + 3);
+												trigger.num1 = Math.min(13, trigger.num1 + 13);
 											} else {
-												trigger.num2 = Math.min(13, trigger.num2 + 3);
+												trigger.num2 = Math.min(13, trigger.num2 + 13);
 											}
 										},
 									},
@@ -3708,7 +3728,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					grytouying: "降临",
 					grytouying_info: "锁定技。游戏开始时，你从技能池中挑选任意个技能加入本局游戏（可多选），挑选完成后失去此技能。技能池默认为本扩展全部技能，可在扩展设置的「降临技能池管理」中增加或排除。",
 					ktleishen: "雷神",
-					ktleishen_info: "①当你受到雷电伤害时，你防止之，然后你摸等量数量的牌并回复等量体力。②每回合你使用的第一张【杀】指定目标后（此【杀】每击杀一名角色，次数+1），你弃置其一张牌（手牌/装备），若其没有可弃置的牌，你改为摸一张牌。③你造成伤害后，其他角色获得1枚“麻”标记（至多1枚；其使用牌时须弃置一张装备牌并移去“麻”标记，装备区无牌时不消耗；不会施加给你自己），你获得等同于伤害值的“霆”标记（寂灭大招的伤害只施加“麻”）。“霆”标记达到阈值时获得对应效果：≥4，你的拼点点数+3；≥8，每回合限一次，你可以用一张手牌替换判定牌并获得原判定牌；≥12，弃牌阶段结束时，你可以对一名角色造成等于其体力上限的雷电伤害，然后你可以彻底移除其一个技能（不消耗“霆”标记，每局游戏限一次）；≥16，获得“武翊”效果：记录你从手牌使用或打出的基本牌牌名，牌名数不小于1时每轮限一次你可视为使用一张任意【杀】或【闪】，不小于2时你使用基本牌无次数限制，不小于3时你使用基本牌无距离限制，不小于4时你使用的基本牌不可被响应。",
+					ktleishen_info: "①当你受到雷电伤害时，你防止之，然后你摸等量数量的牌并回复等量体力。②每回合你使用的第一张【杀】指定目标后（此【杀】每击杀一名角色，次数+1），你弃置其一张牌（手牌/装备），若其没有可弃置的牌，你改为摸一张牌。③你造成伤害后，其他角色获得1枚“麻”标记（至多1枚；其使用牌时须弃置一张装备牌并移去“麻”标记，装备区无牌时不消耗；不会施加给你自己），你获得等同于伤害值的“霆”标记（寂灭大招的伤害只施加“麻”）。“霆”标记达到阈值时获得对应效果：≥4，你的拼点点数+13，且你受到伤害后伤害来源获得1枚“麻”标记（至多1枚）；≥8，每回合限一次，你可以用一张手牌替换判定牌并获得原判定牌；≥12，弃牌阶段结束时，你可以对一名角色造成等于其体力上限的雷电伤害，然后你可以彻底移除其一个技能（不消耗“霆”标记，每局游戏限一次）；≥16，获得“武翊”效果：记录你从手牌使用或打出的基本牌牌名，牌名数不小于1时每轮限一次你可视为使用一张任意【杀】或【闪】，不小于2时你使用基本牌无次数限制，不小于3时你使用基本牌无距离限制，不小于4时你使用的基本牌不可被响应。",
 					ktleishen_immune: "雷神",
 					ktleishen_sha: "雷神",
 					ktleishen_state: "雷神",
@@ -3718,6 +3738,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					ktleishen_ma: "雷神",
 					ktleishen_punish: "雷神",
 					ktleishen_release: "雷神",
+					ktleishen_fanma: "雷神",
 					ktleishen_wuyi: "武翊",
 					ktleishen_weijing: "武翊",
 					ktleishen_weijingRound: "武翊",
