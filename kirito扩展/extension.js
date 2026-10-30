@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.99";
+const VERSION = "4.00";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1860,6 +1860,19 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		arenaReady: function () {},
 		content: function (config, pack) {
 		console.warn(`[kirito扩展] v${VERSION} content已加载`);
+		// 斗转星移chooseChar.css丢失样式补偿（v4.00）：10-22斗转星移更新重写chooseChar.css时丢失8组规则
+		// （倍率按钮ddz-multiple/选将卡光效jj-char-base-back/弹幕/卡牌提示底等），倍率UI因无尺寸变0x0
+		// 导致欢乐竞标死等点击。此处注入缺失规则（取自其自带chooseChar原版.css，仅路径改绝对），幂等
+		try {
+			if (!document.getElementById("kt-ddz-css-fix")) {
+				const st = document.createElement("style");
+				st.id = "kt-ddz-css-fix";
+				st.textContent = '\n\n/* 武将 */\n.dz_game_chr_bk_adj {\n  position: relative;\n  width: 120px;\n  height: 100%;\n}\n\n\n/* 未知 */\n.dz_game_chr_bk {\n  width: 106px;\n  height: 40px;\n  background: url(\'' + lib.assetURL + 'extension/斗转星移/image/chooseCharacter/game_chr_bk.png\') no-repeat center/contain;\n  /* background-size: 100% 100%; */\n}\n\n\n.wujiang-char-base-back.jj-char-base-back {\n  position: relative;\n  width: 88px;\n  height: 88px;\n  margin: 5px;\n}\n\n\n.wujiang-char-base-back.jj-char-base-back .dz_game_chr_bg_sg {\n  width: 100%;\n  height: 100%;\n  left: 0;\n  top: 0;\n  background-size: 100% 100%;\n  background-image: url(\'' + lib.assetURL + 'extension/斗转星移/image/chooseCharacter/game_arena_selectchar_bg.png\');\n}\n\n\n/*右手队友手牌*/\n.card_tips_bg {\n  background-color: none;\n  background-repeat: no-repeat;\n  background-image: url(\'' + lib.assetURL + 'extension/斗转星移/image/chooseCharacter/card_tips_bg.png\') !important;\n  background-size: 100% 100%;\n  opacity: 0.6;\n  width: 70px;\n  height: 110px;\n  /* left: 112px; */\n  bottom: -30px;\n  padding: 17px 2px 2px 2px;\n  text-align: center;\n  color: #FFFFCC;\n  text-shadow: -1.3px 0px 2.2px #000, 0px -1.3px 2.2px #000, 1.3px 0px 2.2px #000, 0px 1.3px 2.2px #000;\n  font-family: shousha;\n  font-size: 15px;\n  font-weight: 900;\n  z-index: 8 !important;\n}\n\n\n/* 弹幕 */\n.dz-danmu-area {\n  position: absolute;\n  top: 0;\n  left: 0;\n  width: 100%;\n  height: 100px;\n  overflow: hidden;\n  z-index: 18;\n  /* background-color: #28debd77; */\n  pointer-events: none;\n}\n\n\n.dz-danmu {\n  position: absolute;\n  white-space: nowrap;\n  font-size: 22px;\n  height: 30px;\n  color: white;\n  left: 100%;\n  width: 100%;\n  animation: danmu-scroll 10s linear forwards;\n  /* background-color: #c7d2d077; */\n}\n\n\n@keyframes danmu-scroll {\n  from {\n    transform: translateX(0%);\n  }\n\n  to {\n    transform: translateX(-200%);\n  }\n}\n\n\n/* 倍率 */\n.dz-sel-multiple-cont {\n  position: absolute;\n  top: calc(50% + 60px);\n  left: 0;\n  width: 100%;\n  height: 150px;\n  display: flex;\n  justify-content: center;\n  align-items: center;\n}\n\n\n.dz-sel-multiple-cont>.ddz-multiple:first-child {\n  width: 96px;\n  height: 96px;\n  top: -7px;\n  left: -10px;\n}\n\n\n.ddz-multiple {\n  position: relative;\n  width: 120px;\n  height: 120px;\n  background-image: url(\'' + lib.assetURL + 'extension/斗转星移/image/chooseCharacter/happy_fight_time1.png\');\n  background-size: contain;\n  background-repeat: no-repeat;\n  background-position: center;\n}\n\n\n.ddz-multiple:hover {\n  transform: scale(0.9);\n}\n\n\n/* 地主专属 */\n.happy1v2_empselbg {\n  position: absolute;\n  width: 110%;\n  height: 100%;\n  left: -5%;\n  background-image: url(\'' + lib.assetURL + 'extension/斗转星移/image/chooseCharacter/happy1v2_empselbg.png\');\n  background-size: contain;\n  background-position: center;\n  background-repeat: no-repeat;\n}\n';
+				document.head.appendChild(st);
+			}
+		} catch (e) {
+			console.warn("[kirito扩展]斗转星移样式补偿注入失败", e);
+		}
 		window.addEventListener("error", (e) => {
 			try { console.warn(`[kirito扩展]全局错误：${e.message} @ ${(e.filename || "?").split("/").slice(-2).join("/")}:${e.lineno}`); } catch (err) {}
 		});
