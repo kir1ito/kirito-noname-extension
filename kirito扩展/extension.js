@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.94";
+const VERSION = "3.95";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1213,6 +1213,42 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 						return list;
 					}
 				};
+			}
+			// 地主技补发（v3.95）：斗转星移选将后refreshZhuAfterChoose会uninit+init刷新AI地主节点
+			// （仅zhu!=me时），千幻的uninit清空全部技能——飞扬/跋扈等模式技不在武将数据里，init不会
+			// 带回（体力/身份dzxy都记得保留，唯独漏了模式技）。此处包装刷新函数，延时补发完整地主技
+			if (typeof proto.refreshZhuAfterChoose == "function" && !proto.refreshZhuAfterChoose.__ktZhuRestore) {
+				const origRefresh = proto.refreshZhuAfterChoose;
+				proto.refreshZhuAfterChoose = function (...args) {
+					const r = origRefresh.apply(this, args);
+					try {
+						if (lib.config.mode == "doudizhu" && !["online", "binglin"].includes(_status.mode)) {
+							let tries = 0;
+							const restore = () => {
+								tries++;
+								try {
+									const zhu = game.zhu;
+									if (zhu && zhu != game.me && !zhu.isInitFilter("noZhuSkill") && !zhu.hasSkill("bahu")) {
+										const list = [];
+										const version = _status.connectMode ? lib.configOL.feiyang_version : get.config("feiyang_version");
+										if (version === "online") list.push("feiyang");
+										else if (version === "mobile") list.push("mbfeiyang");
+										else if (version === "decade") list.push("dcfeiyang");
+										list.push("bahu");
+										const enhance = _status.connectMode ? lib.configOL.enhance_dizhu : get.config("enhance_dizhu");
+										if (["kaihei", "yinfu", "shiqiang", "qiangyi", "oldshiqiang"].includes(enhance)) list.push(enhance);
+										zhu.addSkill(list);
+										console.warn("[kirito扩展]已为被斗转星移刷新的AI地主补回地主技：" + list.join(","));
+									}
+								} catch (e) {}
+								if (tries < 10) setTimeout(restore, 500);
+							};
+							setTimeout(restore, 500);
+						}
+					} catch (e) {}
+					return r;
+				};
+				proto.refreshZhuAfterChoose.__ktZhuRestore = true;
 			}
 		};
 		const installDZX = () => {
