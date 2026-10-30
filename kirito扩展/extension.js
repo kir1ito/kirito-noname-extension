@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.96";
+const VERSION = "3.97";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1278,8 +1278,41 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 							tick++;
 							try {
 								const ev = _status.event;
-								const paused = _status.paused;
-								console.warn(`[kirito扩展]心跳#${tick}：event=${ev && ev.name}｜current=${ev && ev.current && (ev.current.name || ev.current.name1) || "?"}｜beilv=${ev && ev.beilv != null ? ev.beilv : "-"}｜等UI=${paused ? "是(" + (paused.name || "?") + ")" : "否"}`);
+								const paused = !!_status.paused;
+								if (paused && ev && ev.name == "chooseControl") {
+									// 挂起在竞标决策上：决策者=chooseControl的player，主事件=chooseCharacter
+									const decider = ev.player && (ev.player.name || ev.player.name1) || "?";
+									const parent = ev.getParent ? ev.getParent("chooseCharacter") : null;
+									let uiState = "-";
+									if (parent && parent.multipleCont) {
+										const hidden = parent.multipleCont.style.display === "none";
+										const c0 = parent.dialog && parent.dialog.content && parent.dialog.content.childNodes[0];
+										uiState = `${hidden ? "隐藏" : "显示"}｜标题节点=${c0 ? c0.tagName : "缺失"}｜子节点数=${parent.dialog && parent.dialog.content ? parent.dialog.content.childNodes.length : "?"}`;
+										// 自动抢救（v3.97）：等输入但倍数UI没显示＝斗转星移step1在show()之前抛错——
+										// 复刻其漏掉的显示逻辑，游戏直接解冻；节点信息同步用于定位DOM被谁改了
+										if (hidden && parent.current === game.me) {
+											try {
+												if (c0) c0.innerHTML = "是否抢地主？";
+												const beilvOk = parent.getBeilv(parent.beilv, parent.start != game.me);
+												for (const i of parent.beilvList) {
+													if (!beilvOk.includes(i.index)) i.classList.add("dz-gray", "dz-noclick");
+												}
+												parent.multipleCont.show();
+												if (parent.timebar) {
+													parent.timebar.reset("请选择押注倍数，叫3倍直接成为地主", 50000, 0);
+													parent.timebar.ele.show();
+												}
+												console.warn(`[kirito扩展]已抢救挂起的选将竞标（倍数UI原缺失，标题节点=${c0 ? c0.tagName : "缺失"}，子节点数=${parent.dialog.content.childNodes.length}）——倍数按钮已补显，请正常点击`);
+											} catch (e) {
+												console.warn("[kirito扩展]选将抢救失败", e);
+											}
+										}
+									}
+									console.warn(`[kirito扩展]心跳#${tick}：event=${ev.name}｜决策者=${decider}｜beilv=${ev.beilv != null ? ev.beilv : "-"}｜等UI=是｜倍数UI=${uiState}`);
+								} else {
+									const cur = ev && ev.current && (ev.current.name || ev.current.name1) || "?";
+									console.warn(`[kirito扩展]心跳#${tick}：event=${ev && ev.name}｜current=${cur}｜beilv=${ev && ev.beilv != null ? ev.beilv : "-"}｜等UI=否`);
+								}
 							} catch (e) {}
 							if (tick >= 45) {
 								clearInterval(window.__ktHuanleTimer);
