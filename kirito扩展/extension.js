@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.00";
+const VERSION = "4.01";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1947,6 +1947,12 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			// 供复现时F12对照（正常应为 跋扈=true｜飞扬=true｜子模式=huanle）。zhu缺失也照记
 			lib.announce.subscribe("Noname.Game.Event.GameStart", () => {
 				try {
+					// 选将流程正常走完：停掉欢乐选将心电图（v4.01修正：原挂content层从未生效）
+					if (window.__ktHuanleTimer) {
+						clearInterval(window.__ktHuanleTimer);
+						window.__ktHuanleTimer = null;
+						console.warn("[kirito扩展]选将心跳结束（已进入gameStart）");
+					}
 					if (lib.config.mode == "doudizhu") {
 						const zhu = game.zhu;
 						console.warn(`[kirito扩展]gameStart：子模式=${_status.mode}｜地主=${zhu ? (zhu.name || zhu.name1) : "缺失"}｜跋扈=${zhu ? zhu.hasSkill("bahu") : "-"}｜飞扬=${zhu ? (zhu.hasSkill("feiyang") || zhu.hasSkill("dcfeiyang") || zhu.hasSkill("mbfeiyang")) : "-"}｜禁用状态=${zhu && zhu.disabledSkills && (zhu.disabledSkills.bahu || zhu.disabledSkills.feiyang) ? "已禁用" : "未禁用"}`);
@@ -1954,12 +1960,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				} catch (e) { console.warn("[kirito扩展]地主诊断异常", e); }
 			});
 									console.warn("[kirito扩展]地主诊断已订阅（欢乐/休闲斗地主每局gameStart输出）");
-									// 选将流程正常走完：停掉欢乐选将心电图
-									if (window.__ktHuanleTimer) {
-										clearInterval(window.__ktHuanleTimer);
-										window.__ktHuanleTimer = null;
-										console.warn("[kirito扩展]选将心跳结束（已进入gameStart）");
-									}
 		// 陷阱：gameStart确认技能已发但玩家仍报"没有地主技"——包装removeSkill/removeSkills/
 		// disableSkill/addInvisibleSkill，凡针对飞扬/跋扈的操作打印调用栈（定位拿技能的扩展）
 		if (lib.config.mode == "doudizhu" && !window.__ktZhuSkillTrap) {
