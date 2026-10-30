@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.92";
+const VERSION = "3.93";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1727,7 +1727,13 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		connect: false,
 		arenaReady: function () {},
 		content: function (config, pack) {
-		console.log(`[kirito扩展] v${VERSION} content已加载`);
+		console.warn(`[kirito扩展] v${VERSION} content已加载`);
+		window.addEventListener("error", (e) => {
+			try { console.warn(`[kirito扩展]全局错误：${e.message} @ ${(e.filename || "?").split("/").slice(-2).join("/")}:${e.lineno}`); } catch (err) {}
+		});
+		window.addEventListener("unhandledrejection", (e) => {
+			try { console.warn(`[kirito扩展]未处理的Promise拒绝：${e.reason && (e.reason.stack || e.reason.message || e.reason)}`.slice(0, 400)); } catch (err) {}
+		});
 			// 每次启动自动导出配置快照到游戏根目录（PC端为配置源；构建流程在更新扩展时拾取打进扩展包）
 			ktConfigSync.exportSnapshot();
 			// 武将禁选中心：核心闸门包装 + 千幻聆音「禁用设置」弹窗插入 AI 禁用/玩家禁用勾选
@@ -1798,10 +1804,11 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				try {
 					if (lib.config.mode == "doudizhu") {
 						const zhu = game.zhu;
-						console.log(`[kirito扩展]gameStart：子模式=${_status.mode}｜地主=${zhu ? (zhu.name || zhu.name1) : "缺失"}｜跋扈=${zhu ? zhu.hasSkill("bahu") : "-"}｜飞扬=${zhu ? (zhu.hasSkill("feiyang") || zhu.hasSkill("dcfeiyang") || zhu.hasSkill("mbfeiyang")) : "-"}｜禁用状态=${zhu && zhu.disabledSkills && (zhu.disabledSkills.bahu || zhu.disabledSkills.feiyang) ? "已禁用" : "未禁用"}`);
+						console.warn(`[kirito扩展]gameStart：子模式=${_status.mode}｜地主=${zhu ? (zhu.name || zhu.name1) : "缺失"}｜跋扈=${zhu ? zhu.hasSkill("bahu") : "-"}｜飞扬=${zhu ? (zhu.hasSkill("feiyang") || zhu.hasSkill("dcfeiyang") || zhu.hasSkill("mbfeiyang")) : "-"}｜禁用状态=${zhu && zhu.disabledSkills && (zhu.disabledSkills.bahu || zhu.disabledSkills.feiyang) ? "已禁用" : "未禁用"}`);
 					}
 				} catch (e) { console.warn("[kirito扩展]地主诊断异常", e); }
 			});
+		console.warn("[kirito扩展]地主诊断已订阅（欢乐/休闲斗地主每局gameStart输出）");
 		},
 		prepare: function () {},
 		precontent: function (config) {
