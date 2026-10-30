@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.95";
+const VERSION = "3.96";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1264,6 +1264,33 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 						}
 					}
 				}
+				// 欢乐选将心电图（v3.96）：概率性卡死在倍率UI出现前且无任何报错——包装事件入口，
+				// 每2秒记录引擎状态（当前竞标人/倍率/是否在等UI/暂停事件名），冻结时最后几条心跳即现场
+				if (typeof game.chooseCharacterHuanle == "function" && !game.chooseCharacterHuanle.__ktWatch) {
+					const origHuanle = game.chooseCharacterHuanle;
+					game.chooseCharacterHuanle = function (...args) {
+						console.warn("[kirito扩展]欢乐选将事件启动，心跳开始（每2秒）");
+						if (window.__ktHuanleTimer) {
+							clearInterval(window.__ktHuanleTimer);
+						}
+						let tick = 0;
+						window.__ktHuanleTimer = setInterval(() => {
+							tick++;
+							try {
+								const ev = _status.event;
+								const paused = _status.paused;
+								console.warn(`[kirito扩展]心跳#${tick}：event=${ev && ev.name}｜current=${ev && ev.current && (ev.current.name || ev.current.name1) || "?"}｜beilv=${ev && ev.beilv != null ? ev.beilv : "-"}｜等UI=${paused ? "是(" + (paused.name || "?") + ")" : "否"}`);
+							} catch (e) {}
+							if (tick >= 45) {
+								clearInterval(window.__ktHuanleTimer);
+								window.__ktHuanleTimer = null;
+							}
+						}, 2000);
+						const r = origHuanle.apply(this, args);
+						return r;
+					};
+					game.chooseCharacterHuanle.__ktWatch = true;
+				}
 				return;
 			}
 			// 斗转星移可能晚于本扩展加载：轮询等待（最长60秒），缺席则静默放弃
@@ -1844,7 +1871,13 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					}
 				} catch (e) { console.warn("[kirito扩展]地主诊断异常", e); }
 			});
-		console.warn("[kirito扩展]地主诊断已订阅（欢乐/休闲斗地主每局gameStart输出）");
+									console.warn("[kirito扩展]地主诊断已订阅（欢乐/休闲斗地主每局gameStart输出）");
+									// 选将流程正常走完：停掉欢乐选将心电图
+									if (window.__ktHuanleTimer) {
+										clearInterval(window.__ktHuanleTimer);
+										window.__ktHuanleTimer = null;
+										console.warn("[kirito扩展]选将心跳结束（已进入gameStart）");
+									}
 		// 陷阱：gameStart确认技能已发但玩家仍报"没有地主技"——包装removeSkill/removeSkills/
 		// disableSkill/addInvisibleSkill，凡针对飞扬/跋扈的操作打印调用栈（定位拿技能的扩展）
 		if (lib.config.mode == "doudizhu" && !window.__ktZhuSkillTrap) {
