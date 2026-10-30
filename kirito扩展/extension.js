@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.97";
+const VERSION = "3.98";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1279,37 +1279,39 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 							try {
 								const ev = _status.event;
 								const paused = !!_status.paused;
-								if (paused && ev && ev.name == "chooseControl") {
-									// 挂起在竞标决策上：决策者=chooseControl的player，主事件=chooseCharacter
-									const decider = ev.player && (ev.player.name || ev.player.name1) || "?";
-									const parent = ev.getParent ? ev.getParent("chooseCharacter") : null;
-									let uiState = "-";
-									if (parent && parent.multipleCont) {
-										const hidden = parent.multipleCont.style.display === "none";
-										const c0 = parent.dialog && parent.dialog.content && parent.dialog.content.childNodes[0];
-										uiState = `${hidden ? "隐藏" : "显示"}｜标题节点=${c0 ? c0.tagName : "缺失"}｜子节点数=${parent.dialog && parent.dialog.content ? parent.dialog.content.childNodes.length : "?"}`;
-										// 自动抢救（v3.97）：等输入但倍数UI没显示＝斗转星移step1在show()之前抛错——
-										// 复刻其漏掉的显示逻辑，游戏直接解冻；节点信息同步用于定位DOM被谁改了
-										if (hidden && parent.current === game.me) {
-											try {
-												if (c0) c0.innerHTML = "是否抢地主？";
-												const beilvOk = parent.getBeilv(parent.beilv, parent.start != game.me);
-												for (const i of parent.beilvList) {
-													if (!beilvOk.includes(i.index)) i.classList.add("dz-gray", "dz-noclick");
-												}
-												parent.multipleCont.show();
-												if (parent.timebar) {
-													parent.timebar.reset("请选择押注倍数，叫3倍直接成为地主", 50000, 0);
-													parent.timebar.ele.show();
-												}
-												console.warn(`[kirito扩展]已抢救挂起的选将竞标（倍数UI原缺失，标题节点=${c0 ? c0.tagName : "缺失"}，子节点数=${parent.dialog.content.childNodes.length}）——倍数按钮已补显，请正常点击`);
-											} catch (e) {
-												console.warn("[kirito扩展]选将抢救失败", e);
+							if (paused && ev && ev.name == "chooseControl") {
+								// 挂起在竞标决策上：决策者=chooseControl的player（竞标期武将未init，name为空属正常）
+								const decider = ev.player && (ev.player.name || ev.player.name1) || "未init";
+								const parent = ev.getParent ? ev.getParent("chooseCharacter") : null;
+								let uiState = "-";
+								if (parent && parent.multipleCont) {
+									// noname的hide/show走hidden类而非内联样式——必须用classList判断（v3.97曾用style误判）
+									const mcHidden = parent.multipleCont.classList.contains("hidden");
+									const bg = parent.bigBg;
+									const bgState = bg ? (bg.isConnected ? (bg.classList.contains("hidden") ? "隐藏" : "在DOM") : "已移除") : "无";
+									const c0 = parent.dialog && parent.dialog.content && parent.dialog.content.childNodes[0];
+									uiState = `倍数UI=${mcHidden ? "隐藏" : "显示"}｜bigBg=${bgState}｜标题节点=${c0 ? c0.tagName : "缺失"}｜子节点数=${parent.dialog && parent.dialog.content ? parent.dialog.content.childNodes.length : "?"}`;
+									// 自动抢救（v3.98）：等输入但倍数UI仍带hidden类＝斗转星移step1在show()之前抛错——复刻其漏掉的显示逻辑
+									if (mcHidden && parent.current === game.me) {
+										try {
+											if (c0) c0.innerHTML = "是否抢地主？";
+											const beilvOk = parent.getBeilv(parent.beilv, parent.start != game.me);
+											for (const i of parent.beilvList) {
+												if (!beilvOk.includes(i.index)) i.classList.add("dz-gray", "dz-noclick");
 											}
+											parent.multipleCont.show();
+											if (parent.timebar) {
+												parent.timebar.reset("请选择押注倍数，叫3倍直接成为地主", 50000, 0);
+												parent.timebar.ele.show();
+											}
+											console.warn(`[kirito扩展]已抢救挂起的选将竞标（倍数UI原带hidden类，bigBg=${bgState}，子节点数=${parent.dialog.content.childNodes.length}）——倍数按钮已补显，请正常点击`);
+										} catch (e) {
+											console.warn("[kirito扩展]选将抢救失败", e);
 										}
 									}
-									console.warn(`[kirito扩展]心跳#${tick}：event=${ev.name}｜决策者=${decider}｜beilv=${ev.beilv != null ? ev.beilv : "-"}｜等UI=是｜倍数UI=${uiState}`);
-								} else {
+								}
+								console.warn(`[kirito扩展]心跳#${tick}：event=${ev.name}｜决策者=${decider}｜beilv=${ev.beilv != null ? ev.beilv : "-"}｜等UI=是｜${uiState}`);
+							} else {
 									const cur = ev && ev.current && (ev.current.name || ev.current.name1) || "?";
 									console.warn(`[kirito扩展]心跳#${tick}：event=${ev && ev.name}｜current=${cur}｜beilv=${ev && ev.beilv != null ? ev.beilv : "-"}｜等UI=否`);
 								}
