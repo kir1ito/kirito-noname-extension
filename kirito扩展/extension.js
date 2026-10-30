@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.93";
+const VERSION = "3.94";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1809,6 +1809,33 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				} catch (e) { console.warn("[kirito扩展]地主诊断异常", e); }
 			});
 		console.warn("[kirito扩展]地主诊断已订阅（欢乐/休闲斗地主每局gameStart输出）");
+		// 陷阱：gameStart确认技能已发但玩家仍报"没有地主技"——包装removeSkill/removeSkills/
+		// disableSkill/addInvisibleSkill，凡针对飞扬/跋扈的操作打印调用栈（定位拿技能的扩展）
+		if (lib.config.mode == "doudizhu" && !window.__ktZhuSkillTrap) {
+			window.__ktZhuSkillTrap = true;
+			const trapTargets = ["bahu", "feiyang"];
+			const hitSkill = (args) => args.some((a) => typeof a == "string" ? trapTargets.some((t) => a.includes(t)) : Array.isArray(a) && a.some((x) => typeof x == "string" && trapTargets.some((t) => x.includes(t))));
+			const trap = (name) => {
+				const proto = lib.element.player;
+				if (typeof proto[name] != "function" || proto[name].__ktZhuTrap) return;
+				const orig = proto[name];
+				proto[name] = function (...args) {
+					if (hitSkill(args)) {
+						console.warn(`[kirito扩展]捕获${name}：目标=${this.name || this.name1 || "?"}｜参数=${JSON.stringify(args).slice(0, 200)}`, new Error().stack.split("\n").slice(1, 6).join(" | "));
+					}
+					return orig.apply(this, args);
+				};
+				proto[name].__ktZhuTrap = true;
+			};
+			["removeSkill", "removeSkills", "disableSkill", "addInvisibleSkill"].forEach(trap);
+			setTimeout(() => {
+				try {
+					if (game.zhu) {
+						console.warn(`[kirito扩展]+25s复查：地主=${game.zhu.name || game.zhu.name1}｜跋扈=${game.zhu.hasSkill("bahu")}｜飞扬=${game.zhu.hasSkill("feiyang") || game.zhu.hasSkill("dcfeiyang") || game.zhu.hasSkill("mbfeiyang")}`);
+					}
+				} catch (e) {}
+			}, 25000);
+		}
 		},
 		prepare: function () {},
 		precontent: function (config) {
