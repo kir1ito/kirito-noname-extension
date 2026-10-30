@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.98";
+const VERSION = "3.99";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1309,6 +1309,40 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 											console.warn("[kirito扩展]选将抢救失败", e);
 										}
 									}
+								// 视觉取证（v3.99）：DOM正常但用户看不到＝缩放塌陷/遮挡/残留背景——rect+计算样式+命中测试
+								const probe = (el) => {
+									if (!el) return "无";
+									const cs = getComputedStyle(el);
+									const r = el.getBoundingClientRect();
+									return `${Math.round(r.width)}x${Math.round(r.height)}@${Math.round(r.left)},${Math.round(r.top)} zoom=${cs.zoom} op=${cs.opacity} vis=${cs.visibility} z=${cs.zIndex}`;
+								};
+								const mr = parent.multipleCont.getBoundingClientRect();
+								const cx = Math.round(mr.left + mr.width / 2);
+								const cy = Math.round(mr.top + mr.height / 2);
+								let hitEl = null;
+								if (mr.width > 0 && mr.height > 0) {
+									hitEl = document.elementFromPoint(cx, cy);
+								}
+								const hitStr = hitEl ? hitEl.tagName + "." + String(hitEl.className).slice(0, 40) : "矩形无效";
+								const leaked = document.querySelectorAll(".dz-bigBg").length;
+								console.warn(`[kirito扩展]视觉取证：bigBg[${probe(parent.bigBg)}] multipleCont[${probe(parent.multipleCont)}] 点击命中=${hitStr} 页面dz-bigBg数=${leaked}`);
+								// 自愈1：缩放塌陷（ScreenAdapter偶发算出0）——重置为1
+								if (parent.bigBg && (parent.bigBg.style.zoom === "0" || getComputedStyle(parent.bigBg).zoom == 0)) {
+									parent.bigBg.style.zoom = "1";
+									console.warn("[kirito扩展]已修复bigBg缩放塌陷（zoom 0→1）");
+								}
+								// 自愈2：被其他层遮挡（命中不在bigBg子树内）——抬升bigBg层级
+								if (parent.bigBg && hitEl && hitEl !== parent.multipleCont && !parent.bigBg.contains(hitEl) && !parent.multipleCont.contains(hitEl)) {
+									parent.bigBg.style.zIndex = "9999";
+									console.warn("[kirito扩展]bigBg被遮挡，已抬升至z-index 9999（命中元素=" + hitStr + "）");
+								}
+								// 自愈3：上局冻结残留的旧选将背景——清除当前之外的所有
+								if (leaked > 1 && parent.bigBg) {
+									document.querySelectorAll(".dz-bigBg").forEach((el) => {
+										if (el !== parent.bigBg) el.remove();
+									});
+									console.warn("[kirito扩展]已清除" + (leaked - 1) + "个残留的旧选将背景");
+								}
 								}
 								console.warn(`[kirito扩展]心跳#${tick}：event=${ev.name}｜决策者=${decider}｜beilv=${ev.beilv != null ? ev.beilv : "-"}｜等UI=是｜${uiState}`);
 							} else {
