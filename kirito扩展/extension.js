@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "3.89";
+const VERSION = "3.90";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1790,6 +1790,15 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				} catch (e) {
 					console.warn("kirito扩展：灌顶添加技能失败", e);
 				}
+			});
+			// 诊断：斗地主AI地主偶尔缺飞扬/跋扈——每局记录地主武将、技能状态与实际子模式，
+			// 供复现时F12对照（正常应为 跋扈=true｜飞扬=true｜子模式=huanle）
+			lib.announce.subscribe("Noname.Game.Event.GameStart", () => {
+				try {
+					if (lib.config.mode == "doudizhu" && game.zhu) {
+						console.log(`[kirito扩展]地主=${game.zhu.name || game.zhu.name1}｜跋扈=${game.zhu.hasSkill("bahu")}｜飞扬=${game.zhu.hasSkill("feiyang") || game.zhu.hasSkill("dcfeiyang") || game.zhu.hasSkill("mbfeiyang")}｜子模式=${_status.mode}`);
+					}
+				} catch (e) {}
 			});
 		},
 		prepare: function () {},
