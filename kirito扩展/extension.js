@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.01";
+const VERSION = "4.02";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1960,6 +1960,35 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				} catch (e) { console.warn("[kirito扩展]地主诊断异常", e); }
 			});
 									console.warn("[kirito扩展]地主诊断已订阅（欢乐/休闲斗地主每局gameStart输出）");
+		// 欢乐斗地主胜利奖励翻倍（v4.02）：斗转星移的onover回调从dzxy.ddzBeilv读倍数计奖，
+		// 我们在其回调前临时把ddzBeilv乘2（仅胜利时），它算完金票后还原——奖励翻倍且结算显示同步，
+		// 失败扣豆路径还原原值不受影响；不复制其公式，未来倍率/地主加成调整自动兼容
+		try {
+			if (Array.isArray(lib.onover) && !lib.onover.__ktDdzDouble) {
+				lib.onover.__ktDdzDouble = true;
+				const ddzDblOn = () => game.getExtensionConfig("kirito扩展", "ddzRewardDouble") !== false;
+				const ddzDblCtx = () => lib.config.mode == "doudizhu" && get.config("doudizhu_mode", "doudizhu") == "huanle" && window.dzxy && typeof dzxy.ddzBeilv == "number" && dzxy.ddzBeilv > 0;
+				let ddzSavedBeilv = null;
+				lib.onover.unshift((result) => {
+					try {
+						if (ddzDblOn() && result && ddzDblCtx()) {
+							ddzSavedBeilv = dzxy.ddzBeilv;
+							dzxy.ddzBeilv = ddzSavedBeilv * 2;
+						}
+					} catch (e) {}
+				});
+				lib.onover.push((result) => {
+					try {
+						if (ddzSavedBeilv != null) {
+							dzxy.ddzBeilv = ddzSavedBeilv;
+							ddzSavedBeilv = null;
+						}
+					} catch (e) {}
+				});
+			}
+		} catch (e) {
+			console.warn("[kirito扩展]奖励翻倍钩子安装失败", e);
+		}
 		// 陷阱：gameStart确认技能已发但玩家仍报"没有地主技"——包装removeSkill/removeSkills/
 		// disableSkill/addInvisibleSkill，凡针对飞扬/跋扈的操作打印调用栈（定位拿技能的扩展）
 		if (lib.config.mode == "doudizhu" && !window.__ktZhuSkillTrap) {
@@ -2252,6 +2281,11 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					"8": "8个",
 					"10": "10个",
 				},
+			ddzRewardDouble: {
+				name: "欢乐斗地主胜利奖励翻倍",
+				intro: "胜利获得的金票翻倍（押注倍数×100×地主×2 的基础上再×2），失败扣豆不受影响。结算画面显示同步翻倍。下一局生效",
+				init: true,
+			},
 			},
 			// 动皮仅自己展示：AI用同款武将回退静态皮，省性能
 			dynamicSkinSelfOnly: {
