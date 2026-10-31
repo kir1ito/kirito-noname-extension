@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.02";
+const VERSION = "4.03";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1961,19 +1961,19 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			});
 									console.warn("[kirito扩展]地主诊断已订阅（欢乐/休闲斗地主每局gameStart输出）");
 		// 欢乐斗地主胜利奖励翻倍（v4.02）：斗转星移的onover回调从dzxy.ddzBeilv读倍数计奖，
-		// 我们在其回调前临时把ddzBeilv乘2（仅胜利时），它算完金票后还原——奖励翻倍且结算显示同步，
+		// 我们在其回调前临时把ddzBeilv乘配置倍数（仅胜利时），它算完金票后还原——奖励翻倍且结算显示同步，
 		// 失败扣豆路径还原原值不受影响；不复制其公式，未来倍率/地主加成调整自动兼容
 		try {
 			if (Array.isArray(lib.onover) && !lib.onover.__ktDdzDouble) {
 				lib.onover.__ktDdzDouble = true;
-				const ddzDblOn = () => game.getExtensionConfig("kirito扩展", "ddzRewardDouble") !== false;
+				const ddzDblOn = () => Number(game.getExtensionConfig("kirito扩展", "ddzRewardDouble")) || 0;
 				const ddzDblCtx = () => lib.config.mode == "doudizhu" && get.config("doudizhu_mode", "doudizhu") == "huanle" && window.dzxy && typeof dzxy.ddzBeilv == "number" && dzxy.ddzBeilv > 0;
 				let ddzSavedBeilv = null;
 				lib.onover.unshift((result) => {
 					try {
-						if (ddzDblOn() && result && ddzDblCtx()) {
+						if (ddzDblOn() > 1 && result && ddzDblCtx()) {
 							ddzSavedBeilv = dzxy.ddzBeilv;
-							dzxy.ddzBeilv = ddzSavedBeilv * 2;
+							dzxy.ddzBeilv = ddzSavedBeilv * ddzDblOn();
 						}
 					} catch (e) {}
 				});
@@ -2282,9 +2282,18 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					"10": "10个",
 				},
 			ddzRewardDouble: {
-				name: "欢乐斗地主胜利奖励翻倍",
-				intro: "胜利获得的金票翻倍（押注倍数×100×地主×2 的基础上再×2），失败扣豆不受影响。结算画面显示同步翻倍。下一局生效",
-				init: true,
+				name: "欢乐斗地主胜利奖励倍数",
+				intro: "胜利获得的金票在原倍数（押注倍数×100×地主×2）基础上乘以该倍数，失败扣豆不受影响，结算画面显示同步。下一局生效",
+				init: "10",
+				item: {
+					"1": "1倍（原版）",
+					"2": "2倍",
+					"5": "5倍",
+					"10": "10倍",
+					"20": "20倍",
+					"50": "50倍",
+					"100": "100倍",
+				},
 			},
 			},
 			// 动皮仅自己展示：AI用同款武将回退静态皮，省性能
