@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.03";
+const VERSION = "4.04";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -2281,6 +2281,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					"8": "8个",
 					"10": "10个",
 				},
+			},
 			ddzRewardDouble: {
 				name: "欢乐斗地主胜利奖励倍数",
 				intro: "胜利获得的金票在原倍数（押注倍数×100×地主×2）基础上乘以该倍数，失败扣豆不受影响，结算画面显示同步。下一局生效",
@@ -2294,7 +2295,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					"50": "50倍",
 					"100": "100倍",
 				},
-			},
 			},
 			// 动皮仅自己展示：AI用同款武将回退静态皮，省性能
 			dynamicSkinSelfOnly: {
