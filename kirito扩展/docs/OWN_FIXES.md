@@ -111,15 +111,13 @@
 - 移除方式: 删 `curTheme` 自愈段（extension.js 搜 `curTheme`）
 - 代码锚: extension.js 搜 `curTheme`
 
-## FIX-10 手机端字体face全部加载失败（1.11.6.1字体投递方式变更+cordova环境）
-- 引入 v4.15｜状态: 生效中
-- 上游bug: 1.11.6.1重构后字体投递改为 `font/*.woff2` 经 `lib.assetURL` 绝对URL加载（init/index.js:165-181 无条件注册6字体@font-face，src=local('方正XX_GBK')+url(woff2)），原版css对字体覆盖是齐全的（`#arena>.skillbar`=huangcao、`.skillbartext`=xinwei、`.player>.name`=xinwei、cssstyles动态规则人名=xingkai/身份=huangcao）。**安卓cordova环境下这些woff2全部加载失败**（实测截图：技能栏/武将名条全回退黑体加粗，而规则本身存在）→ 凡依赖@font-face的文本一律黑体。PC（http://localhost:8089）加载正常。旧版内核（app/index.css时代）用相对路径xinwei.ttf，无此问题
-- 附注（PC侧残留文件现象）: 旧app/index.css（启动页样式）的 `div{font-family:'xinwei'}` 曾意外充当全局基线，1.11.6.1已删除该文件；PC靠增量更新残留掩盖（未覆盖文本=xinwei），干净安装的未覆盖文本=body黑体栈——与手机主因（face加载失败）是两个独立问题
-- 实现: ① kirito模块导入期注入 `div{font-family:'xinwei'}` 基线（对齐PC观感，幂等）；② **主修复**——对内核6字体（xinwei/xingkai/huangcao/shousha/yuanli/xiaozhuan）逐个 `document.fonts.load/check` 自检，检测不过则 `game.promises.readFile('font/*.woff2')` 读字节 → `new FontFace(family, ArrayBuffer)` 直装 document.fonts，完全绕开URL加载通道（cordova文件API已由更新中心验证可用）
-- 上游已修判定: 内核改用相对路径/内联字体或修复cordova下woff2加载（可用十周年UI"调试助手"控制台 `document.fonts.forEach(f=>console.log(f.family,f.status))` 验证，全部loaded即可摘）
-- 移除方式: 删 `__ktFontBaseline` 整段（extension.js 模块级）
-- 代码锚: extension.js 搜 `__ktFontBaseline`
-- 备注: 包内证据——完整包zip无app/、无xinwei.ttf；font/仅9个woff2。若兜底也失败（日志无"已经文件API补装"），疑点转向 font/ 目录未随覆盖落盘（覆盖不完整）或读取路径问题，需在手机端核实
+## FIX-10 手机端字体全部回退黑体（十周年UI字体加载链问题）
+- 引入 v4.15｜**移除于 v4.16**｜状态: 已摘除
+- 现象: 用户安卓端（覆盖1.11.6.1完整包后）对局内技能栏/武将名条全部回退黑体加粗
+- kirito曾做: 注入 `div{font-family:'xinwei'}` 基线 + document.fonts自检 + 游戏文件API读font/*.woff2经FontFace直装兜底——**方向判断错误，已全部摘除**
+- **真实答案（用户实测确认）: 十周年UI `src/core/decadeModule.js`**——其运行时按模式/样式门控加载 `ui/styles/fonts.css`（ATLL/BKJT/FZLBJW/FZLSFT/HYZLSJ/WDZLFT/dui-shousha）及 base/character/lbtn/skill 系列css（decadeModule.js:142-162，`EXCLUDED_MODES` = chess/tafang/hs_hearthstone），字体渲染由这条加载链决定，非内核字体系统问题。修复应落在十周年UI侧（升级/修其decadeModule.js），kirito不越界
+- 保留的排查事实（供日后参考）: 内核对字体覆盖是齐全的（`#arena>.skillbar`=huangcao、`.skillbartext`=xinwei、cssstyles动态规则人名=xingkai/身份=huangcao，`font/*.woff2`由init无条件注册@font-face）；完整包1.11.6.1无app/目录（旧app/index.css的div基线已随重构消失，PC靠增量更新残留掩盖）；十周年UI自有6字体文件在 `ui/assets/fonts/`，其css引用的 shousha/yuanli/xingkai 由内核font/目录注册
+- 教训: 现象（全局回退黑体）与两层字体系统（内核+十周年UI）交织，未拿到设备实测数据前勿下结论；用户指认的文件优先级高于推断
 
 ## 检查流程（上游更新后执行）
 1. 对 FIX-1~5 逐条跑「上游已修判定」的 grep
