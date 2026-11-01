@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.11";
+const VERSION = "4.12";
 
 // 千幻聆音 qhlyUI.assets 注册表守卫（v4.10）：其 content.js:233 启动期读取
 // window.qhlyUI.assets.pinzhi/huanpifu/huanfu.name 时观测到注册项缺失（1.11.6.1内核，
@@ -2071,6 +2071,20 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					};
 					spineProto.prepSpine.__ktGuard = true;
 					console.warn("[kirito扩展]十周年UI动皮解析静默化已就位");
+		// ⑦ 千幻主题配置自愈（v4.12）：配置指向已不存在的主题（实测"xin"，当前千幻5.2.00主题表
+		//    无此项）时，其game.open钩子setSize读currentViewSkin.whr崩——所有对话框（含斗转星移
+		//    选将的倍数界面）无法打开，且这正是此前"倍数界面卡死"的根因（旧内核吞掉该UI事件异常，
+		//    新内核向上传播）。检测到主题键失效时回退decade并同步双配置键
+		try {
+			const curTheme = lib.config.qhly_currentViewSkin;
+			if (typeof curTheme == "string" && curTheme && (!lib.qhly_viewskin || !lib.qhly_viewskin[curTheme])) {
+				lib.config.qhly_currentViewSkin = "decade";
+				lib.config["extension_千幻聆音_qhly_currentViewSkin"] = "decade";
+				game.saveConfig("qhly_currentViewSkin", "decade");
+				game.saveConfig("extension_千幻聆音_qhly_currentViewSkin", "decade");
+				console.warn(`[kirito扩展]千幻主题配置指向不存在的"${curTheme}"，已回退为decade——对话框打开不再崩溃（含倍数界面）`);
+			}
+		} catch (e) {}
 				}
 			}
 		} catch (e) {}

@@ -102,6 +102,14 @@
 - 移除方式: 删 `__ktGuard`（prepSpine包装段）
 - 代码锚: extension.js 搜 `prepSpine.__ktGuard`
 
+## FIX-9 千幻主题配置自愈（配置指向已删除的主题"xin"）
+- 引入 v4.12｜状态: 生效中
+- 上游bug: 用户配置 qhly_currentViewSkin="xin"（子琪自定义主题，其注册文件在当前千幻5.2.00中不存在——主题表只有decade/shousha/sanguo等12个）。千幻 game.open 钩子 setSize 读 currentViewSkin.whr 崩 → 所有对话框（含斗转星移选将的倍数界面）无法打开。**此即此前"倍数界面卡死"的根因**：旧内核静默吞掉该UI事件异常（千幻美化跳过、对话框照开），1.11.6.1内核向上传播 → 打开流程断裂
+- 实现: content期检测主题键不在 lib.qhly_viewskin → 双配置键回退 "decade" 并持久化
+- 上游已修判定: 千幻更新后主题表包含"xin"（即其注册文件回归）→ 可改回；或用户手动在千幻设置里重选主题
+- 移除方式: 删 `curTheme` 自愈段（extension.js 搜 `curTheme`）
+- 代码锚: extension.js 搜 `curTheme`
+
 ## 检查流程（上游更新后执行）
 1. 对 FIX-1~5 逐条跑「上游已修判定」的 grep
 2. 已修 → 按「移除方式」删代码 → `node --check`（拷到 /tmp/*.mjs 用 ESM 模式查）→ 双版本号 bump → `node sync-config.mjs` → 部署 md5 校验 → commit push → 用户测试
