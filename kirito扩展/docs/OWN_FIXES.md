@@ -119,6 +119,16 @@
 - 保留的排查事实（供日后参考）: 内核对字体覆盖是齐全的（`#arena>.skillbar`=huangcao、`.skillbartext`=xinwei、cssstyles动态规则人名=xingkai/身份=huangcao，`font/*.woff2`由init无条件注册@font-face）；完整包1.11.6.1无app/目录（旧app/index.css的div基线已随重构消失，PC靠增量更新残留掩盖）；十周年UI自有6字体文件在 `ui/assets/fonts/`，其css引用的 shousha/yuanli/xingkai 由内核font/目录注册
 - 教训: 现象（全局回退黑体）与两层字体系统（内核+十周年UI）交织，未拿到设备实测数据前勿下结论；用户指认的文件优先级高于推断
 
+## FIX-11 无名AI权重更新频繁超时（无名AI下载通道过于激进）
+- 引入 v4.17｜状态: 生效中
+- 上游bug: 无名AI的权重下载走全局fetch，主模型通道超时**仅12秒（含正文读取）**、自动检查**0重试**（`modelUpdate.js:474 retries: manual ? 1 : 0`），策略通道12/20秒（`policyModelUpdate.js timedFetch`）；下载源 data.feiqiaoai.uno（Cloudflare，CORS实测`*`）在直连环境下偏慢 → "经常失败和超时"。文件本身很小（主包~69KB/策略包~46KB），纯属网络耐心问题
+- 实现: ① kirito模块期接管该域名的 `window.fetch`（`__ktWuMingFetch`守卫）：**无视其AbortController信号**（那正是12秒定时器），自管45秒超时×3次尝试（1秒起退避；网络异常与5xx/429重试），缓冲正文后重构Response返回（剥离content-length/content-encoding防错位）——无名AI的校验/事务/备份管线原样运行；两模块的fetch均为调用时全局解析（`fetchImpl: typeof fetch==='function' ? fetch : null` / 裸`fetch(url)`），与扩展加载顺序无关。② kirito配置新增「更新无名AI权重（加速通道）」按钮：调 `__DJSC.modelUpdate.check()`（其原生更新窗口）+ `__DJSC.policyModelUpdate.check()`（检测到新版自动安装）
+- 影响范围: 仅 `data.feiqiaoai.uno` 域名；其上传通道（wuming-ingest.workers.dev）与其他扩展的fetch不受影响
+- 上游已修判定: 无名AI官方调大超时/增加重试（grep `fetchTextWithLimits` 的 timeoutMs 默认值 >12s 且 retries 不为0，或 timedFetch ms 上调）→ 可摘
+- 移除方式: 删 `__ktWuMingFetch` 整段（extension.js 模块级）+ 删配置项 `wuMingModelUpdate`
+- 代码锚: extension.js 搜 `__ktWuMingFetch` / `wuMingModelUpdate`
+- 备注: 2026-11-01实测域名可达（curl 200，GET带ACAO:*；HEAD返回501系服务端未实现，无关紧要）；主模型包服务器上是格式化JSON（69KB）而包内声明size=51534，扩展校验的是声明字段（一致），不影响安装
+
 ## 检查流程（上游更新后执行）
 1. 对 FIX-1~5 逐条跑「上游已修判定」的 grep
 2. 已修 → 按「移除方式」删代码 → `node --check`（拷到 /tmp/*.mjs 用 ESM 模式查）→ 双版本号 bump → `node sync-config.mjs` → 部署 md5 校验 → commit push → 用户测试

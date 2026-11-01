@@ -2,7 +2,51 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.16";
+const VERSION = "4.17";
+
+// FIX-11 无名AI权重更新网络护甲（v4.17）：无名AI自带的权重下载走全局fetch，超时仅12秒（含正文
+// 读取）且自动检查0重试，data.feiqiaoai.uno（Cloudflare）在直连环境下偏慢→"经常失败和超时"。
+// 对该域名的fetch接管为耐心版：无视其AbortController信号（那正是12秒定时器），自管45秒超时×3次
+// 尝试（1秒起退避），缓冲正文后重构Response返回——无名AI的校验/事务应用管线原样运行，上传通道
+// （wuming-ingest.workers.dev）不受影响。CORS已实测为*（PC/安卓fetch均可通），失败纯属网络慢
+try {
+	if (!window.__ktWuMingFetch) {
+		window.__ktWuMingFetch = true;
+		const ktOrigFetch = window.fetch.bind(window);
+		const ktWuMingURL = /https?:\/\/data\.feiqiaoai\.uno\//;
+		// 耐心GET：45秒超时，网络异常与5xx/429各最多重试2次（1秒起指数退避），成功后缓冲正文
+		const ktWuMingGet = async (url, tries) => {
+			for (let i = 0; ; i++) {
+				try {
+					const ctl = new AbortController();
+					const timer = setTimeout(() => { try { ctl.abort(); } catch (e) {} }, 45000);
+					let res;
+					try {
+						res = await ktOrigFetch(url, { method: "GET", cache: "no-store", signal: ctl.signal });
+					} finally {
+						clearTimeout(timer);
+					}
+					if (res.ok || (res.status < 500 && res.status !== 429) || i >= tries) {
+						const text = await res.text();
+						const headers = new Headers(res.headers);
+						headers.delete("content-length");
+						headers.delete("content-encoding");
+						return new Response(text, { status: res.status, statusText: res.statusText, headers });
+					}
+				} catch (e) {
+					if (i >= tries) throw e;
+				}
+				await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+			}
+		};
+		window.fetch = function (input) {
+			let url = "";
+			try { url = typeof input == "string" ? input : (input && input.url) || String(input); } catch (e) {}
+			if (!ktWuMingURL.test(url)) return ktOrigFetch.apply(this, arguments);
+			return ktWuMingGet(url, 2);
+		};
+	}
+} catch (e) {}
 
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
@@ -2317,6 +2361,22 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				clear: true,
 				onclick() {
 					ktUpdateCenter.open();
+				},
+			},
+			// 无名AI权重更新：走其原生管线（校验/事务/备份全保留），kirito网络护甲让下载不再12秒超时
+			wuMingModelUpdate: {
+				name: "更新无名AI权重（加速通道）",
+				intro: "通过无名AI自带的更新管线拉取官方权重（主模型+策略模型）。kirito已接管其下载通道：45秒超时×3次重试，替代原版12秒×0-1次重试，解决「经常失败和超时」。需「无名AI」扩展处于开启状态",
+				clear: true,
+				onclick() {
+					const d = window.__DJSC;
+					if (!d || !d.modelUpdate) {
+						alert("未检测到无名AI扩展（或未开启）。请先在扩展管理中开启「无名AI」并重启游戏");
+						return;
+					}
+					if (d.modelUpdate.check) d.modelUpdate.check().catch(() => {});
+					if (d.policyModelUpdate && d.policyModelUpdate.check) d.policyModelUpdate.check().catch(() => {});
+					alert("已通过无名AI原生管线发起权重检查（主模型+策略模型）。\n\n主模型如有新版会弹出无名AI自己的更新窗口，按提示下载即可；\n策略模型检测到新版会自动安装。\n\nkirito网络护甲已接管下载通道（45秒×3次重试），不再容易超时");
 				},
 			},
 			// 降临技能池：管理无上神〖降临〗局内可选的技能（默认本扩展全部技能，可增删，上限20）
