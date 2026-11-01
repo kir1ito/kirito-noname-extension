@@ -39,19 +39,12 @@
 - 代码锚: extension.js 搜 `showVersionMismatchDialog`
 
 ## FIX-5 欢乐选将倍率UI样式丢失补偿（斗转星移 10-22 版 chooseChar.css）
-- 引入 v4.00｜状态: **可能已冗余**（用户已装新斗转星移包，其 chooseChar.css 已恢复规则）
+- 引入 v4.00｜移除于 v4.07｜状态: 已摘除（新斗转星移包上游已修；伴随的DIAG-1心电图同批移除）
 - 上游bug: 斗转星移 10-22 更新重写 `css/chooseChar.css` 丢失 8 组规则（.ddz-multiple/.dz-sel-multiple-cont 倍率按钮尺寸、.jj-char-base-back/.dz_game_chr_bk/.happy1v2_empselbg 选将卡光效、.dz-danmu/.dz-danmu-area 弹幕、.card_tips_bg）→ 倍数容器 0×0 → 欢乐竞标死等点击
 - 实现: 启动时注入 `<style id="kt-ddz-css-fix">`（规则提取自其自带 chooseChar原版.css，图片路径改绝对），幂等
 - 上游已修判定: `grep "ddz-multiple" 斗转星移/css/chooseChar.css` ≥1 → 已修
 - 移除方式: 删 `kt-ddz-css-fix` 注入段
 - 代码锚: extension.js 搜 `kt-ddz-css-fix`
-
-## DIAG-1 欢乐选将心电图 + 视觉取证 + 自愈（伴随FIX-5的诊断系统）
-- 引入 v3.96-3.99｜状态: 诊断工具（根因已由FIX-5+新斗转包修复）
-- 内容: 包装 `game.chooseCharacterHuanle`，每 2s 记录引擎状态（事件名/决策者/倍率/倍数UI的hidden类/bigBg连通性/rect/computed/elementFromPoint命中/dz-bigBg泄漏数）；三自愈（zoom塌陷→1、遮挡→bigBg抬z9999、残留.dz-bigBg清除）；gameStart 停表（v4.01修正了停表位置）
-- 上游已修判定: FIX-5 确认修复 + 多局无冻结复发
-- 移除方式: 删 `__ktHuanleTimer` 相关（chooseCharacterHuanle 包装 + gameStart 停表段）
-- 代码锚: extension.js 搜 `__ktHuanleTimer`、`视觉取证`
 
 ---
 
