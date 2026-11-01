@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.08";
+const VERSION = "4.09";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1991,28 +1991,48 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				}
 			}
 		} catch (e) {}
-		// ⑤ arenaReady启动护甲（v4.08）：1.11.6.1内核上十周年UI旧src的arenaReady回调链读.name崩溃
-		//    炸掉启动——通用容错：队列内每个回调包try/catch，异常降级为日志，启动不再被任何扩展
-		//    的arenaReady回调阻断（这就是"缺方法就包一层"的通用版，后续上游修复无需改这里）
+		// ⑤ arenaReady启动护甲（v4.09属性拦截版）：1.11.6.1内核上十周年UI旧src的arenaReady回调链读.name
+		//    崩掉启动——defineProperty接管lib.arenaReady：初始队列/后续任何赋值/push进来的函数全部自动
+		//    包try/catch（异常降级为日志，启动不阻断），对赋值时机与来源免疫
 		try {
-			if (Array.isArray(lib.arenaReady)) {
-				let guardCount = 0;
-				for (let i = 0; i < lib.arenaReady.length; i++) {
-					const f = lib.arenaReady[i];
-					if (typeof f != "function" || f.__ktGuarded) continue;
-					lib.arenaReady[i] = function (...a) {
+			if (!lib.__ktArenaGuard) {
+				let ktQueue = Array.isArray(lib.arenaReady) ? lib.arenaReady : [];
+				const ktWrap = (f) => {
+					if (typeof f != "function" || f.__ktGuarded) return f;
+					const g = function (...a) {
 						try {
 							return f.apply(this, a);
 						} catch (e) {
 							console.warn("[kirito扩展]arenaReady回调异常已拦截（不阻断启动）:", (e && e.stack) || e);
 						}
 					};
-					lib.arenaReady[i].__ktGuarded = true;
-					guardCount++;
-				}
-				if (guardCount) console.warn(`[kirito扩展]已为${guardCount}个arenaReady回调装上启动容错护甲`);
+					g.__ktGuarded = true;
+					return g;
+				};
+				ktQueue = ktQueue.map(ktWrap);
+				ktQueue.push = (...fs) => {
+					Array.prototype.push.apply(ktQueue, fs.map(ktWrap));
+					return ktQueue.length;
+				};
+				Object.defineProperty(lib, "arenaReady", {
+					configurable: true,
+					get() {
+						return ktQueue;
+					},
+					set(v) {
+						ktQueue = (Array.isArray(v) ? v : []).map(ktWrap);
+						ktQueue.push = (...fs) => {
+							Array.prototype.push.apply(ktQueue, fs.map(ktWrap));
+							return ktQueue.length;
+						};
+					},
+				});
+				lib.__ktArenaGuard = true;
+				console.warn(`[kirito扩展]arenaReady启动护甲已就位（${ktQueue.length}个回调已包覆）`);
 			}
-		} catch (e) {}
+		} catch (e) {
+			console.warn("[kirito扩展]arenaReady护甲安装失败", e);
+		}
 		// 陷阱：gameStart确认技能已发但玩家仍报"没有地主技"——包装removeSkill/removeSkills/
 		// disableSkill/addInvisibleSkill，凡针对飞扬/跋扈的操作打印调用栈（定位拿技能的扩展）
 		if (lib.config.mode == "doudizhu" && !window.__ktZhuSkillTrap) {
