@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.06";
+const VERSION = "4.07";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1264,102 +1264,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 						}
 					}
 				}
-				// 欢乐选将心电图（v3.96）：概率性卡死在倍率UI出现前且无任何报错——包装事件入口，
-				// 每2秒记录引擎状态（当前竞标人/倍率/是否在等UI/暂停事件名），冻结时最后几条心跳即现场
-				if (typeof game.chooseCharacterHuanle == "function" && !game.chooseCharacterHuanle.__ktWatch) {
-					const origHuanle = game.chooseCharacterHuanle;
-					game.chooseCharacterHuanle = function (...args) {
-						console.warn("[kirito扩展]欢乐选将事件启动，心跳开始（每2秒）");
-						if (window.__ktHuanleTimer) {
-							clearInterval(window.__ktHuanleTimer);
-						}
-						let tick = 0;
-						window.__ktHuanleTimer = setInterval(() => {
-							tick++;
-							try {
-								const ev = _status.event;
-								const paused = !!_status.paused;
-							if (paused && ev && ev.name == "chooseControl") {
-								// 挂起在竞标决策上：决策者=chooseControl的player（竞标期武将未init，name为空属正常）
-								const decider = ev.player && (ev.player.name || ev.player.name1) || "未init";
-								const parent = ev.getParent ? ev.getParent("chooseCharacter") : null;
-								let uiState = "-";
-								if (parent && parent.multipleCont) {
-									// noname的hide/show走hidden类而非内联样式——必须用classList判断（v3.97曾用style误判）
-									const mcHidden = parent.multipleCont.classList.contains("hidden");
-									const bg = parent.bigBg;
-									const bgState = bg ? (bg.isConnected ? (bg.classList.contains("hidden") ? "隐藏" : "在DOM") : "已移除") : "无";
-									const c0 = parent.dialog && parent.dialog.content && parent.dialog.content.childNodes[0];
-									uiState = `倍数UI=${mcHidden ? "隐藏" : "显示"}｜bigBg=${bgState}｜标题节点=${c0 ? c0.tagName : "缺失"}｜子节点数=${parent.dialog && parent.dialog.content ? parent.dialog.content.childNodes.length : "?"}`;
-									// 自动抢救（v3.98）：等输入但倍数UI仍带hidden类＝斗转星移step1在show()之前抛错——复刻其漏掉的显示逻辑
-									if (mcHidden && parent.current === game.me) {
-										try {
-											if (c0) c0.innerHTML = "是否抢地主？";
-											const beilvOk = parent.getBeilv(parent.beilv, parent.start != game.me);
-											for (const i of parent.beilvList) {
-												if (!beilvOk.includes(i.index)) i.classList.add("dz-gray", "dz-noclick");
-											}
-											parent.multipleCont.show();
-											if (parent.timebar) {
-												parent.timebar.reset("请选择押注倍数，叫3倍直接成为地主", 50000, 0);
-												parent.timebar.ele.show();
-											}
-											console.warn(`[kirito扩展]已抢救挂起的选将竞标（倍数UI原带hidden类，bigBg=${bgState}，子节点数=${parent.dialog.content.childNodes.length}）——倍数按钮已补显，请正常点击`);
-										} catch (e) {
-											console.warn("[kirito扩展]选将抢救失败", e);
-										}
-									}
-								// 视觉取证（v3.99）：DOM正常但用户看不到＝缩放塌陷/遮挡/残留背景——rect+计算样式+命中测试
-								const probe = (el) => {
-									if (!el) return "无";
-									const cs = getComputedStyle(el);
-									const r = el.getBoundingClientRect();
-									return `${Math.round(r.width)}x${Math.round(r.height)}@${Math.round(r.left)},${Math.round(r.top)} zoom=${cs.zoom} op=${cs.opacity} vis=${cs.visibility} z=${cs.zIndex}`;
-								};
-								const mr = parent.multipleCont.getBoundingClientRect();
-								const cx = Math.round(mr.left + mr.width / 2);
-								const cy = Math.round(mr.top + mr.height / 2);
-								let hitEl = null;
-								if (mr.width > 0 && mr.height > 0) {
-									hitEl = document.elementFromPoint(cx, cy);
-								}
-								const hitStr = hitEl ? hitEl.tagName + "." + String(hitEl.className).slice(0, 40) : "矩形无效";
-								const leaked = document.querySelectorAll(".dz-bigBg").length;
-								console.warn(`[kirito扩展]视觉取证：bigBg[${probe(parent.bigBg)}] multipleCont[${probe(parent.multipleCont)}] 点击命中=${hitStr} 页面dz-bigBg数=${leaked}`);
-								// 自愈1：缩放塌陷（ScreenAdapter偶发算出0）——重置为1
-								if (parent.bigBg && (parent.bigBg.style.zoom === "0" || getComputedStyle(parent.bigBg).zoom == 0)) {
-									parent.bigBg.style.zoom = "1";
-									console.warn("[kirito扩展]已修复bigBg缩放塌陷（zoom 0→1）");
-								}
-								// 自愈2：被其他层遮挡（命中不在bigBg子树内）——抬升bigBg层级
-								if (parent.bigBg && hitEl && hitEl !== parent.multipleCont && !parent.bigBg.contains(hitEl) && !parent.multipleCont.contains(hitEl)) {
-									parent.bigBg.style.zIndex = "9999";
-									console.warn("[kirito扩展]bigBg被遮挡，已抬升至z-index 9999（命中元素=" + hitStr + "）");
-								}
-								// 自愈3：上局冻结残留的旧选将背景——清除当前之外的所有
-								if (leaked > 1 && parent.bigBg) {
-									document.querySelectorAll(".dz-bigBg").forEach((el) => {
-										if (el !== parent.bigBg) el.remove();
-									});
-									console.warn("[kirito扩展]已清除" + (leaked - 1) + "个残留的旧选将背景");
-								}
-								}
-								console.warn(`[kirito扩展]心跳#${tick}：event=${ev.name}｜决策者=${decider}｜beilv=${ev.beilv != null ? ev.beilv : "-"}｜等UI=是｜${uiState}`);
-							} else {
-									const cur = ev && ev.current && (ev.current.name || ev.current.name1) || "?";
-									console.warn(`[kirito扩展]心跳#${tick}：event=${ev && ev.name}｜current=${cur}｜beilv=${ev && ev.beilv != null ? ev.beilv : "-"}｜等UI=否`);
-								}
-							} catch (e) {}
-							if (tick >= 45) {
-								clearInterval(window.__ktHuanleTimer);
-								window.__ktHuanleTimer = null;
-							}
-						}, 2000);
-						const r = origHuanle.apply(this, args);
-						return r;
-					};
-					game.chooseCharacterHuanle.__ktWatch = true;
-				}
 				return;
 			}
 			// 斗转星移可能晚于本扩展加载：轮询等待（最长60秒），缺席则静默放弃
@@ -1947,12 +1851,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			// 供复现时F12对照（正常应为 跋扈=true｜飞扬=true｜子模式=huanle）。zhu缺失也照记
 			lib.announce.subscribe("Noname.Game.Event.GameStart", () => {
 				try {
-					// 选将流程正常走完：停掉欢乐选将心电图（v4.01修正：原挂content层从未生效）
-					if (window.__ktHuanleTimer) {
-						clearInterval(window.__ktHuanleTimer);
-						window.__ktHuanleTimer = null;
-						console.warn("[kirito扩展]选将心跳结束（已进入gameStart）");
-					}
 					if (lib.config.mode == "doudizhu") {
 						const zhu = game.zhu;
 						console.warn(`[kirito扩展]gameStart：子模式=${_status.mode}｜地主=${zhu ? (zhu.name || zhu.name1) : "缺失"}｜跋扈=${zhu ? zhu.hasSkill("bahu") : "-"}｜飞扬=${zhu ? (zhu.hasSkill("feiyang") || zhu.hasSkill("dcfeiyang") || zhu.hasSkill("mbfeiyang")) : "-"}｜禁用状态=${zhu && zhu.disabledSkills && (zhu.disabledSkills.bahu || zhu.disabledSkills.feiyang) ? "已禁用" : "未禁用"}`);
