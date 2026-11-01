@@ -2,7 +2,31 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.09";
+const VERSION = "4.10";
+
+// 千幻聆音 qhlyUI.assets 注册表守卫（v4.10）：其 content.js:233 启动期读取
+// window.qhlyUI.assets.pinzhi/huanpifu/huanfu.name 时观测到注册项缺失（1.11.6.1内核，
+// TypeError reading name 炸启动，已被arenaReady护甲降级）。模块导入期即预置完整注册表并用
+// defineProperty合并任何后续赋值——三键恒在，时序免疫；千幻main.js后到的完整注册表经setter
+// 合并后语义不变
+try {
+	if (!window.qhlyUI) window.qhlyUI = {};
+	const ktQhlyDefaults = () => ({
+		huanpifu: { name: "../../../千幻聆音/assets/huanpifu" },
+		pinzhi: { name: "../../../千幻聆音/assets/SF_pifu_pinzhiUI" },
+		huanfu: { name: "../../../千幻聆音/assets/huanfu" },
+	});
+	let ktQhlyAssets = Object.assign(ktQhlyDefaults(), window.qhlyUI.assets || {});
+	Object.defineProperty(window.qhlyUI, "assets", {
+		configurable: true,
+		get() {
+			return ktQhlyAssets;
+		},
+		set(v) {
+			ktQhlyAssets = Object.assign(ktQhlyDefaults(), v || {});
+		},
+	});
+} catch (e) {}
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();

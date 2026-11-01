@@ -68,7 +68,7 @@
 
 ## FIX-6 arenaReady启动护甲（本体 boot 容错，1.11.6.1内核场景）
 - 引入 v4.08｜重做于 v4.09（defineProperty属性拦截版，对赋值时机/来源免疫）｜状态: 生效中
-- 上游bug: 装子琪更新包1.11.6.1后，十周年UI 1.3.1旧src的arenaReady回调链在新内核上读`.name`炸掉启动——实测确认崩点为 src/animation/gameIntegration.js:66（动画预加载器getFileType的assetList.find），该预加载异常同步阻断boot；任何扩展的arenaReady回调异常都会阻断boot
+- 上游bug: 装子琪更新包1.11.6.1后，arenaReady回调链在启动期读`.name`炸掉boot。v4.09护甲拦截日志实测真凶：**千幻聆音 extension/content.js:233**（此前弹窗截断路径曾误导向十周年UI src/...:66，系陈旧编译缓存的干扰帧）。任何扩展的arenaReady回调异常都会阻断boot
 - 实现: content里把 lib.arenaReady 队列内每个函数槽包装 try/catch（异常降级为warn日志，启动继续）；与FIX-4的弹窗过滤叠加（先剔除已知坏回调，其余护甲兜底）
 - 上游已修判定: **无上游修复可等**——实测官方 v1.3.1、v1.5.0 tag源码与 main分支(v1.5.1, 2026-11-01拉取) 的 gameIntegration.js 三方零差异，所有版本同样带此bug，护甲是唯一修复形态，**长期保留**（升级十周年UI任何版本均不解除对护甲的依赖）
 - 影响: 动画资源播放不受异常影响（playSpine懒加载自带ensureLoaded兜底）；根治需拿到护甲拦截日志的完整堆栈定位undefined来源后加判空（属改十周年UI文件，暂不做）
@@ -76,6 +76,14 @@
 - 代码锚: extension.js 搜 `__ktArenaGuard`
 - 备注: 十周年UI v1.5.0（GitHub zziyoo/decadeUI，minNonameVersion 1.11.6）与本内核配套，用户选择不升级扩展改用护甲方案（2026-11-01曾装v1.5.0后按用户要求还原）
 - 升级约束（三方对比实测 2026-11-01）: 本地十周年UI = 官方1.5.0开发态快照+子琪微调（含bootstrap.js/features/新架构，info.json却标1.3.1）。与官方1.5.0有57个文件双改冲突（子琪微调×上游收尾叠加，其中56个各仅1处冲突块多为导入区）。无损升级不存在；可行路径=以1.5.0为底、git merge-file三方合并（基=官方1.3.1）保留子琪微调，合并产物已生成于 D:/downloads/cmp/merged（56自动+shousha.js手工13处）。触发条件：暂无（官方1.5.0未修此崩点，升级无此收益；仅当未来官方源码实修该文件时再评估）
+
+## FIX-7 千幻聆音 qhlyUI.assets 注册表缺 pinzhi（千幻+1.11.6.1内核组合）
+- 引入 v4.10｜状态: 生效中
+- 上游bug: 千幻加载器 extension.js:153 的 qhlyUI.assets 注册表里 **pinzhi 项被注释掉**（main.js:9 有完整版但 main.js 是死代码，无人导入）；content.js:233 在「十周年UI已启用」分支读 `assets.pinzhi.name` → undefined → 炸boot。1.11.6.1内核前此异常同样发生但被旧内核静默吞掉（不影响游戏），新内核启动链改为向上传播 → 弹窗死。千幻/皮肤切换/懒人包等更新前后文件一致（更新包实测），非更新直接引入
+- 实现: kirito模块导入期（最早时机）预置 huanpifu/pinzhi/huanfu 三键并用 defineProperty 合并千幻 main.js 的后续赋值——注册项恒在，时序免疫；顺带救回被注释掉的"品质"动皮资源加载
+- 上游已修判定: 千幻聆音更新后 `grep "pinzhi" 千幻聆音/extension.js` 在加载器注册表出现未注释条目（或 content.js:233 不再读 pinzhi）→ 已修
+- 移除方式: 删 `ktQhlyDefaults` 整段（extension.js 模块级，代码锚 `ktQhlyDefaults`）
+- 代码锚: extension.js 搜 `ktQhlyDefaults`
 
 ## 检查流程（上游更新后执行）
 1. 对 FIX-1~5 逐条跑「上游已修判定」的 grep
