@@ -111,14 +111,15 @@
 - 移除方式: 删 `curTheme` 自愈段（extension.js 搜 `curTheme`）
 - 代码锚: extension.js 搜 `curTheme`
 
-## FIX-10 字体基线缺失（内核1.11.6.1删除app/目录的连锁反应）
+## FIX-10 手机端字体face全部加载失败（1.11.6.1字体投递方式变更+cordova环境）
 - 引入 v4.15｜状态: 生效中
-- 上游bug: 旧`app/index.css`（启动页样式，122行）里的 `div{font-family:'xinwei'}` + `@font-face xinwei→app/xinwei.ttf` 因始终挂在head上，**意外充当了全游戏默认字体基线**（技能按钮、头像名条等所有未显式指定字体的文本全靠它）。1.11.6.1重构入口为index.html+src/，**完整包内app/目录为0条**——完整覆盖的安装（用户安卓端）基线消失；内核新字体系统 `noname/library/init/index.js` cssstyles()动态规则只覆盖武将名(name_font)/身份(identity_font)/卡牌文字(cardtext_font)三处，其余文本回退 layout/default/layout.css:28 的黑体系 → 技能列表加粗无法辨认（实测截图：王元姬左侧技能列表、三个武将名条全为回退黑体）。PC端因增量更新从不删文件，旧app/index.css残留掩盖了问题
-- 实现: ① kirito模块导入期注入 `<style id="kt-font-baseline">div{font-family:'xinwei'}</style>`（幂等，window.__ktFontBaseline守卫）；② 自检兜底——对内核6字体（xinwei/xingkai/huangcao/shousha/yuanli/xiaozhuan）逐个 `document.fonts.load/check`，检测不过（cordova下woff2经assetURL加载失败的场景）则 `game.promises.readFile('font/*.woff2')` 读字节 → `new FontFace(family, ArrayBuffer)` 直装，绕开URL协议问题
-- 上游已修判定: 内核若恢复全局字体基线（新css里出现覆盖技能按钮等未显式字体元素的规则）或完整包重新附带app/index.css等价物 → 可摘
+- 上游bug: 1.11.6.1重构后字体投递改为 `font/*.woff2` 经 `lib.assetURL` 绝对URL加载（init/index.js:165-181 无条件注册6字体@font-face，src=local('方正XX_GBK')+url(woff2)），原版css对字体覆盖是齐全的（`#arena>.skillbar`=huangcao、`.skillbartext`=xinwei、`.player>.name`=xinwei、cssstyles动态规则人名=xingkai/身份=huangcao）。**安卓cordova环境下这些woff2全部加载失败**（实测截图：技能栏/武将名条全回退黑体加粗，而规则本身存在）→ 凡依赖@font-face的文本一律黑体。PC（http://localhost:8089）加载正常。旧版内核（app/index.css时代）用相对路径xinwei.ttf，无此问题
+- 附注（PC侧残留文件现象）: 旧app/index.css（启动页样式）的 `div{font-family:'xinwei'}` 曾意外充当全局基线，1.11.6.1已删除该文件；PC靠增量更新残留掩盖（未覆盖文本=xinwei），干净安装的未覆盖文本=body黑体栈——与手机主因（face加载失败）是两个独立问题
+- 实现: ① kirito模块导入期注入 `div{font-family:'xinwei'}` 基线（对齐PC观感，幂等）；② **主修复**——对内核6字体（xinwei/xingkai/huangcao/shousha/yuanli/xiaozhuan）逐个 `document.fonts.load/check` 自检，检测不过则 `game.promises.readFile('font/*.woff2')` 读字节 → `new FontFace(family, ArrayBuffer)` 直装 document.fonts，完全绕开URL加载通道（cordova文件API已由更新中心验证可用）
+- 上游已修判定: 内核改用相对路径/内联字体或修复cordova下woff2加载（可用十周年UI"调试助手"控制台 `document.fonts.forEach(f=>console.log(f.family,f.status))` 验证，全部loaded即可摘）
 - 移除方式: 删 `__ktFontBaseline` 整段（extension.js 模块级）
 - 代码锚: extension.js 搜 `__ktFontBaseline`
-- 备注: 包内证据——`D:\downloads\完整包1.11.6.1*.zip` 无app/、无xinwei.ttf、无app/index.css；font/仅9个woff2；init/index.js:165-181 无条件注册6字体@font-face；cssstyles()（library/init/index.js:327-350）仅三处动态字体规则
+- 备注: 包内证据——完整包zip无app/、无xinwei.ttf；font/仅9个woff2。若兜底也失败（日志无"已经文件API补装"），疑点转向 font/ 目录未随覆盖落盘（覆盖不完整）或读取路径问题，需在手机端核实
 
 ## 检查流程（上游更新后执行）
 1. 对 FIX-1~5 逐条跑「上游已修判定」的 grep
