@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.13";
+const VERSION = "4.14";
 
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
@@ -342,17 +342,16 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 						encodeURI(`${root}${local}`),
 						() => {
 							game.readFile(local, (data) => {
-					try { game.removeFile(local, () => {}); } catch {}
-					// 嗅探：FileTransfer对404/错误页也报成功，HTML内容一律按下载失败降级下一源
-					const u8 = data instanceof Uint8Array ? data : new Uint8Array(data || []);
-					const head = new TextDecoder().decode(u8.subarray(0, 256)).trim().toLowerCase();
-					if (head.startsWith("<!doctype") || head.startsWith("<html") || head.includes("<!doctype html")) {
-						reject(new Error("源返回了HTML错误页"));
-						return;
-					}
-					resolve(u8);
-								reject(e);
-							});
+								try { game.removeFile(local, () => {}); } catch {}
+								// 嗅探：FileTransfer对404/错误页也报成功，HTML内容一律按下载失败降级下一源
+								const u8 = data instanceof Uint8Array ? data : new Uint8Array(data || []);
+								const head = new TextDecoder().decode(u8.subarray(0, 256)).trim().toLowerCase();
+								if (head.startsWith("<!doctype") || head.startsWith("<html") || head.includes("<!doctype html")) {
+									reject(new Error("源返回了HTML错误页"));
+									return;
+								}
+								resolve(u8);
+							}, (e) => reject(e));
 						},
 						(e) => reject(new Error(`FileTransfer code=${e && e.code}`))
 					);
