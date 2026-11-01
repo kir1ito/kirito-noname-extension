@@ -85,6 +85,12 @@
 - 移除方式: 删 `ktQhlyDefaults` 整段（extension.js 模块级，代码锚 `ktQhlyDefaults`）
 - 代码锚: extension.js 搜 `ktQhlyDefaults`
 
+## 环境备注：十周年UI自带spine运行时与社区动皮库存在代差（非bug，勿修）
+- 实测（2026-11-01，用扩展自带spine.js在Node全量解析）: assets/dynamic 共6585份.skels，仅71份能被解析，其余6514份为新版Spine导出（解析报boneData/name cannot be null等）
+- 为什么日常无感: 用户动皮动画实际由千幻聆音引擎渲染（支持新版导出）；十周年UI自带DynamicPlayer只在特定场景（如谋张郃gameDraw播放）被走到 → 弹非致命错误框（确定后继续，动皮回退静态）
+- 十周年UI任何版本（1.3.1/1.5.0/1.5.1）的spine.js逐字节相同 → 升级十周年UI不解决；官方运行时从未跟进新版Spine
+- 可选缓解（未做）: kirito拦截DynamicPlayer解析失败静默回退静态立绘（会掩盖真实动皮问题，需用户拍板）
+
 ## 检查流程（上游更新后执行）
 1. 对 FIX-1~5 逐条跑「上游已修判定」的 grep
 2. 已修 → 按「移除方式」删代码 → `node --check`（拷到 /tmp/*.mjs 用 ESM 模式查）→ 双版本号 bump → `node sync-config.mjs` → 部署 md5 校验 → commit push → 用户测试
