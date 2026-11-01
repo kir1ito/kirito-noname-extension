@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.10";
+const VERSION = "4.11";
 
 // 千幻聆音 qhlyUI.assets 注册表守卫（v4.10）：其 content.js:233 启动期读取
 // window.qhlyUI.assets.pinzhi/huanpifu/huanfu.name 时观测到注册项缺失（1.11.6.1内核，
@@ -2053,6 +2053,27 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				});
 				lib.__ktArenaGuard = true;
 				console.warn(`[kirito扩展]arenaReady启动护甲已就位（${ktQueue.length}个回调已包覆）`);
+		// ⑥ 十周年UI动皮解析失败静默化（v4.11）：其自带spine运行时(3.8代)解析不了社区新版Spine
+		//    导出的动皮（实测6585份仅71份可解析）——谋张郃等新武将gameDraw入场播放漏进该路径时报
+		//    "boneData cannot be null"弹窗（非致命）。包装AnimationPlayer.prepSpine：解析失败降级为
+		//    日志+静态立绘，弹窗消失；正常皮肤的加载与播放不受影响
+		try {
+			if (window.decadeUI && decadeUI.animation) {
+				const spineProto = Object.getPrototypeOf(decadeUI.animation);
+				if (spineProto && typeof spineProto.prepSpine == "function" && !spineProto.prepSpine.__ktGuard) {
+					const origPrep = spineProto.prepSpine;
+					spineProto.prepSpine = function (name, ...rest) {
+						try {
+							return origPrep.call(this, name, ...rest);
+						} catch (e) {
+							console.warn(`[kirito扩展]十周年UI动皮解析失败已静默（${name}）——新版Spine导出，旧运行时不支持，回退静态立绘:`, (e && e.message) || e);
+						}
+					};
+					spineProto.prepSpine.__ktGuard = true;
+					console.warn("[kirito扩展]十周年UI动皮解析静默化已就位");
+				}
+			}
+		} catch (e) {}
 			}
 		} catch (e) {
 			console.warn("[kirito扩展]arenaReady护甲安装失败", e);

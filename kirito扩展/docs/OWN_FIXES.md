@@ -89,7 +89,18 @@
 - 实测（2026-11-01，用扩展自带spine.js在Node全量解析）: assets/dynamic 共6585份.skels，仅71份能被解析，其余6514份为新版Spine导出（解析报boneData/name cannot be null等）
 - 为什么日常无感: 用户动皮动画实际由千幻聆音引擎渲染（支持新版导出）；十周年UI自带DynamicPlayer只在特定场景（如谋张郃gameDraw播放）被走到 → 弹非致命错误框（确定后继续，动皮回退静态）
 - 十周年UI任何版本（1.3.1/1.5.0/1.5.1）的spine.js逐字节相同 → 升级十周年UI不解决；官方运行时从未跟进新版Spine
-- 可选缓解（未做）: kirito拦截DynamicPlayer解析失败静默回退静态立绘（会掩盖真实动皮问题，需用户拍板）
+- 可选缓解: **已做（v4.11 FIX-8）**——包装AnimationPlayer.prepSpine，解析失败静默降级静态立绘+日志，不再弹窗
+- 机制备注: 十周年UI的解析器从未能解析这些新格式动皮；更新前播放走千幻引擎故无感。1.11.6.1内核改变入场动画调用路径后，谋张郃等新武将的gameDraw播放漏进十周年UI自带播放器才暴露
+
+
+
+## FIX-8 十周年UI动皮解析失败静默化（运行时代差的症状缓解）
+- 引入 v4.11｜状态: 生效中
+- 背景: 十周年UI自带spine运行时(3.8代)与社区动皮库(新版Spine导出)存在代差（见环境备注），其播放路径被走到时弹非致命错误框
+- 实现: 包装AnimationPlayer.prototype.prepSpine（经decadeUI.animation原型访问），解析异常降级为warn日志，该动皮回退静态立绘；正常皮肤不受影响
+- 上游已修判定: 十周年UI官方spine.js更换为支持新版导出的运行时（实测1.3.1/1.5.0/1.5.1逐字节相同，暂无迹象）→ 可摘
+- 移除方式: 删 `__ktGuard`（prepSpine包装段）
+- 代码锚: extension.js 搜 `prepSpine.__ktGuard`
 
 ## 检查流程（上游更新后执行）
 1. 对 FIX-1~5 逐条跑「上游已修判定」的 grep
