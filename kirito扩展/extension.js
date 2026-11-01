@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.04";
+const VERSION = "4.05";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1988,6 +1988,98 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			}
 		} catch (e) {
 			console.warn("[kirito扩展]奖励翻倍钩子安装失败", e);
+		}
+		// 三修复移植（v4.05，原为主文件改动，收编进扩展以获得更新兼容性）
+		// ① 饵敌崩溃：game.chooseAnyOL的forResult在事件被跳过时result为undefined（饵敌/谋朱然镇围
+		//    等按Map使用直接炸）——包装后兜底返回空Map，所有用该API的技能一起修好
+		try {
+			if (typeof game.chooseAnyOL == "function" && !game.chooseAnyOL.__ktSafeFor) {
+				const origAnyOL = game.chooseAnyOL;
+				game.chooseAnyOL = function (...args) {
+					const next = origAnyOL.apply(this, args);
+					if (next && typeof next.forResult == "function" && !next.__ktSafeFor) {
+						next.forResult = async function () {
+							try {
+								await this;
+								return this.result != null ? this.result : new Map();
+							} catch (e) {
+								return new Map();
+							}
+						};
+						next.__ktSafeFor = true;
+					}
+					return next;
+				};
+				game.chooseAnyOL.__ktSafeFor = true;
+			}
+		} catch (e) {
+			console.warn("[kirito扩展]chooseAnyOL补丁安装失败", e);
+		}
+		// ② 斗地主收藏加权：拦截标题为「你的选将框*」的对话框，把收藏武将注入候选数组（活引用，
+		//    原版与斗转星移美化界面都走ui.create.dialog，一个补丁两头通吃）
+		try {
+			if (typeof ui.create.dialog == "function" && !ui.create.dialog.__ktFav) {
+				const origDialog = ui.create.dialog;
+				ui.create.dialog = function (...args) {
+					try {
+						if (typeof args[0] == "string" && args[0].startsWith("你的选将框") && game.me) {
+							const favKey = (window.dzxy && dzxy.dz ? dzxy.dz : "extension_斗转星移_") + "FavoriteChars";
+							const favs = Array.isArray(lib.config[favKey]) ? lib.config[favKey] : [];
+							const banPlayer = Array.isArray(lib.config["extension_kirito扩展_banPlayer"]) ? lib.config["extension_kirito扩展_banPlayer"] : [];
+							for (const item of args) {
+								if (Array.isArray(item) && item[1] === "character" && Array.isArray(item[0])) {
+									for (const f of favs) {
+										if (typeof f == "string" && lib.character[f] && !item[0].includes(f) && !banPlayer.includes(f)) {
+											item[0].push(f);
+										}
+									}
+								}
+							}
+						}
+					} catch (e) {}
+					return origDialog.apply(this, args);
+				};
+				ui.create.dialog.__ktFav = true;
+			}
+		} catch (e) {
+			console.warn("[kirito扩展]收藏加权补丁安装失败", e);
+		}
+		// ③ 千幻聆音复选框死循环：qhly_setChecked状态未变也触发qhly_onchecked，「全选」与单选互相
+		//    回调造成调用栈溢出——包装ui.qhly_initCheckBox，仅状态真正变化时触发回调（等价官方5.2.02修复）
+		const ktFixQhlyCb = () => {
+			if (typeof ui.qhly_initCheckBox != "function" || ui.qhly_initCheckBox.__ktSafeCb) {
+				return typeof ui.qhly_initCheckBox == "function";
+			}
+			const origInit = ui.qhly_initCheckBox;
+			ui.qhly_initCheckBox = function (view, checked, forbid) {
+				const r = origInit.apply(this, arguments);
+				try {
+					if (view && typeof view.qhly_setChecked == "function" && !view.__ktSafeCb) {
+						view.qhly_setChecked = function (checked, trigger) {
+							if (trigger === undefined) trigger = true;
+							const changed = checked != this.qhly_checked;
+							this.qhly_checked = checked;
+							this.src = lib.assetURL + get.qhly_getIf(lib.qhly_viewskin[lib.config.qhly_currentViewSkin][checked ? "checkBoxCheckedImage" : "checkBoxImage"], checked ? "extension/千幻聆音/image/newui_checkbox_checked.png" : "extension/千幻聆音/image/newui_checkbox_unchecked.png");
+							if (changed && trigger && this.qhly_onchecked) {
+								this.qhly_onchecked(this.qhly_checked);
+							}
+						};
+						view.__ktSafeCb = true;
+					}
+				} catch (e) {}
+				return r;
+			};
+			ui.qhly_initCheckBox.__ktSafeCb = true;
+			return true;
+		};
+		if (!ktFixQhlyCb()) {
+			let cbTimer = null;
+			const cbStart = Date.now();
+			cbTimer = setInterval(() => {
+				if (ktFixQhlyCb() || Date.now() - cbStart > 60000) {
+					clearInterval(cbTimer);
+				}
+			}, 500);
 		}
 		// 陷阱：gameStart确认技能已发但玩家仍报"没有地主技"——包装removeSkill/removeSkills/
 		// disableSkill/addInvisibleSkill，凡针对飞扬/跋扈的操作打印调用栈（定位拿技能的扩展）
