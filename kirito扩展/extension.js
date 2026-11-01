@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.07";
+const VERSION = "4.08";
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
@@ -1989,6 +1989,28 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				if (lib.arenaReady.length !== before) {
 					console.warn(`[kirito扩展]已拦截十周年UI版本不匹配弹窗${before - lib.arenaReady.length}个（其弹窗路径在本体${lib.version}上会崩溃）——本体过新导致的扩展兼容问题将不再弹窗提示，遇功能异常请单独反馈`);
 				}
+			}
+		} catch (e) {}
+		// ⑤ arenaReady启动护甲（v4.08）：1.11.6.1内核上十周年UI旧src的arenaReady回调链读.name崩溃
+		//    炸掉启动——通用容错：队列内每个回调包try/catch，异常降级为日志，启动不再被任何扩展
+		//    的arenaReady回调阻断（这就是"缺方法就包一层"的通用版，后续上游修复无需改这里）
+		try {
+			if (Array.isArray(lib.arenaReady)) {
+				let guardCount = 0;
+				for (let i = 0; i < lib.arenaReady.length; i++) {
+					const f = lib.arenaReady[i];
+					if (typeof f != "function" || f.__ktGuarded) continue;
+					lib.arenaReady[i] = function (...a) {
+						try {
+							return f.apply(this, a);
+						} catch (e) {
+							console.warn("[kirito扩展]arenaReady回调异常已拦截（不阻断启动）:", (e && e.stack) || e);
+						}
+					};
+					lib.arenaReady[i].__ktGuarded = true;
+					guardCount++;
+				}
+				if (guardCount) console.warn(`[kirito扩展]已为${guardCount}个arenaReady回调装上启动容错护甲`);
 			}
 		} catch (e) {}
 		// 陷阱：gameStart确认技能已发但玩家仍报"没有地主技"——包装removeSkill/removeSkills/

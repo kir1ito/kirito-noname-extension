@@ -65,6 +65,16 @@
 
 ---
 
+
+## FIX-6 arenaReady启动护甲（本体 boot 容错，1.11.6.1内核场景）
+- 引入 v4.08｜状态: 生效中
+- 上游bug: 装子琪更新包1.11.6.1后，十周年UI 1.3.1旧src的arenaReady回调链在新内核上读`.name`（gameIntegration.js:66 getFileType的assetList.find等）炸掉启动——任何扩展的arenaReady回调异常都会阻断boot
+- 实现: content里把 lib.arenaReady 队列内每个函数槽包装 try/catch（异常降级为warn日志，启动继续）；与FIX-4的弹窗过滤叠加（先剔除已知坏回调，其余护甲兜底）
+- 上游已修判定: 十周年UI更新到支持1.11.6.x的版本且启动不再依赖护甲（护甲日志无拦截记录）→ 可摘
+- 移除方式: 删 `__ktGuarded` 整段
+- 代码锚: extension.js 搜 `__ktGuarded`
+- 备注: 十周年UI v1.5.0（GitHub zziyoo/decadeUI，minNonameVersion 1.11.6）与本内核配套，用户选择不升级扩展改用护甲方案（2026-11-01曾装v1.5.0后按用户要求还原）
+
 ## 检查流程（上游更新后执行）
 1. 对 FIX-1~5 逐条跑「上游已修判定」的 grep
 2. 已修 → 按「移除方式」删代码 → `node --check`（拷到 /tmp/*.mjs 用 ESM 模式查）→ 双版本号 bump → `node sync-config.mjs` → 部署 md5 校验 → commit push → 用户测试
