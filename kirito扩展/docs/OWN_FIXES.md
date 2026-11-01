@@ -122,7 +122,7 @@
 ## FIX-11 无名AI权重更新频繁超时（无名AI下载通道过于激进）
 - 引入 v4.17｜状态: 生效中
 - 上游bug: 无名AI的权重下载走全局fetch，主模型通道超时**仅12秒（含正文读取）**、自动检查**0重试**（`modelUpdate.js:474 retries: manual ? 1 : 0`），策略通道12/20秒（`policyModelUpdate.js timedFetch`）；下载源 data.feiqiaoai.uno（Cloudflare，CORS实测`*`）在直连环境下偏慢 → "经常失败和超时"。文件本身很小（主包~69KB/策略包~46KB），纯属网络耐心问题
-- 实现: ① kirito模块期接管该域名的 `window.fetch`（`__ktWuMingFetch`守卫）：**无视其AbortController信号**（那正是12秒定时器），自管45秒超时×3次尝试（1秒起退避；网络异常与5xx/429重试），缓冲正文后重构Response返回（剥离content-length/content-encoding防错位）——无名AI的校验/事务/备份管线原样运行；两模块的fetch均为调用时全局解析（`fetchImpl: typeof fetch==='function' ? fetch : null` / 裸`fetch(url)`），与扩展加载顺序无关。② kirito配置新增「更新无名AI权重（加速通道）」按钮：调 `__DJSC.modelUpdate.check()`（其原生更新窗口）+ `__DJSC.policyModelUpdate.check()`（检测到新版自动安装）
+- 实现: ① kirito模块期接管该域名的 `window.fetch`（`__ktWuMingFetch`守卫）：**无视其AbortController信号**（那正是12秒定时器），自管45秒超时×3次尝试（1秒起退避；网络异常与5xx/429重试），缓冲正文后重构Response返回（剥离content-length/content-encoding防错位）——无名AI的校验/事务/备份管线原样运行；两模块的fetch均为调用时全局解析（`fetchImpl: typeof fetch==='function' ? fetch : null` / 裸`fetch(url)`），与扩展加载顺序无关。② kirito配置「更新无名AI权重（加速通道）」按钮：v4.17初版调其`check()`弹窗链，**用户实测失败时以其内部`downloadAndApply`无catch的未处理拒绝冒到游戏错误弹窗（TypeError: Failed to fetch）**——v4.18改为kirito自取清单+直调`downloadAndApply({latest})`+全catch+结果alert，不再经过他们的弹窗链
 - 影响范围: 仅 `data.feiqiaoai.uno` 域名；其上传通道（wuming-ingest.workers.dev）与其他扩展的fetch不受影响
 - 上游已修判定: 无名AI官方调大超时/增加重试（grep `fetchTextWithLimits` 的 timeoutMs 默认值 >12s 且 retries 不为0，或 timedFetch ms 上调）→ 可摘
 - 移除方式: 删 `__ktWuMingFetch` 整段（extension.js 模块级）+ 删配置项 `wuMingModelUpdate`

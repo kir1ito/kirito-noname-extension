@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.17";
+const VERSION = "4.18";
 
 // FIX-11 无名AI权重更新网络护甲（v4.17）：无名AI自带的权重下载走全局fetch，超时仅12秒（含正文
 // 读取）且自动检查0重试，data.feiqiaoai.uno（Cloudflare）在直连环境下偏慢→"经常失败和超时"。
@@ -2363,20 +2363,42 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					ktUpdateCenter.open();
 				},
 			},
-			// 无名AI权重更新：走其原生管线（校验/事务/备份全保留），kirito网络护甲让下载不再12秒超时
+			// 无名AI权重更新：直调其downloadAndApply管线（校验/事务/备份全保留），kirito网络护甲负责
+			// 下载且错误全部自接（v4.18起不经他们的check弹窗链——那链条的downloadAndApply没有catch，
+			// 失败会以未处理拒绝冒到游戏错误弹窗，即用户实测的TypeError: Failed to fetch）
 			wuMingModelUpdate: {
 				name: "更新无名AI权重（加速通道）",
-				intro: "通过无名AI自带的更新管线拉取官方权重（主模型+策略模型）。kirito已接管其下载通道：45秒超时×3次重试，替代原版12秒×0-1次重试，解决「经常失败和超时」。需「无名AI」扩展处于开启状态",
+				intro: "通过无名AI自带的更新管线拉取官方权重（主模型+策略模型）。kirito已接管其下载通道：45秒超时×3次重试，替代原版12秒×0-1次重试，解决「经常失败和超时」；下载结果由kirito直接弹窗报告。需「无名AI」扩展处于开启状态",
 				clear: true,
 				onclick() {
 					const d = window.__DJSC;
-					if (!d || !d.modelUpdate) {
+					if (!d || !d.modelUpdate || !d.modelUpdate.downloadAndApply) {
 						alert("未检测到无名AI扩展（或未开启）。请先在扩展管理中开启「无名AI」并重启游戏");
 						return;
 					}
-					if (d.modelUpdate.check) d.modelUpdate.check().catch(() => {});
-					if (d.policyModelUpdate && d.policyModelUpdate.check) d.policyModelUpdate.check().catch(() => {});
-					alert("已通过无名AI原生管线发起权重检查（主模型+策略模型）。\n\n主模型如有新版会弹出无名AI自己的更新窗口，按提示下载即可；\n策略模型检测到新版会自动安装。\n\nkirito网络护甲已接管下载通道（45秒×3次重试），不再容易超时");
+					(async () => {
+						const out = [];
+						try {
+							const mText = await fetch("https://data.feiqiaoai.uno/update/model/manifest.json")
+								.then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); });
+							const latest = JSON.parse(mText).latest;
+							if (!latest || !latest.url) throw new Error("清单中没有可用版本");
+							const r = await d.modelUpdate.downloadAndApply({ latest });
+							if (r && r.ok === false) out.push("主模型：失败 - " + (r.err || (r.errors || []).join("；")));
+							else out.push("主模型：完成（" + (latest.modelVersion || "?") + "）");
+						} catch (e) {
+							out.push("主模型：失败 - " + ((e && e.message) || e));
+						}
+						try {
+							if (d.policyModelUpdate && d.policyModelUpdate.check) {
+								const r2 = await d.policyModelUpdate.check();
+								out.push("策略模型：" + ((r2 && (r2.detail || r2.state)) || "完成"));
+							}
+						} catch (e) {
+							out.push("策略模型：失败 - " + ((e && e.message) || e));
+						}
+						alert("无名AI权重更新结果：\n" + out.join("\n"));
+					})();
 				},
 			},
 			// 降临技能池：管理无上神〖降临〗局内可选的技能（默认本扩展全部技能，可增删，上限20）
