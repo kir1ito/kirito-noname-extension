@@ -2,7 +2,40 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.14";
+const VERSION = "4.15";
+
+// FIX-10 字体基线修复（v4.15）：内核1.11.6.1删除了app/目录，旧app/index.css（启动页样式）里
+// 的 div{font-family:'xinwei'} 因始终挂在head上而意外充当全游戏默认字体基线。增量更新的PC靠
+// 残留文件掩盖；完整包干净覆盖的安卓端基线消失——内核新字体系统（cssstyles动态规则）只覆盖
+// 武将名/身份/卡牌文字三处，技能按钮、头像名条等其余文本回退layout.css的黑体系，加粗难辨。
+// ① 补回基线；② 自检兜底：woff2在cordova下若加载失败，用游戏文件API读字节经FontFace直装
+try {
+	if (!window.__ktFontBaseline) {
+		window.__ktFontBaseline = true;
+		const ktBase = document.createElement("style");
+		ktBase.id = "kt-font-baseline";
+		ktBase.textContent = "div{font-family:'xinwei';}";
+		document.head.appendChild(ktBase);
+		const ktCoreFonts = ["xinwei", "xingkai", "huangcao", "shousha", "yuanli", "xiaozhuan"];
+		(async () => {
+			for (const f of ktCoreFonts) {
+				try {
+					await document.fonts.load(`16px "${f}"`);
+					if (document.fonts.check(`16px "${f}"`)) continue;
+				} catch (e) {}
+				try {
+					if (typeof game == "undefined" || !game.promises || typeof game.promises.readFile != "function") continue;
+					const buf = await game.promises.readFile(`font/${f}.woff2`);
+					if (!buf || !buf.byteLength) continue;
+					const face = new FontFace(f, buf);
+					await face.load();
+					document.fonts.add(face);
+					console.warn(`[kirito扩展]字体${f}内核通道加载失败，已经文件API补装`);
+				} catch (e) {}
+			}
+		})();
+	}
+} catch (e) {}
 
 export default function () {
 	// 绝境的X：已损失体力值（不封顶）

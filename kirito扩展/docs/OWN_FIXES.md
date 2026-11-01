@@ -111,6 +111,15 @@
 - 移除方式: 删 `curTheme` 自愈段（extension.js 搜 `curTheme`）
 - 代码锚: extension.js 搜 `curTheme`
 
+## FIX-10 字体基线缺失（内核1.11.6.1删除app/目录的连锁反应）
+- 引入 v4.15｜状态: 生效中
+- 上游bug: 旧`app/index.css`（启动页样式，122行）里的 `div{font-family:'xinwei'}` + `@font-face xinwei→app/xinwei.ttf` 因始终挂在head上，**意外充当了全游戏默认字体基线**（技能按钮、头像名条等所有未显式指定字体的文本全靠它）。1.11.6.1重构入口为index.html+src/，**完整包内app/目录为0条**——完整覆盖的安装（用户安卓端）基线消失；内核新字体系统 `noname/library/init/index.js` cssstyles()动态规则只覆盖武将名(name_font)/身份(identity_font)/卡牌文字(cardtext_font)三处，其余文本回退 layout/default/layout.css:28 的黑体系 → 技能列表加粗无法辨认（实测截图：王元姬左侧技能列表、三个武将名条全为回退黑体）。PC端因增量更新从不删文件，旧app/index.css残留掩盖了问题
+- 实现: ① kirito模块导入期注入 `<style id="kt-font-baseline">div{font-family:'xinwei'}</style>`（幂等，window.__ktFontBaseline守卫）；② 自检兜底——对内核6字体（xinwei/xingkai/huangcao/shousha/yuanli/xiaozhuan）逐个 `document.fonts.load/check`，检测不过（cordova下woff2经assetURL加载失败的场景）则 `game.promises.readFile('font/*.woff2')` 读字节 → `new FontFace(family, ArrayBuffer)` 直装，绕开URL协议问题
+- 上游已修判定: 内核若恢复全局字体基线（新css里出现覆盖技能按钮等未显式字体元素的规则）或完整包重新附带app/index.css等价物 → 可摘
+- 移除方式: 删 `__ktFontBaseline` 整段（extension.js 模块级）
+- 代码锚: extension.js 搜 `__ktFontBaseline`
+- 备注: 包内证据——`D:\downloads\完整包1.11.6.1*.zip` 无app/、无xinwei.ttf、无app/index.css；font/仅9个woff2；init/index.js:165-181 无条件注册6字体@font-face；cssstyles()（library/init/index.js:327-350）仅三处动态字体规则
+
 ## 检查流程（上游更新后执行）
 1. 对 FIX-1~5 逐条跑「上游已修判定」的 grep
 2. 已修 → 按「移除方式」删代码 → `node --check`（拷到 /tmp/*.mjs 用 ESM 模式查）→ 双版本号 bump → `node sync-config.mjs` → 部署 md5 校验 → commit push → 用户测试
