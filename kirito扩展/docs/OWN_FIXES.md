@@ -78,12 +78,13 @@
 - 升级约束（三方对比实测 2026-11-01）: 本地十周年UI = 官方1.5.0开发态快照+子琪微调（含bootstrap.js/features/新架构，info.json却标1.3.1）。与官方1.5.0有57个文件双改冲突（子琪微调×上游收尾叠加，其中56个各仅1处冲突块多为导入区）。无损升级不存在；可行路径=以1.5.0为底、git merge-file三方合并（基=官方1.3.1）保留子琪微调，合并产物已生成于 D:/downloads/cmp/merged（56自动+shousha.js手工13处）。触发条件：暂无（官方1.5.0未修此崩点，升级无此收益；仅当未来官方源码实修该文件时再评估）
 
 ## FIX-7 千幻聆音 qhlyUI.assets 注册表缺 pinzhi（千幻+1.11.6.1内核组合）
-- 引入 v4.10｜状态: 生效中
+- 引入 v4.10｜**移除于 v4.13**｜状态: 已摘除
 - 上游bug: 千幻加载器 extension.js:153 的 qhlyUI.assets 注册表里 **pinzhi 项被注释掉**（main.js:9 有完整版但 main.js 是死代码，无人导入）；content.js:233 在「十周年UI已启用」分支读 `assets.pinzhi.name` → undefined → 炸boot。1.11.6.1内核前此异常同样发生但被旧内核静默吞掉（不影响游戏），新内核启动链改为向上传播 → 弹窗死。千幻/皮肤切换/懒人包等更新前后文件一致（更新包实测），非更新直接引入
 - 实现: kirito模块导入期（最早时机）预置 huanpifu/pinzhi/huanfu 三键并用 defineProperty 合并千幻 main.js 的后续赋值——注册项恒在，时序免疫；顺带救回被注释掉的"品质"动皮资源加载
 - 上游已修判定: 千幻聆音更新后 `grep "pinzhi" 千幻聆音/extension.js` 在加载器注册表出现未注释条目（或 content.js:233 不再读 pinzhi）→ 已修
 - 移除方式: 删 `ktQhlyDefaults` 整段（extension.js 模块级，代码锚 `ktQhlyDefaults`）
-- 代码锚: extension.js 搜 `ktQhlyDefaults`
+- 代码锚: ~~extension.js 搜 `ktQhlyDefaults`~~（已删）
+- **摘除依据（2026-11-01实测）**: 本地千幻已换为 4.16.1.11（柴油鹿鹿修改版），其加载器 extension.js:123-137 注册表完整含 huanpifu/pinzhi/huanfu 三键（未注释），content.js 读点全部有据 → 预置冗余，摘除
 
 ## 环境备注：十周年UI自带spine运行时与社区动皮库存在代差（非bug，勿修）
 - 实测（2026-11-01，用扩展自带spine.js在Node全量解析）: assets/dynamic 共6585份.skels，仅71份能被解析，其余6514份为新版Spine导出（解析报boneData/name cannot be null等）
@@ -116,3 +117,16 @@
 3. 未修 → 不动
 4. 新增自有修复时：同步在本文件登记（含代码锚与判定方法）
 5. 注意: 上一个会话对主文件的三修复**不在本机**（已验证主文件为原版），勿重复移除
+
+## 判定记录（最近一次全量检查 2026-11-01，v4.13）
+环境基线：千幻聆音已换 **4.16.1.11（柴油鹿鹿修改版）**，斗转星移/十周年UI(1.3.1)/皮肤切换(1.22) 未变，内核 1.11.6.1。
+- FIX-1 未修：斗转 ChooseChar.js:551 refreshZhuAfterChoose 仍 uninit+init 无技能备份 → **保留**
+- FIX-2 未修：gameEvent.js forResult 仍 `await this; return this.result` 裸返回 → **保留**
+- FIX-3 未修（细看）：4.16.1.11 的 qhly_setChecked 加了 `trigger` 参数+图标 changed 守卫，**但回调触发仍 `if (trigger && qhly_onchecked)` 状态未变照样触发**，且全部级联调用点（content.js:14699/14706/14740/266）硬编码传 `true` → 全选框↔单模式框互调递归链原样存在 → **保留**
+- FIX-4 未修：十周年UI version.js 仍 `comparison === 0` 才放行 → **保留**
+- FIX-5 已摘（v4.07，此前）
+- FIX-6 无上游可等 → **保留**（长期）
+- FIX-7 已修（千幻4.16.1.11注册表完整）→ **已摘除**（见上）
+- FIX-8 未修：十周年UI仍1.3.1，spine.js md5 352f549c…（运行时未换代）→ **保留**
+- FIX-9 未满足摘除条件：4.16.1.11 主题表（precontent.js 注册12个）仍无 xin；时机验证正确（precontent 同步注册早于 kirito content 期检查，不会误重置）。当前配置已被自愈持久化为有效值、代码休眠 → **保留作保险**（防未来再出现配置指向失效主题）
+- HOOK-1/HOOK-2/DEF-1 特性挂钩不涉上游修复 → 保留
