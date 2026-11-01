@@ -68,9 +68,9 @@
 
 ## FIX-6 arenaReady启动护甲（本体 boot 容错，1.11.6.1内核场景）
 - 引入 v4.08｜重做于 v4.09（defineProperty属性拦截版，对赋值时机/来源免疫）｜状态: 生效中
-- 上游bug: 装子琪更新包1.11.6.1后，十周年UI 1.3.1旧src的arenaReady回调链在新内核上读`.name`（gameIntegration.js:66 getFileType的assetList.find等）炸掉启动——任何扩展的arenaReady回调异常都会阻断boot
+- 上游bug: 装子琪更新包1.11.6.1后，十周年UI 1.3.1旧src的arenaReady回调链在新内核上读`.name`炸掉启动——实测确认崩点为 src/animation/gameIntegration.js:66（动画预加载器getFileType的assetList.find），该预加载异常同步阻断boot；任何扩展的arenaReady回调异常都会阻断boot
 - 实现: content里把 lib.arenaReady 队列内每个函数槽包装 try/catch（异常降级为warn日志，启动继续）；与FIX-4的弹窗过滤叠加（先剔除已知坏回调，其余护甲兜底）
-- 上游已修判定: 十周年UI更新到支持1.11.6.x的版本且启动不再依赖护甲（护甲日志无拦截记录）→ 可摘
+- 上游已修判定: 十周年UI更新到v1.5.0+（minNonameVersion 1.11.6，与内核配套）且护甲日志无拦截记录 → 可摘。另: 动画资源播放不受此异常影响（playSpine懒加载自带ensureLoaded兜底）
 - 移除方式: 删 `__ktArenaGuard` 整段
 - 代码锚: extension.js 搜 `__ktArenaGuard`
 - 备注: 十周年UI v1.5.0（GitHub zziyoo/decadeUI，minNonameVersion 1.11.6）与本内核配套，用户选择不升级扩展改用护甲方案（2026-11-01曾装v1.5.0后按用户要求还原）
