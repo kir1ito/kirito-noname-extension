@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.19";
+const VERSION = "4.20";
 
 // FIX-11 无名AI权重更新网络护甲（v4.17）：无名AI自带的权重下载走全局fetch，超时仅12秒（含正文
 // 读取）且自动检查0重试，data.feiqiaoai.uno（Cloudflare）在直连环境下偏慢→"经常失败和超时"。
@@ -490,7 +490,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					if (!size) throw new Error("空响应");
 					return { ok: true, speed: size / Math.max((Date.now() - t0) / 1000, 0.05) };
 				} catch (e) {
-					return { ok: false, speed: 0, error: e.name == "AbortError" ? "超时" : fmtErr(e) };
+					return { ok: false, speed: 0, error: e && (e.name == "AbortError" || /abort/i.test(String(e.message))) ? "超时（20秒）" : fmtErr(e) };
 				}
 			}
 			const t0 = Date.now();
@@ -516,7 +516,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				const seconds = (Date.now() - t0) / 1000;
 				return { ok: true, speed: received / Math.max(seconds, 0.05) };
 			} catch (e) {
-				return { ok: false, speed: 0, error: e.name == "AbortError" ? "超时" : fmtErr(e) };
+				return { ok: false, speed: 0, error: e && (e.name == "AbortError" || /abort/i.test(String(e.message))) ? "超时（20秒）" : fmtErr(e) };
 			} finally {
 				clearTimeout(timer);
 			}
@@ -570,7 +570,15 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 						: `。发现新版本：${localVersion()} → ${remoteVersion || "未知"}`;
 				setStatus(msg);
 			} else {
-				setStatus("所有下载源均不可达，请检查网络（或系统代理）后重新测速", "err");
+				// 安卓端追加诊断：CNB源必须走FileTransfer原生通道（WebView的fetch被CORS拦截），
+				// 原生通道未就绪时CNB和直连源会一起挂——提示用户 FileTransfer 状态而非干等
+				let hint = "";
+				try {
+					if (typeof window.cordova != "undefined" && !ktNativeReady()) {
+						hint = "。检测到安卓环境但原生下载通道未就绪（FileTransfer不可用），CNB源无法走原生下载";
+					}
+				} catch (e) {}
+				setStatus("所有下载源均不可达，请检查网络（或系统代理）后重新测速" + hint, "err");
 			}
 			setDisabled($.check, false);
 		}
