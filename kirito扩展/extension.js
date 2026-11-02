@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.20";
+const VERSION = "4.21";
 
 // FIX-11 无名AI权重更新网络护甲（v4.17）：无名AI自带的权重下载走全局fetch，超时仅12秒（含正文
 // 读取）且自动检查0重试，data.feiqiaoai.uno（Cloudflare）在直连环境下偏慢→"经常失败和超时"。
@@ -1965,11 +1965,14 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		} catch (e) {
 			console.warn("[kirito扩展]chooseAnyOL补丁安装失败", e);
 		}
-		// ② 斗地主收藏加权：拦截标题为「你的选将框*」的对话框，把收藏武将注入候选数组（活引用，
-		//    原版与斗转星移美化界面都走ui.create.dialog，一个补丁两头通吃）
-		//    v4.19：收藏源改为「斗转自有键 ∪ 内核favouriteCharacter」合并——详情页勾选（千幻页/内核页）
-		//    写的是内核键，而斗转选将框自己的收藏页写斗转键；实测用户内核库11个、斗转键不存在，
-		//    单读斗转键等于永远空注入。注入时按当前模式禁用键实时过滤（禁用优先于收藏）
+		// ② 斗地主收藏加权（v4.21重做）：拦截标题为「你的选将框*」的对话框做两件事——
+		//    a) 收藏页桥接：详情页勾选（千幻页/内核页）写的是内核favouriteCharacter，而斗转选将框的
+		//       「收藏」页只读斗转自有键FavoriteChars（实测用户内核11个/斗转键空=收藏页永远空）。
+		//       在选将框构建前把内核收藏单向并入斗转键（只增不删，斗转收藏页里手动加的不会丢），
+		//       收藏页立刻两头都能看到；
+		//    b) 候选注入限流：v4.19曾把合并库全量注入候选数组——收藏多于三五个时候选框被刷满
+		//       （用户实测11个=每个格子都在出）。改回克制形态：候选里没有收藏时至多随机注入1个
+		//       （自然抽中就不补），保持"偶尔出一个"的原有手感
 		try {
 			if (typeof ui.create.dialog == "function" && !ui.create.dialog.__ktFav) {
 				const origDialog = ui.create.dialog;
@@ -1977,6 +1980,20 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					try {
 						if (typeof args[0] == "string" && args[0].startsWith("你的选将框") && game.me) {
 							const favKey = (window.dzxy && dzxy.dz ? dzxy.dz : "extension_斗转星移_") + "FavoriteChars";
+							// a) 收藏页桥接：内核收藏 → 斗转键（只增不删，去重后落库）
+							const coreFavs = Array.isArray(lib.config.favouriteCharacter) ? lib.config.favouriteCharacter.filter((f) => typeof f == "string") : [];
+							if (coreFavs.length) {
+								const dzFavs = Array.isArray(lib.config[favKey]) ? lib.config[favKey].slice() : [];
+								let added = false;
+								for (const f of coreFavs) {
+									if (!dzFavs.includes(f) && lib.character[f]) {
+										dzFavs.push(f);
+										added = true;
+									}
+								}
+								if (added) game.saveConfig(favKey, dzFavs);
+							}
+							// b) 候选注入限流：合并库（桥接后斗转键已含内核收藏）
 							const seen = Object.create(null);
 							const favs = [];
 							const pushFav = (f) => {
@@ -1986,17 +2003,15 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 								}
 							};
 							if (Array.isArray(lib.config[favKey])) lib.config[favKey].forEach(pushFav);
-							if (Array.isArray(lib.config.favouriteCharacter)) lib.config.favouriteCharacter.forEach(pushFav);
+							if (coreFavs.length) coreFavs.forEach(pushFav);
 							const banPlayer = Array.isArray(lib.config["extension_kirito扩展_banPlayer"]) ? lib.config["extension_kirito扩展_banPlayer"] : [];
 							const modeBanKey = lib.config.mode + "_banned";
 							const liveBan = Array.isArray(lib.config[modeBanKey]) ? lib.config[modeBanKey] : Array.isArray(lib.config.banned) ? lib.config.banned : [];
 							for (const item of args) {
 								if (Array.isArray(item) && item[1] === "character" && Array.isArray(item[0])) {
-									for (const f of favs) {
-										if (lib.character[f] && !item[0].includes(f) && !banPlayer.includes(f) && !liveBan.includes(f)) {
-											item[0].push(f);
-										}
-									}
+									if (favs.some((f) => item[0].includes(f))) continue; // 已自然抽中收藏，不再补
+									const pool = favs.filter((f) => lib.character[f] && !item[0].includes(f) && !banPlayer.includes(f) && !liveBan.includes(f));
+									if (pool.length) item[0].push(pool[Math.floor(Math.random() * pool.length)]);
 								}
 							}
 						}
