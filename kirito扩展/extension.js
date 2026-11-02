@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.18";
+const VERSION = "4.19";
 
 // FIX-11 无名AI权重更新网络护甲（v4.17）：无名AI自带的权重下载走全局fetch，超时仅12秒（含正文
 // 读取）且自动检查0重试，data.feiqiaoai.uno（Cloudflare）在直连环境下偏慢→"经常失败和超时"。
@@ -1959,6 +1959,9 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		}
 		// ② 斗地主收藏加权：拦截标题为「你的选将框*」的对话框，把收藏武将注入候选数组（活引用，
 		//    原版与斗转星移美化界面都走ui.create.dialog，一个补丁两头通吃）
+		//    v4.19：收藏源改为「斗转自有键 ∪ 内核favouriteCharacter」合并——详情页勾选（千幻页/内核页）
+		//    写的是内核键，而斗转选将框自己的收藏页写斗转键；实测用户内核库11个、斗转键不存在，
+		//    单读斗转键等于永远空注入。注入时按当前模式禁用键实时过滤（禁用优先于收藏）
 		try {
 			if (typeof ui.create.dialog == "function" && !ui.create.dialog.__ktFav) {
 				const origDialog = ui.create.dialog;
@@ -1966,12 +1969,23 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					try {
 						if (typeof args[0] == "string" && args[0].startsWith("你的选将框") && game.me) {
 							const favKey = (window.dzxy && dzxy.dz ? dzxy.dz : "extension_斗转星移_") + "FavoriteChars";
-							const favs = Array.isArray(lib.config[favKey]) ? lib.config[favKey] : [];
+							const seen = Object.create(null);
+							const favs = [];
+							const pushFav = (f) => {
+								if (typeof f == "string" && !seen[f]) {
+									seen[f] = 1;
+									favs.push(f);
+								}
+							};
+							if (Array.isArray(lib.config[favKey])) lib.config[favKey].forEach(pushFav);
+							if (Array.isArray(lib.config.favouriteCharacter)) lib.config.favouriteCharacter.forEach(pushFav);
 							const banPlayer = Array.isArray(lib.config["extension_kirito扩展_banPlayer"]) ? lib.config["extension_kirito扩展_banPlayer"] : [];
+							const modeBanKey = lib.config.mode + "_banned";
+							const liveBan = Array.isArray(lib.config[modeBanKey]) ? lib.config[modeBanKey] : Array.isArray(lib.config.banned) ? lib.config.banned : [];
 							for (const item of args) {
 								if (Array.isArray(item) && item[1] === "character" && Array.isArray(item[0])) {
 									for (const f of favs) {
-										if (typeof f == "string" && lib.character[f] && !item[0].includes(f) && !banPlayer.includes(f)) {
+										if (lib.character[f] && !item[0].includes(f) && !banPlayer.includes(f) && !liveBan.includes(f)) {
 											item[0].push(f);
 										}
 									}
@@ -1986,6 +2000,20 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		} catch (e) {
 			console.warn("[kirito扩展]收藏加权补丁安装失败", e);
 		}
+		// ②b 禁用工作副本每局刷新（v4.19）：内核只在模式加载时拷贝一次 lib.config.banned（game/index.js
+		//    loadModeAsync内），同一会话里再勾的禁用对后续对局不生效（选将池过滤读的是工作副本）。
+		//    每局gameStart时从当前模式的 _banned 配置键重拷一次，让「详情页勾选禁用→下一局生效」闭环。
+		//    仅刷新已存在的键；联机走configOL不受影响
+		try {
+			lib.announce.subscribe("Noname.Game.Event.GameStart", () => {
+				try {
+					const key = lib.config.mode + "_banned";
+					if (Array.isArray(lib.config[key]) && !_status.connectMode) {
+						lib.config.banned = lib.config[key].slice();
+					}
+				} catch (e) {}
+			});
+		} catch (e) {}
 		// ③ 千幻聆音复选框死循环：qhly_setChecked状态未变也触发qhly_onchecked，「全选」与单选互相
 		//    回调造成调用栈溢出——包装ui.qhly_initCheckBox，仅状态真正变化时触发回调（等价官方5.2.02修复）
 		const ktFixQhlyCb = () => {

@@ -49,9 +49,16 @@
 ---
 
 ## HOOK-1 收藏加权（斗转星移收藏系统）——特性挂钩，上游敏感
-- 引入 v4.05｜包装 `ui.create.dialog`：标题以「你的选将框」开头时把 `lib.config["extension_斗转星移_FavoriteChars"]` 注入候选数组（尊重玩家禁用名单）
-- 上游敏感点: 斗转星移若改收藏存储键（`dzxy.dz` 前缀）或对话框创建方式 → 失效。判定: 选将框看收藏武将是否出现
+- 引入 v4.05｜**重做于 v4.19**｜包装 `ui.create.dialog`：标题以「你的选将框」开头时把收藏注入候选数组
+- v4.19 重做背景（用户实测探针）: 收藏有两套互不相通的仓库——详情页勾选（千幻页 content.js:14664 / 内核页 ui/click:3363）写**内核** `favouriteCharacter`（实测11个），斗转选将框收藏页写斗转自有键 `extension_斗转星移_FavoriteChars`（实测不存在）。旧版HOOK-1只读斗转键=永远空注入。另有「界面优化」扩展后到再包一层 ui.create.dialog（extension.js:136），探针读最外层标记 `__ktFav` 显示 undefined 但 kirito 包装仍在链内生效（嵌套不丢失）
+- 实现: 注入源=斗转键 ∪ 内核favouriteCharacter（去重）；注入时排除 kirito banPlayer 与当前模式禁用键 `lib.config.mode+"_banned"` 实时名单（禁用优先于收藏，兼容本局中途勾选）
+- 上游敏感点: 斗转星移若改收藏存储键、对话框创建方式或选将框架不再走 ui.create.dialog → 失效。判定: 欢乐选将框看收藏武将是否出现
 - 代码锚: `__ktFav`
+
+## HOOK-3 禁用工作副本每局刷新（内核 banned 拷贝时机）
+- 引入 v4.19｜内核只在模式加载时拷贝一次 `lib.config.banned = lib.config[mode+"_banned"]`（game/index.js loadModeAsync，两版本行为一致非1.11.6.1回归）——同一会话里在详情页勾的禁用对后续对局不生效（选将池过滤读工作副本）。gameStart 订阅里从当前模式配置键重拷（slice防引用耦合），仅键存在且非联机时刷新
+- 上游已修判定: 内核改为每次开局重拷 banned（grep game/index.js banned 拷贝点出现在每局流程）→ 可摘
+- 代码锚: extension.js 搜 `Noname.Game.Event.GameStart` 内 banned 重拷段（②b注释块）
 
 ## HOOK-2 欢乐斗地主胜利奖励倍数（默认10倍）——特性挂钩，上游敏感
 - 引入 v4.02-4.03｜`lib.onover` unshift/push 一对回调：胜利时临时 `dzxy.ddzBeilv *= 配置倍数` 让斗转星移计奖回调算出翻倍金票，算完还原；失败路径还原原值
