@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.26";
+const VERSION = "4.27";
 
 // FIX-11 无名AI权重更新网络护甲（v4.17）：无名AI自带的权重下载走全局fetch，超时仅12秒（含正文
 // 读取）且自动检查0重试，data.feiqiaoai.uno（Cloudflare）在直连环境下偏慢→"经常失败和超时"。
@@ -2373,6 +2373,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					(async () => {
 						const BASE = "https://data.feiqiaoai.uno";
 						const NL = String.fromCharCode(10);
+						const out = [];
 						const TMP_DIR = "__kttmp"; // FIX-12：中文目录二进制落盘必败，一律走ASCII中转目录
 						const TMP = ["ktwm-manifest.json", "ktwm-bundle.json"];
 						const ktNativeReady = () => typeof window.cordova != "undefined" && typeof FileTransfer != "undefined" && typeof game.readFile == "function";
