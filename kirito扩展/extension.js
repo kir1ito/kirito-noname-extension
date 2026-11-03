@@ -2466,12 +2466,17 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					ktUpdateCenter.open();
 				},
 			},
-			// 无名AI权重更新：直调其downloadAndApply管线（校验/事务/备份全保留），kirito网络护甲负责
-			// 下载且错误全部自接（v4.18起不经他们的check弹窗链——那链条的downloadAndApply没有catch，
-			// 失败会以未处理拒绝冒到游戏错误弹窗，即用户实测的TypeError: Failed to fetch）
+			// 无名AI权重更新（v4.22强制版）：安卓端其管线依赖localStorage，易被占用且常被
+			// 训练/A-B候选门禁延迟成"待生效"迟迟不落。kirito三步强装：
+			// ① 下载走文件通道——安卓用FileTransfer原生落临时文件再readFile（完成后即删），
+			//    PC走FIX-11加速fetch；
+			// ② 临时压制其门禁三个状态源（modelState.getState/isTraining/hotSwap.stats均优先读
+			//    window.__DJSC全局挂载，包装后门禁放行，装完还原；备份/回滚/读回校验全保留），
+			//    权重包文本经临时fetch劫持喂给它自己的downloadAndApply管线零网络安装；
+			//    失败自动重试一次（瞬态存储占用）；对局核心信号不伪造，对局中仍会延迟生效
 			wuMingModelUpdate: {
-				name: "更新无名AI权重（加速通道）",
-				intro: "通过无名AI自带的更新管线拉取官方权重（主模型+策略模型）。kirito已接管其下载通道：45秒超时×3次重试，替代原版12秒×0-1次重试，解决「经常失败和超时」；下载结果由kirito直接弹窗报告。需「无名AI」扩展处于开启状态",
+				name: "更新无名AI权重（强制安装）",
+				intro: "强制安装官方权重（主模型+策略模型）：下载走原生文件通道，无视训练/A-B候选状态直接写入（本地训练模型会被先备份，可还原），装完清理临时文件。请在主菜单使用（对局中会改为稍后生效）。需「无名AI」扩展开启",
 				clear: true,
 				onclick() {
 					const d = window.__DJSC;
@@ -2480,17 +2485,89 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 						return;
 					}
 					(async () => {
+						const BASE = "https://data.feiqiaoai.uno";
 						const out = [];
+						const TMP = [".ktwm_manifest.json", ".ktwm_bundle.json"];
+						const ktNativeReady = () => typeof window.cordova != "undefined" && typeof FileTransfer != "undefined" && typeof game.readFile == "function";
+						const nativeGetText = (url, tmp) => new Promise((resolve, reject) => {
+							const root = localStorage.getItem("noname_inited");
+							if (!root) return reject(new Error("noname_inited缺失"));
+							game.ensureDirectory("extension/kirito扩展", () => {
+								try {
+									const ft = new FileTransfer();
+									ft.download(encodeURI(url), encodeURI(`${root}extension/kirito扩展/${tmp}`),
+										() => game.readFile(`extension/kirito扩展/${tmp}`, (data) => {
+											try { game.removeFile(`extension/kirito扩展/${tmp}`, () => {}); } catch (e) {}
+											const u8 = data instanceof Uint8Array ? data : new Uint8Array(data || []);
+											const text = new TextDecoder().decode(u8);
+											if (text.charCodeAt(0) === 60) return reject(new Error("源返回HTML错误页"));
+											resolve(text);
+										}, (e) => reject(new Error(`readFile code=${e && e.code}`))),
+										(e) => reject(new Error(`FileTransfer code=${e && e.code}`)));
+								} catch (e) { reject(e); }
+							}, true);
+						});
+						const accelGetText = async (url) => {
+							const resp = await fetch(url); // FIX-11已对该域接管45秒×3重试
+							if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+							return resp.text();
+						};
+						const getText = (url, tmp) => (ktNativeReady() ? nativeGetText(url, tmp).catch(() => accelGetText(url)) : accelGetText(url));
+						const cleanTmp = () => {
+							if (typeof game.removeFile != "function") return;
+							for (const t of TMP) { try { game.removeFile(`extension/kirito扩展/${t}`, () => {}); } catch (e) {} }
+						};
+						// 门禁压制：三状态源临时伪装为"可安装"，装完还原（备份/回滚/读回校验不受影响）
+						const armSpoofs = () => {
+							const saved = {};
+							try { if (d.modelState && typeof d.modelState.getState == "function") { saved.ms = d.modelState.getState; d.modelState.getState = () => "stable"; } } catch (e) {}
+							try { if (typeof d.isTraining == "function") { saved.tr = d.isTraining; d.isTraining = () => false; } } catch (e) {}
+							try { if (d.hotSwap && typeof d.hotSwap.stats == "function") { saved.hs = d.hotSwap.stats; d.hotSwap.stats = () => ({ hasCandidate: false }); } } catch (e) {}
+							return saved;
+						};
+						const restoreSpoofs = (saved) => {
+							try { if (saved.ms) d.modelState.getState = saved.ms; } catch (e) {}
+							try { if (saved.tr) d.isTraining = saved.tr; } catch (e) {}
+							try { if (saved.hs) d.hotSwap.stats = saved.hs; } catch (e) {}
+						};
 						try {
-							const mText = await fetch("https://data.feiqiaoai.uno/update/model/manifest.json")
-								.then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); });
+							const mText = await getText(BASE + "/update/model/manifest.json", TMP[0]);
 							const latest = JSON.parse(mText).latest;
 							if (!latest || !latest.url) throw new Error("清单中没有可用版本");
-							const r = await d.modelUpdate.downloadAndApply({ latest });
-							if (r && r.ok === false) out.push("主模型：失败 - " + (r.err || (r.errors || []).join("；")));
-							else out.push("主模型：完成（" + (latest.modelVersion || "?") + "）");
+							const bUrl = new URL(latest.url, BASE + "/update/model/manifest.json").href;
+							const bText = await getText(bUrl, TMP[1]);
+							JSON.parse(bText); // 快速健全性检查（详细校验由其管线做）
+							let r = null, lastErr = null;
+							for (let attempt = 0; attempt < 2 && !r; attempt++) {
+								try {
+									const saved = armSpoofs();
+									const origFetch = window.fetch;
+									window.fetch = function (u) {
+										const us = String(u);
+										if (us === bUrl) return Promise.resolve(new Response(bText, { status: 200 }));
+										if (us.indexOf(BASE + "/update/model/") === 0) return Promise.resolve(new Response(us.indexOf("manifest") >= 0 ? mText : bText, { status: 200 }));
+										return origFetch.apply(this, arguments);
+									};
+									try { r = await d.modelUpdate.downloadAndApply({ latest }); }
+									finally { window.fetch = origFetch; restoreSpoofs(saved); }
+								} catch (e) {
+									lastErr = e;
+									if (attempt === 0) await new Promise((res) => setTimeout(res, 2000)); // 瞬态占用稍候重试
+								}
+							}
+							if (!r) throw lastErr || new Error("安装失败");
+							if (r.ok === false) {
+								const why = r.err || (r.errors || []).join("；");
+								out.push("主模型：失败 - " + why + (String(why).indexOf("transaction") >= 0 ? "（重启游戏后重试；仍失败可在控制台执行 __DJSC.modelUpdate.restoreBackup() 还原）" : ""));
+							} else if (r.deferred) {
+								out.push("主模型：已下载待生效（" + (r.reason || "对局中") + "），本局结束或重启时自动写入");
+							} else {
+								out.push("主模型：强制安装完成（" + (latest.modelVersion || "?") + "）");
+							}
 						} catch (e) {
 							out.push("主模型：失败 - " + ((e && e.message) || e));
+						} finally {
+							cleanTmp();
 						}
 						try {
 							if (d.policyModelUpdate && d.policyModelUpdate.check) {
