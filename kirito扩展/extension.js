@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.22";
+const VERSION = "4.23";
 
 // FIX-11 无名AI权重更新网络护甲（v4.17）：无名AI自带的权重下载走全局fetch，超时仅12秒（含正文
 // 读取）且自动检查0重试，data.feiqiaoai.uno（Cloudflare）在直连环境下偏慢→"经常失败和超时"。
@@ -2476,7 +2476,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			//    失败自动重试一次（瞬态存储占用）；对局核心信号不伪造，对局中仍会延迟生效
 			wuMingModelUpdate: {
 				name: "更新无名AI权重（强制安装）",
-				intro: "强制安装官方权重（主模型+策略模型）：下载走原生文件通道，无视训练/A-B候选状态直接写入（本地训练模型会被先备份，可还原），装完清理临时文件。请在主菜单使用（对局中会改为稍后生效）。需「无名AI」扩展开启",
+				intro: "强制安装官方权重：下载走原生文件通道，无视训练/A-B候选状态。其管线失败或被延迟时自动直写存档兜底（写前自动备份kt_wum_backup_v1可还原），装完清理临时文件。需在主菜单使用（对局中直接拒绝）。需「无名AI」扩展开启",
 				clear: true,
 				onclick() {
 					const d = window.__DJSC;
@@ -2484,8 +2484,13 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 						alert("未检测到无名AI扩展（或未开启）。请先在扩展管理中开启「无名AI」并重启游戏");
 						return;
 					}
+					if (typeof _status !== "undefined" && _status && _status.gameStarted === true && _status.over !== true) {
+						alert("检测到对局进行中。对局信号是游戏核心状态，kirito不伪造它——请回主菜单（或本局结束）后再用强制安装");
+						return;
+					}
 					(async () => {
 						const BASE = "https://data.feiqiaoai.uno";
+						const NL = String.fromCharCode(10);
 						const out = [];
 						const TMP_DIR = "__kttmp"; // FIX-12：中文目录二进制落盘必败，一律走ASCII中转目录
 						const TMP = ["ktwm-manifest.json", "ktwm-bundle.json"];
@@ -2495,30 +2500,30 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 							if (!root) return reject(new Error("noname_inited缺失"));
 							game.ensureDirectory(TMP_DIR, () => {
 								try {
-									const ft = new FileTransfer();
-									ft.download(encodeURI(url), encodeURI(`${root}${TMP_DIR}/${tmp}`),
-										() => game.readFile(`${TMP_DIR}/${tmp}`, (data) => {
-											try { game.removeFile(`${TMP_DIR}/${tmp}`, () => {}); } catch (e) {}
-											const u8 = data instanceof Uint8Array ? data : new Uint8Array(data || []);
-											const text = new TextDecoder().decode(u8);
-											if (text.charCodeAt(0) === 60) return reject(new Error("源返回HTML错误页"));
-											resolve(text);
-										}, (e) => reject(new Error(`readFile code=${e && e.code}`))),
-										(e) => reject(new Error(`FileTransfer code=${e && e.code}`)));
+								const ft = new FileTransfer();
+								ft.download(encodeURI(url), encodeURI(root + TMP_DIR + "/" + tmp),
+								() => game.readFile(TMP_DIR + "/" + tmp, (data) => {
+								try { game.removeFile(TMP_DIR + "/" + tmp, () => {}); } catch (e) {}
+								const u8 = data instanceof Uint8Array ? data : new Uint8Array(data || []);
+								const text = new TextDecoder().decode(u8);
+								if (text.charCodeAt(0) === 60) return reject(new Error("源返回HTML错误页"));
+								resolve(text);
+								}, (e) => reject(new Error("readFile code=" + (e && e.code)))),
+								(e) => reject(new Error("FileTransfer code=" + (e && e.code))));
 								} catch (e) { reject(e); }
 							}, true);
-						});
+							});
 						const accelGetText = async (url) => {
 							const resp = await fetch(url); // FIX-11已对该域接管45秒×3重试
-							if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+							if (!resp.ok) throw new Error("HTTP " + resp.status);
 							return resp.text();
 						};
 						const getText = (url, tmp) => (ktNativeReady() ? nativeGetText(url, tmp).catch(() => accelGetText(url)) : accelGetText(url));
 						const cleanTmp = () => {
 							if (typeof game.removeFile != "function") return;
-							for (const t of TMP) { try { game.removeFile(`${TMP_DIR}/${t}`, () => {}); } catch (e) {} }
+							for (const t of TMP) { try { game.removeFile(TMP_DIR + "/" + t, () => {}); } catch (e) {} }
 						};
-						// 门禁压制：三状态源临时伪装为"可安装"，装完还原（备份/回滚/读回校验不受影响）
+						// 门禁压制：三状态源临时伪装（其loader优先读__DJSC全局挂载，普通对象可直接覆写）
 						const armSpoofs = () => {
 							const saved = {};
 							try { if (d.modelState && typeof d.modelState.getState == "function") { saved.ms = d.modelState.getState; d.modelState.getState = () => "stable"; } } catch (e) {}
@@ -2531,42 +2536,87 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 							try { if (saved.tr) d.isTraining = saved.tr; } catch (e) {}
 							try { if (saved.hs) d.hotSwap.stats = saved.hs; } catch (e) {}
 						};
+						// 直写兜底（v4.23）：绕开其事务，自行写存档djsc_weights_v3+官方记录djsc_official_weights_v1
+						// （写前自动备份到kt_wum_backup_v1可还原，写后逐键读回核对）。其管线任何失败/延迟形态的最终退路
+						const directWrite = (latest, bText) => {
+							const b = JSON.parse(bText);
+							const bad = (m) => { throw new Error(m); };
+							if (String(b.sha256).toLowerCase() !== String(latest.sha256).toLowerCase()) bad("包sha256与清单不一致");
+							if (Number(b.size) !== Number(latest.size)) bad("包size与清单不一致");
+							if (String(b.releaseSeq) !== String(latest.releaseSeq)) bad("包版本序号与清单不一致");
+							const keys = ["w1", "b1", "w2", "b2", "w3", "b3", "w4", "b4", "pr1", "pr2"];
+							const P = b.params || {};
+							for (const k of keys) {
+								const v = P[k];
+								if (typeof v !== "string" || !v.length) bad("包缺少参数 " + k);
+								try { atob(v); } catch (e) { bad("参数 " + k + " 不是合法base64"); }
+							}
+							const ls = window.localStorage;
+							ls.setItem("kt_wum_backup_v1", JSON.stringify({ ts: Date.now(), version: latest.modelVersion || "", archive: ls.getItem("djsc_weights_v3"), official: ls.getItem("djsc_official_weights_v1") }));
+							const arc = { v: b.schemaVersion, dv: b.dataEpoch, trained: Number(b.trained) || 0, accuracy: Number(b.accuracy) || 0, ready: true };
+							for (const k of keys) arc[k] = P[k];
+							ls.setItem("djsc_weights_v3", JSON.stringify(arc));
+							const rec = { version: 2, modelId: b.modelId || "main-actor-critic", modelVersion: b.modelVersion, releaseSeq: Number(b.releaseSeq) || 0, schemaVersion: b.schemaVersion, dataEpoch: Number(b.dataEpoch) || 0, sha256: String(b.sha256).toLowerCase(), size: Number(latest.size) || Number(b.size) || 0, trained: Number(b.trained) || 0, appliedAt: Date.now(), source: "official-online" };
+							ls.setItem("djsc_official_weights_v1", JSON.stringify(rec));
+							const back = JSON.parse(ls.getItem("djsc_weights_v3"));
+							for (const k of keys) if (back[k] !== P[k]) bad("存档读回不一致: " + k);
+							if (JSON.parse(ls.getItem("djsc_official_weights_v1")).sha256 !== rec.sha256) bad("记录读回不一致");
+							ls.removeItem("djsc_model_update_pending_v1");
+							ls.removeItem("djsc_model_update_tx_v1");
+							ls.removeItem("djsc_weights_backup_staging_v1");
+							return true;
+						};
+						let dl = null;
 						try {
 							const mText = await getText(BASE + "/update/model/manifest.json", TMP[0]);
 							const latest = JSON.parse(mText).latest;
 							if (!latest || !latest.url) throw new Error("清单中没有可用版本");
 							const bUrl = new URL(latest.url, BASE + "/update/model/manifest.json").href;
 							const bText = await getText(bUrl, TMP[1]);
-							JSON.parse(bText); // 快速健全性检查（详细校验由其管线做）
+							JSON.parse(bText);
+							dl = { latest, bText };
 							let r = null, lastErr = null;
 							for (let attempt = 0; attempt < 2 && !r; attempt++) {
 								try {
-									const saved = armSpoofs();
-									const origFetch = window.fetch;
-									window.fetch = function (u) {
-										const us = String(u);
-										if (us === bUrl) return Promise.resolve(new Response(bText, { status: 200 }));
-										if (us.indexOf(BASE + "/update/model/") === 0) return Promise.resolve(new Response(us.indexOf("manifest") >= 0 ? mText : bText, { status: 200 }));
-										return origFetch.apply(this, arguments);
-									};
-									try { r = await d.modelUpdate.downloadAndApply({ latest }); }
-									finally { window.fetch = origFetch; restoreSpoofs(saved); }
+								const saved = armSpoofs();
+								const origFetch = window.fetch;
+								window.fetch = function (u) {
+								const us = String(u);
+								if (us === bUrl) return Promise.resolve(new Response(bText, { status: 200 }));
+								if (us.indexOf(BASE + "/update/model/") === 0) return Promise.resolve(new Response(us.indexOf("manifest") >= 0 ? mText : bText, { status: 200 }));
+								return origFetch.apply(this, arguments);
+								};
+								try { r = await d.modelUpdate.downloadAndApply({ latest }); }
+								finally { window.fetch = origFetch; restoreSpoofs(saved); }
 								} catch (e) {
-									lastErr = e;
-									if (attempt === 0) await new Promise((res) => setTimeout(res, 2000)); // 瞬态占用稍候重试
+								lastErr = e;
+								if (attempt === 0) await new Promise((res) => setTimeout(res, 2000));
 								}
 							}
 							if (!r) throw lastErr || new Error("安装失败");
 							if (r.ok === false) {
 								const why = r.err || (r.errors || []).join("；");
-								out.push("主模型：失败 - " + why + (String(why).indexOf("transaction") >= 0 ? "（重启游戏后重试；仍失败可在控制台执行 __DJSC.modelUpdate.restoreBackup() 还原）" : ""));
-							} else if (r.deferred) {
-								out.push("主模型：已下载待生效（" + (r.reason || "对局中") + "），本局结束或重启时自动写入");
-							} else {
-								out.push("主模型：强制安装完成（" + (latest.modelVersion || "?") + "）");
+								if (String(why).indexOf("kept local model") >= 0) {
+								out.push("主模型：你选择了保留本地模型，未安装");
+								} else {
+								try { directWrite(dl.latest, dl.bText); out.push("主模型：其管线失败（" + why + "），已直写存档强制完成——重启游戏生效"); }
+								catch (e2) { out.push("主模型：失败 - " + why + "；直写兜底也失败 - " + ((e2 && e2.message) || e2)); }
+								}
+								} else if (r.deferred) {
+								try { directWrite(dl.latest, dl.bText); out.push("主模型：管线要求延迟生效，已直写强制完成——重启游戏生效"); }
+								catch (e2) { out.push("主模型：已下载待生效（" + (r.reason || "对局中") + "）；直写兜底失败 - " + ((e2 && e2.message) || e2)); }
+								} else {
+								out.push("主模型：安装完成（" + (latest.modelVersion || "?") + "）");
 							}
 						} catch (e) {
-							out.push("主模型：失败 - " + ((e && e.message) || e));
+							const msg = (e && e.message) || e;
+							try {
+							if (!dl) throw new Error("权重包未下载成功，无法直写");
+							directWrite(dl.latest, dl.bText);
+							out.push("主模型：管线异常（" + msg + "），已直写存档强制完成——重启游戏生效");
+							} catch (e2) {
+							out.push("主模型：失败 - " + msg + "；直写兜底 - " + ((e2 && e2.message) || e2));
+							}
 						} finally {
 							cleanTmp();
 						}
@@ -2578,7 +2628,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 						} catch (e) {
 							out.push("策略模型：失败 - " + ((e && e.message) || e));
 						}
-						alert("无名AI权重更新结果：\n" + out.join("\n"));
+						alert("无名AI权重更新结果：" + NL + out.join(NL));
 					})();
 				},
 			},
