@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.21";
+const VERSION = "4.22";
 
 // FIX-11 无名AI权重更新网络护甲（v4.17）：无名AI自带的权重下载走全局fetch，超时仅12秒（含正文
 // 读取）且自动检查0重试，data.feiqiaoai.uno（Cloudflare）在直连环境下偏慢→"经常失败和超时"。
@@ -141,7 +141,7 @@ const ktBinData = (data) => (data instanceof Uint8Array
 //    不经过JS桥——与本体game.download（云端资源下载）同通道，真机长期验证字节精确；
 // ② 标准game.writeFile(ArrayBuffer)：健康内核字节精确（PC恒走此路，不进校验链）；
 // ③ 直调File插件write [localURL, Base64串, offset, isBinary=true]：部分内核可用，Java端对String做Base64解码落盘
-const PLAN_LABELS = { transfer: "FileTransfer直落盘", standard: "标准写入", direct: "直调File" };
+const PLAN_LABELS = { tempmove: "ASCII中转+moveTo", transfer: "FileTransfer直落盘", standard: "标准写入", direct: "直调File" };
 const ktGameWrite = (data, dir, name) => new Promise((resolve, reject) =>
 	game.writeFile(data, dir, name, (err) => {
 		// 安卓端cordova写成功时回调的是ProgressEvent（truthy），只有真失败才是FileError；node端成功回调null
@@ -198,6 +198,55 @@ const ktWriteBinary = async (data, dir, name, srcUrl) => {
 		return ktBytesEqual(got, bytes);
 	};
 	const planList = [];
+	// 本机毒桥对非ASCII目录的二进制写入必败（FileTransfer按Latin-1解码目标→code=1；直调File→ENCODING_ERR(5)）：
+	// 中文目录先以ASCII临时文件落盘（走已验证的transfer/direct通道），再原生moveTo进目标目录（Java层重命名无编码损失）
+	if (typeof window != "undefined" && window.cordova && typeof game.removeFile == "function" && /[^\x00-\x7F]/.test(dir)) {
+		planList.push(["tempmove",
+			async () => {
+				const tmpDir = "__kttmp";
+				const tmpName = `kt${Date.now()}.bin`;
+				const root = localStorage.getItem("noname_inited");
+				if (!root) throw new Error("noname_inited缺失");
+				await new Promise((resolve) => game.ensureDirectory(tmpDir, resolve));
+				const tmpLocal = `${tmpDir}/${tmpName}`;
+				const tryPlans = [];
+				if (srcUrl && typeof FileTransfer != "undefined") tryPlans.push(["transfer", () => ktTransferWrite(srcUrl, tmpDir, tmpName)]);
+				tryPlans.push(["direct",
+					async () => {
+						const entry = await new Promise((resolve, reject) =>
+							window.resolveLocalFileSystemURL(
+								root + tmpDir,
+								(d) => d.getFile(tmpName, { create: true }, resolve, reject),
+								reject
+							));
+						await new Promise((resolve) => game.removeFile(tmpLocal, resolve));
+						await new Promise((resolve, reject) =>
+							cordova.exec(resolve, (e) => reject(new Error(typeof e == "object" ? JSON.stringify(e) : String(e))), "File", "write", [entry.localURL, ktBase64Of(bytes), 0, true]));
+					}]);
+				const tmpErrs = [];
+				for (const [key, plan] of tryPlans) {
+					try {
+						await plan();
+						const fileEntry = await new Promise((resolve, reject) =>
+							window.resolveLocalFileSystemURL(`${root}${tmpDir}/${tmpName}`, resolve, reject));
+						const parentEntry = await new Promise((resolve, reject) =>
+							window.resolveLocalFileSystemURL(root + dir, resolve, reject));
+						try {
+							await new Promise((resolve, reject) => fileEntry.moveTo(parentEntry, name, resolve, reject));
+						} catch (moveErr) {
+							// 目标已存在导致move失败时，先删旧文件再move一次（此刻父目录解析已通过，窗口极小）
+							await new Promise((resolve) => game.removeFile(local, resolve));
+							await new Promise((resolve, reject) => fileEntry.moveTo(parentEntry, name, resolve, reject));
+						}
+						return;
+					} catch (e) {
+						tmpErrs.push(`${PLAN_LABELS[key]}：${(e && e.message) || e}`);
+						try { await new Promise((resolve) => game.removeFile(tmpLocal, resolve)); } catch (cleanupErr) {}
+					}
+				}
+				throw new Error(`ASCII中转落盘失败（${tmpErrs.join("；")}）`);
+			}]);
+	}
 	if (srcUrl && typeof FileTransfer != "undefined") {
 		planList.push(["transfer", () => ktTransferWrite(srcUrl, dir, name)]);
 	}
@@ -813,8 +862,11 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					curFile = file;
 					const { bytes, src } = await downloadRaw(file, file == "extension.js" ? releaseVersion : null);
 					done++;
-					// 附带该文件的实际下载源地址：安卓损坏内核二进制写入走FileTransfer直落盘
-					await writeFileTo(file, /\.json$/.test(file) ? new TextDecoder().decode(bytes) : bytes, rawUrlOf(src, file));
+					// 附带该文件的实际下载源地址。增量两文件均为UTF-8文本，一律走字符串通道：
+					// 本机毒桥对中文目录的二进制写入必败（FileTransfer把%E6..按Latin-1解码→code=1；
+					// 直调File的localURL百分号编码在Java侧解码错乱→ENCODING_ERR(5)，且其先删后写会删掉原文件），
+					// 而字符串通道走resolveLocalFileSystemURL原始路径（removeFile已实证可用），两端字节精确
+					await writeFileTo(file, new TextDecoder().decode(bytes), rawUrlOf(src, file));
 				}
 				const finalVersion = releaseVersion || remoteVersion;
 				if (finalVersion) game.saveConfig(`extension_${NAME}_version`, finalVersion);

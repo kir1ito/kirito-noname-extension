@@ -157,3 +157,13 @@
 - FIX-8 未修：十周年UI仍1.3.1，spine.js md5 352f549c…（运行时未换代）→ **保留**
 - FIX-9 未满足摘除条件：4.16.1.11 主题表（precontent.js 注册12个）仍无 xin；时机验证正确（precontent 同步注册早于 kirito content 期检查，不会误重置）。当前配置已被自愈持久化为有效值、代码休眠 → **保留作保险**（防未来再出现配置指向失效主题）
 - HOOK-1/HOOK-2/DEF-1 特性挂钩不涉上游修复 → 保留
+
+## FIX-12 中文扩展目录下安卓二进制写入必败（本体cordova桥路径编码错乱）
+- 引入 v4.22｜状态: 生效中
+- 上游bug: 子琪懒人包的 cordova 桥接层对「百分号编码的非ASCII路径」解码错乱：① FileTransfer 直落盘的目标 `encodeURI(...%E6%89%A9%E5%B1%95...)` 在 Java 侧被按 Latin-1 解码成乱码目录名 → code=1 (FILE_NOT_FOUND)（assets/dynamic/ 下的 GBK 乱码目录即历史残骸）；② 直调 File 的 `entry.localURL` 百分号编码同样解码错乱 → ENCODING_ERR(5)，且其「先删旧文件再写」策略在写入失败后把原文件删没了（2026-11-03 增量更新即实际删掉了 extension.js）；③ 标准 game.writeFile(ArrayBuffer) 被毒桥逐字节 JSON 序列化损坏（v3.36 取证）。三条二进制链在中文目录（`extension/kirito扩展/`）下全军覆没，而字符串通道（resolveLocalFileSystemURL 原始未编码路径）实测字节精确可用
+- 实现: 三处改动（v4.22 补丁）：① ktWriteBinary 新增 `tempmove` 策略（中文目录时最优先）：先落盘到游戏根下纯 ASCII 的 `__kttmp/`（走已验证的 transfer/direct 通道），再用 File 插件原生 moveTo 移入中文目录（Java 层重命名无编码损失），move 撞已存在文件则删旧重试一次，失败自动降级原有策略链，读回校验不变；② 增量更新的 extension.js/info.json 一律走字符串通道（两文件均为 UTF-8 文本，TextDecoder/TextEncoder 往返字节精确），绕开二进制链；③ PLAN_LABELS 增补 tempmove 标签。全量更新的 png/mp3/skel 等真二进制靠 ① 的 moveTo 中转
+- 影响范围: 仅安卓 cordova 端 + 目录名含非 ASCII 字符的场景；PC/Electron 不受影响（PC 直接走标准写入不进校验链）
+- 上游已修判定: 无名杀本体/懒人包更新后，cordova 桥对百分号编码路径解码正确（FileTransfer 直落盘到中文目录成功）→ 可摘 tempmove 与字符串通道改道
+- 移除方式: 删 ktWriteBinary 内 `tempmove` 分支（代码锚 `__kttmp`）+ startIncremental 写入行还原为 `/\.json\$/.test(file)` 三元式
+- 代码锚: extension.js 搜 `__kttmp` / `tempmove`
+- 备注: 此前 2026-11-03 的修复方案成品（MD5 c6761fade…）已手动装到手机（Download/DSH-Go/kirito-fix/），本仓库落地版内容同源+版本号 bump 至 4.22。用户手动装 4.22 后，后续在线增量/全量更新即可自愈闭环
