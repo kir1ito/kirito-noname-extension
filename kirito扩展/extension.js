@@ -2487,17 +2487,18 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					(async () => {
 						const BASE = "https://data.feiqiaoai.uno";
 						const out = [];
-						const TMP = [".ktwm_manifest.json", ".ktwm_bundle.json"];
+						const TMP_DIR = "__kttmp"; // FIX-12：中文目录二进制落盘必败，一律走ASCII中转目录
+						const TMP = ["ktwm-manifest.json", "ktwm-bundle.json"];
 						const ktNativeReady = () => typeof window.cordova != "undefined" && typeof FileTransfer != "undefined" && typeof game.readFile == "function";
 						const nativeGetText = (url, tmp) => new Promise((resolve, reject) => {
 							const root = localStorage.getItem("noname_inited");
 							if (!root) return reject(new Error("noname_inited缺失"));
-							game.ensureDirectory("extension/kirito扩展", () => {
+							game.ensureDirectory(TMP_DIR, () => {
 								try {
 									const ft = new FileTransfer();
-									ft.download(encodeURI(url), encodeURI(`${root}extension/kirito扩展/${tmp}`),
-										() => game.readFile(`extension/kirito扩展/${tmp}`, (data) => {
-											try { game.removeFile(`extension/kirito扩展/${tmp}`, () => {}); } catch (e) {}
+									ft.download(encodeURI(url), encodeURI(`${root}${TMP_DIR}/${tmp}`),
+										() => game.readFile(`${TMP_DIR}/${tmp}`, (data) => {
+											try { game.removeFile(`${TMP_DIR}/${tmp}`, () => {}); } catch (e) {}
 											const u8 = data instanceof Uint8Array ? data : new Uint8Array(data || []);
 											const text = new TextDecoder().decode(u8);
 											if (text.charCodeAt(0) === 60) return reject(new Error("源返回HTML错误页"));
@@ -2515,7 +2516,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 						const getText = (url, tmp) => (ktNativeReady() ? nativeGetText(url, tmp).catch(() => accelGetText(url)) : accelGetText(url));
 						const cleanTmp = () => {
 							if (typeof game.removeFile != "function") return;
-							for (const t of TMP) { try { game.removeFile(`extension/kirito扩展/${t}`, () => {}); } catch (e) {} }
+							for (const t of TMP) { try { game.removeFile(`${TMP_DIR}/${t}`, () => {}); } catch (e) {} }
 						};
 						// 门禁压制：三状态源临时伪装为"可安装"，装完还原（备份/回滚/读回校验不受影响）
 						const armSpoofs = () => {
