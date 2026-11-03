@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.23";
+const VERSION = "4.24";
 
 // FIX-11 无名AI权重更新网络护甲（v4.17）：无名AI自带的权重下载走全局fetch，超时仅12秒（含正文
 // 读取）且自动检查0重试，data.feiqiaoai.uno（Cloudflare）在直连环境下偏慢→"经常失败和超时"。
@@ -1930,13 +1930,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					const next = game.createEvent("ktGuanding", false);
 					next.player = game.me;
 					next.setContent(async (event, trigger, player) => {
-						// 无上神自带〖降临〗可自行挑选技能，默认排除不重复灌顶（可关掉排除开关）
-						if (
-							game.getExtensionConfig("kirito扩展", "guandingExcludeWss") !== false &&
-							(player.name == "wushangshen" || player.name1 == "wushangshen" || player.name2 == "wushangshen")
-						) {
-							return;
-						}
 						const saved = game.getExtensionConfig("kirito扩展", "guandingPool");
 						const pool = (Array.isArray(saved) ? saved : []).filter(
 							(skill) => typeof skill == "string" && lib.skill[skill] && !player.hasSkill(skill, null, null, false)
@@ -2281,8 +2274,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			};
 				// (1) 立绘：十周年UI头像/限定技大字特效/MVP结算页等消费方直接请求本体 image/character/<武将>.jpg，
 				// 不读扩展目录（404导致结算大头像空白）
-				copyFile("extension/kirito扩展/wushangshen.jpg", "image/character/wushangshen.jpg");
-				copyFile("extension/kirito扩展/god.jpg", "image/character/god.jpg");
 				// (2) 限定技大字背景：太虚幻境版 decadeUI.effect.skill 读 extension/十周年UI/assets/image/bg_xianding_<势力>.png，
 				// 本地十周年UI裁剪包无 assets/image/ 目录——shen 404后兜底qun也404，onload永不触发，整段特效（大字+立绘+底盘）不渲染。
 				// 十周年UI自带 image/ui/misc/ 下仅有 wei/shu/wu/qun 四张（shen无官方素材，用qun占位），全部镜像补齐
@@ -2292,56 +2283,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				copyFile("extension/十周年UI/image/ui/misc/bg_xianding_qun.png", "extension/十周年UI/assets/image/bg_xianding_shen.png");
 				copyFile("extension/十周年UI/image/ui/misc/bg_xianding_qun.png", "extension/十周年UI/image/ui/misc/bg_xianding_shen.png");
 			}
-			// 十周年UI动皮配置：素材与配置完全自持（assets/dynamic/神马超/风霆啸野 为十周年UI同名动皮的完整副本）。
-			// 十周年UI播放器以 extension/十周年UI/assets/dynamic/ 为基址拼接皮肤name，
-			// 故用 ../../../ 回溯到本扩展目录；十周年UI初始化会整体重建 dynamicSkin 表且与本扩展加载顺序不定，
-			// 故轮询等待其表就绪后注入，注入成功即停止；未安装十周年UI时15秒后静默放弃（仅失去动皮，其余功能不受影响）
-			const install = () => {
-				if (!window.decadeUI || !decadeUI.dynamicSkin) {
-					return false;
-				}
-				if (!decadeUI.dynamicSkin.wushangshen) {
-					const skinDir = "../../../kirito扩展/assets/dynamic/神马超/风霆啸野";
-					decadeUI.dynamicSkin.wushangshen = {
-						风霆啸野: {
-							name: `${skinDir}/XingXiang`,
-							x: [0, 1.1],
-							y: [0, 0.25],
-							scale: 0.4,
-							angle: 0,
-							beijing: {
-								name: `${skinDir}/BeiJing`,
-								scale: 0.3,
-								x: [0, 0.4],
-								y: [0, 0.5],
-							},
-						},
-					};
-				}
-				return true;
-			};
-			if (!install()) {
-				const timer = setInterval(() => {
-					if (install()) {
-						clearInterval(timer);
-					}
-				}, 500);
-				setTimeout(() => clearInterval(timer), 15000);
-			}
-			// 自愈守望：十周年UI初始化会执行 decadeUI.dynamicSkin = {...dynamicSkinConfig} 整表重建，
-			// 若重建发生在我们注入之后（其更新后重建时机变晚，加载顺序竞态），注入项会被抹掉导致动皮无法选择。
-			// 启动后2分钟内每3秒检查一次，发现被抹即自动补注；2分钟后视为初始化完毕，停止守望
-			const watchdogDeadline = Date.now() + 120000;
-			const watchdog = setInterval(() => {
-				if (Date.now() > watchdogDeadline) {
-					clearInterval(watchdog);
-					return;
-				}
-				if (window.decadeUI && decadeUI.dynamicSkin && !decadeUI.dynamicSkin.wushangshen) {
-					install();
-					console.log("kirito扩展：检测到动皮配置被重建抹除，已自动补注");
-				}
-			}, 3000);
 			// 皮肤切换(第三方扩展)安卓守护：其postMsgApi的playAvatar/changeAvatarAction/action裸访问
 			// player.dynamic.renderer.postMessage——安卓webview下播放器worker常初始化失败或结算时已销毁置空，
 			// 直接TypeError崩溃，且空白动皮层会遮住静态立绘（结算图片空白）。此处运行时包装三个入口：
@@ -2632,7 +2573,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					})();
 				},
 			},
-			// 降临技能池：管理无上神〖降临〗局内可选的技能（默认本扩展全部技能，可增删，上限20）
+			// 降临技能池：管理自制技〖降临〗(grytouying)局内可选的技能（默认本扩展全部技能，可增删，上限20）
 			touyingPool: {
 				name: "降临技能池管理（增加/排除）",
 				intro: "管理〖降临〗游戏开始时可挑选的技能池：默认为本扩展全部技能；可搜索添加本体及已开启扩展武将的所有技能（上限20个），点标签排除不需要的技能。改动即时保存，下一局生效",
@@ -2644,13 +2585,8 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			// 灌顶：开关+技能池（默认空）。开启后每局开局自动把池内全部技能加给玩家操控的角色
 			autoAddSkills: {
 				name: "自动添加技能（灌顶）",
-				intro: "开启后，每局游戏开始时自动把「灌顶技能池」内的全部技能灌顶给你操控的角色（无需手动挑选）。需先在下方「灌顶技能池管理」中添加技能，池子为空则无效果。无上神默认不参与灌顶",
+				intro: "开启后，每局游戏开始时自动把「灌顶技能池」内的全部技能灌顶给你操控的角色（无需手动挑选）。需先在下方「灌顶技能池管理」中添加技能，池子为空则无效果",
 				init: false,
-			},
-			guandingExcludeWss: {
-				name: "灌顶排除无上神",
-				intro: "开启后，你操控无上神（含国战副将形态）时开局不自动灌顶——无上神自带〖降临〗可自行挑选技能，避免重复。关闭此项则无上神也照常灌顶",
-				init: true,
 			},
 			guandingPool: {
 				name: "灌顶技能池管理（增加/排除）",
@@ -2706,48 +2642,8 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		},
 		package: {
 			character: {
-				// 声明为国战角色包：加载时加入 lib.characterGuozhanFilter，开启"仅国战武将"时也能入选
-				mode: "guozhan",
-				character: {
-					// 以本体神赵云(character/extra.js:shen_zhaoyun)为底，仅名字、血量不同，技能为强化版
-					// 用 Character 实例而非普通对象：[1] 等旧式下标访问映射到 group，国战选将配对代码依赖它
-					god: new Character({
-						sex: "male",
-						group: "shen",
-						hp: 3,
-						maxHp: 3,
-						hujia: 0,
-						skills: ["gryjuejing", "grylonghun"],
-						groupInGuozhan: "shu",
-						// AI 禁选：AI 不选用此武将，玩家仍可正常选择
-						isAiForbidden: true,
-						// 不写img：自动使用 extension/kirito扩展/god.jpg
-						dieAudios: ["ext:kirito扩展/audio/die/god.mp3"],
-					}),
-					// 以手杀神马超(mb_shen_machao)为主本：立绘/阵亡语音/皮肤/动皮/特效均复用其素材
-					// 立绘=extension/kirito扩展/wushangshen.jpg（本体 image/character/mb_shen_machao.jpg 的副本）
-					// 动皮经 precontent 注入十周年UI别名表（wushangshen → mb_shen_machao 的"风霆啸野"）
-					wushangshen: new Character({
-						sex: "male",
-						group: "shen",
-						hp: 4,
-						maxHp: 4,
-						hujia: 0,
-						skills: ["grytouying"],
-						groupInGuozhan: "qun",
-						// AI 禁选：AI 不选用此武将，玩家仍可正常选择
-						isAiForbidden: true,
-						// 阵亡语音为自带副本（手杀神马超阵亡语音，audio/die/wushangshen.mp3）
-						dieAudios: ["ext:kirito扩展/audio/die/wushangshen.mp3"],
-					}),
-				},
-				translate: {
-					god: "龙神赵云",
-					wushangshen: "无上神",
-				},
-				characterIntro: {
-					wushangshen: "kirito的自制的无上神武将",
-				},
+				character: {},
+				translate: {},
 			},
 			card: {
 				card: {},
@@ -4285,6 +4181,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 			forumURL: "",
 			version: VERSION,
 		},
-		files: { character: ["god.jpg", "wushangshen.jpg"], card: [], skill: [], audio: [] },
+		files: { character: [], card: [], skill: [], audio: [] },
 	};
 }
