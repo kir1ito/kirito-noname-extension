@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.25";
+const VERSION = "4.26";
 
 // FIX-11 无名AI权重更新网络护甲（v4.17）：无名AI自带的权重下载走全局fetch，超时仅12秒（含正文
 // 读取）且自动检查0重试，data.feiqiaoai.uno（Cloudflare）在直连环境下偏慢→"经常失败和超时"。
@@ -2351,32 +2351,28 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					ktUpdateCenter.open();
 				},
 			},
-			// 无名AI权重更新（v4.22强制版）：安卓端其管线依赖localStorage，易被占用且常被
-			// 训练/A-B候选门禁延迟成"待生效"迟迟不落。kirito三步强装：
-			// ① 下载走文件通道——安卓用FileTransfer原生落临时文件再readFile（完成后即删），
-			//    PC走FIX-11加速fetch；
-			// ② 临时压制其门禁三个状态源（modelState.getState/isTraining/hotSwap.stats均优先读
-			//    window.__DJSC全局挂载，包装后门禁放行，装完还原；备份/回滚/读回校验全保留），
-			//    权重包文本经临时fetch劫持喂给它自己的downloadAndApply管线零网络安装；
-			//    失败自动重试一次（瞬态存储占用）；对局核心信号不伪造，对局中仍会延迟生效
+			// 无名AI权重更新（v4.26直写版）：跳过其管线，按其代码格式直接安装权重到存储——
+			// 下载走文件通道（安卓FileTransfer落__kttmp/临时文件再readFile即删，PC走FIX-11加速fetch），
+			// 校验=清单交叉核对(sha256/size/序号)+paramSpec逐参数字节长度+拼接字节SHA-256摘要，写前自动
+			// 备份到kt_wum_backup_v1，写djsc_weights_v3存档+djsc_official_weights_v1官方记录后逐键读回，
+			// 清pending/事务残留。直写为存储层变更，重启游戏生效（其管线的事务/延迟机制全部不再经过）
 			wuMingModelUpdate: {
-				name: "更新无名AI权重（强制安装）",
-				intro: "强制安装官方权重：下载走原生文件通道，无视训练/A-B候选状态。其管线失败或被延迟时自动直写存档兜底（写前自动备份kt_wum_backup_v1可还原），装完清理临时文件。需在主菜单使用（对局中直接拒绝）。需「无名AI」扩展开启",
+				name: "更新无名AI权重（直装）",
+				intro: "直接把官方权重写入无名AI存档（跳过其下载与安装管线）：文件通道下载+全量校验+自动备份（kt_wum_backup_v1可还原），装完清理临时文件，重启游戏生效。需在主菜单使用。需「无名AI」扩展开启",
 				clear: true,
 				onclick() {
 					const d = window.__DJSC;
-					if (!d || !d.modelUpdate || !d.modelUpdate.downloadAndApply) {
+					if (!d || !d.modelUpdate) {
 						alert("未检测到无名AI扩展（或未开启）。请先在扩展管理中开启「无名AI」并重启游戏");
 						return;
 					}
 					if (typeof _status !== "undefined" && _status && _status.gameStarted === true && _status.over !== true) {
-						alert("检测到对局进行中。对局信号是游戏核心状态，kirito不伪造它——请回主菜单（或本局结束）后再用强制安装");
+						alert("检测到对局进行中。请回主菜单（或本局结束）后再安装权重");
 						return;
 					}
 					(async () => {
 						const BASE = "https://data.feiqiaoai.uno";
 						const NL = String.fromCharCode(10);
-						const out = [];
 						const TMP_DIR = "__kttmp"; // FIX-12：中文目录二进制落盘必败，一律走ASCII中转目录
 						const TMP = ["ktwm-manifest.json", "ktwm-bundle.json"];
 						const ktNativeReady = () => typeof window.cordova != "undefined" && typeof FileTransfer != "undefined" && typeof game.readFile == "function";
@@ -2408,100 +2404,72 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 							if (typeof game.removeFile != "function") return;
 							for (const t of TMP) { try { game.removeFile(TMP_DIR + "/" + t, () => {}); } catch (e) {} }
 						};
-						// 门禁压制：三状态源临时伪装（其loader优先读__DJSC全局挂载，普通对象可直接覆写）
-						const armSpoofs = () => {
-							const saved = {};
-							try { if (d.modelState && typeof d.modelState.getState == "function") { saved.ms = d.modelState.getState; d.modelState.getState = () => "stable"; } } catch (e) {}
-							try { if (typeof d.isTraining == "function") { saved.tr = d.isTraining; d.isTraining = () => false; } } catch (e) {}
-							try { if (d.hotSwap && typeof d.hotSwap.stats == "function") { saved.hs = d.hotSwap.stats; d.hotSwap.stats = () => ({ hasCandidate: false }); } } catch (e) {}
-							return saved;
+						// paramSpec 字节长度规则（照抄其 weightBundle.js：len=元素数，int16按2字节）
+						const paramBytes = (key, I, H1, H2, O) => {
+							const spec = { w1: I * H1, b1: H1 * 2, w2: H1 * H2, b2: H2 * 2, w3: H2 * O, b3: O * 2, w4: H2, b4: 2, pr1: I * H1, pr2: H1 * H2 };
+							return spec[key];
 						};
-						const restoreSpoofs = (saved) => {
-							try { if (saved.ms) d.modelState.getState = saved.ms; } catch (e) {}
-							try { if (saved.tr) d.isTraining = saved.tr; } catch (e) {}
-							try { if (saved.hs) d.hotSwap.stats = saved.hs; } catch (e) {}
-						};
-						// 直写兜底（v4.23）：绕开其事务，自行写存档djsc_weights_v3+官方记录djsc_official_weights_v1
-						// （写前自动备份到kt_wum_backup_v1可还原，写后逐键读回核对）。其管线任何失败/延迟形态的最终退路
-						const directWrite = (latest, bText) => {
+						try {
+							const mText = await getText(BASE + "/update/model/manifest.json", TMP[0]);
+							const latest = JSON.parse(mText).latest;
+							if (!latest || !latest.url) throw new Error("清单中没有可用版本");
+							const bText = await getText(BASE + latest.url, TMP[1]);
 							const b = JSON.parse(bText);
-							const bad = (m) => { throw new Error(m); };
-							if (String(b.sha256).toLowerCase() !== String(latest.sha256).toLowerCase()) bad("包sha256与清单不一致");
-							if (Number(b.size) !== Number(latest.size)) bad("包size与清单不一致");
-							if (String(b.releaseSeq) !== String(latest.releaseSeq)) bad("包版本序号与清单不一致");
+							// 校验①：包↔清单交叉核对
+							if (String(b.sha256).toLowerCase() !== String(latest.sha256).toLowerCase()) throw new Error("包sha256与清单不一致");
+							if (Number(b.size) !== Number(latest.size)) throw new Error("包size与清单不一致");
+							if (String(b.releaseSeq) !== String(latest.releaseSeq)) throw new Error("包版本序号与清单不一致");
+							// 校验②：逐参数解码+字节长度（paramSpec）
+							const dims = Array.isArray(b.dims) && b.dims.length === 4 ? b.dims : [134, 128, 64, 6];
 							const keys = ["w1", "b1", "w2", "b2", "w3", "b3", "w4", "b4", "pr1", "pr2"];
 							const P = b.params || {};
+							const decoded = {};
 							for (const k of keys) {
 								const v = P[k];
-								if (typeof v !== "string" || !v.length) bad("包缺少参数 " + k);
-								try { atob(v); } catch (e) { bad("参数 " + k + " 不是合法base64"); }
+								if (typeof v !== "string" || !v.length) throw new Error("包缺少参数 " + k);
+								let bin;
+								try { bin = atob(v); } catch (e) { throw new Error("参数 " + k + " 不是合法base64"); }
+								const need = paramBytes(k, dims[0], dims[1], dims[2], dims[3]);
+								if (bin.length !== need) throw new Error("参数 " + k + " 字节长度 " + bin.length + " ≠ " + need);
+								const u8 = new Uint8Array(bin.length);
+								for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+								decoded[k] = u8;
 							}
+							// 校验③：拼接字节SHA-256摘要（与其paramsDigest同口径，顺序=PARAM_ORDER）
+							if (window.crypto && crypto.subtle && crypto.subtle.digest) {
+								const total = keys.reduce((n, k) => n + decoded[k].length, 0);
+								const all = new Uint8Array(total);
+								let off = 0;
+								for (const k of keys) { all.set(decoded[k], off); off += decoded[k].length; }
+								const hex = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", all))).map((x) => x.toString(16).padStart(2, "0")).join("");
+								if (hex !== String(b.sha256).toLowerCase()) throw new Error("参数摘要SHA-256不符（内容被篡改或规格漂移）");
+							}
+							// 校验④：结构漂移护栏——与当前可用存档比对结构版本/数据纪元，防写进重启后拒载的存档
 							const ls = window.localStorage;
-							ls.setItem("kt_wum_backup_v1", JSON.stringify({ ts: Date.now(), version: latest.modelVersion || "", archive: ls.getItem("djsc_weights_v3"), official: ls.getItem("djsc_official_weights_v1") }));
+							const prevArc = ls.getItem("djsc_weights_v3");
+							if (prevArc) {
+								try {
+								const pj = JSON.parse(prevArc);
+								if (Number(pj.v) !== Number(b.schemaVersion)) throw new Error("网络结构版本不匹配：包v" + b.schemaVersion + " ≠ 当前v" + pj.v + "（需先更新无名AI扩展本体）");
+								if (Number(pj.dv) > Number(b.dataEpoch)) throw new Error("包数据纪元过旧：包" + b.dataEpoch + " < 当前" + pj.dv + "（会被其拒载）");
+								} catch (e) { if (String(e.message).indexOf("匹配") >= 0 || String(e.message).indexOf("纪元") >= 0) throw e; }
+							}
+							// 备份 → 写入 → 读回 → 清残留
+							ls.setItem("kt_wum_backup_v1", JSON.stringify({ ts: Date.now(), version: latest.modelVersion || "", archive: prevArc, official: ls.getItem("djsc_official_weights_v1") }));
 							const arc = { v: b.schemaVersion, dv: b.dataEpoch, trained: Number(b.trained) || 0, accuracy: Number(b.accuracy) || 0, ready: true };
 							for (const k of keys) arc[k] = P[k];
 							ls.setItem("djsc_weights_v3", JSON.stringify(arc));
 							const rec = { version: 2, modelId: b.modelId || "main-actor-critic", modelVersion: b.modelVersion, releaseSeq: Number(b.releaseSeq) || 0, schemaVersion: b.schemaVersion, dataEpoch: Number(b.dataEpoch) || 0, sha256: String(b.sha256).toLowerCase(), size: Number(latest.size) || Number(b.size) || 0, trained: Number(b.trained) || 0, appliedAt: Date.now(), source: "official-online" };
 							ls.setItem("djsc_official_weights_v1", JSON.stringify(rec));
 							const back = JSON.parse(ls.getItem("djsc_weights_v3"));
-							for (const k of keys) if (back[k] !== P[k]) bad("存档读回不一致: " + k);
-							if (JSON.parse(ls.getItem("djsc_official_weights_v1")).sha256 !== rec.sha256) bad("记录读回不一致");
+							for (const k of keys) if (back[k] !== P[k]) throw new Error("存档读回不一致: " + k);
+							if (JSON.parse(ls.getItem("djsc_official_weights_v1")).sha256 !== rec.sha256) throw new Error("记录读回不一致");
 							ls.removeItem("djsc_model_update_pending_v1");
 							ls.removeItem("djsc_model_update_tx_v1");
 							ls.removeItem("djsc_weights_backup_staging_v1");
-							return true;
-						};
-						let dl = null;
-						try {
-							const mText = await getText(BASE + "/update/model/manifest.json", TMP[0]);
-							const latest = JSON.parse(mText).latest;
-							if (!latest || !latest.url) throw new Error("清单中没有可用版本");
-							const bUrl = new URL(latest.url, BASE + "/update/model/manifest.json").href;
-							const bText = await getText(bUrl, TMP[1]);
-							JSON.parse(bText);
-							dl = { latest, bText };
-							let r = null, lastErr = null;
-							for (let attempt = 0; attempt < 2 && !r; attempt++) {
-								try {
-								const saved = armSpoofs();
-								const origFetch = window.fetch;
-								window.fetch = function (u) {
-								const us = String(u);
-								if (us === bUrl) return Promise.resolve(new Response(bText, { status: 200 }));
-								if (us.indexOf(BASE + "/update/model/") === 0) return Promise.resolve(new Response(us.indexOf("manifest") >= 0 ? mText : bText, { status: 200 }));
-								return origFetch.apply(this, arguments);
-								};
-								try { r = await d.modelUpdate.downloadAndApply({ latest }); }
-								finally { window.fetch = origFetch; restoreSpoofs(saved); }
-								} catch (e) {
-								lastErr = e;
-								if (attempt === 0) await new Promise((res) => setTimeout(res, 2000));
-								}
-							}
-							if (!r) throw lastErr || new Error("安装失败");
-							if (r.ok === false) {
-								const why = r.err || (r.errors || []).join("；");
-								if (String(why).indexOf("kept local model") >= 0) {
-								out.push("主模型：你选择了保留本地模型，未安装");
-								} else {
-								try { directWrite(dl.latest, dl.bText); out.push("主模型：其管线失败（" + why + "），已直写存档强制完成——重启游戏生效"); }
-								catch (e2) { out.push("主模型：失败 - " + why + "；直写兜底也失败 - " + ((e2 && e2.message) || e2)); }
-								}
-								} else if (r.deferred) {
-								try { directWrite(dl.latest, dl.bText); out.push("主模型：管线要求延迟生效，已直写强制完成——重启游戏生效"); }
-								catch (e2) { out.push("主模型：已下载待生效（" + (r.reason || "对局中") + "）；直写兜底失败 - " + ((e2 && e2.message) || e2)); }
-								} else {
-								out.push("主模型：安装完成（" + (latest.modelVersion || "?") + "）");
-							}
+							out.push("主模型：直写安装完成（" + (b.modelVersion || "?") + "）——重启游戏生效");
 						} catch (e) {
-							const msg = (e && e.message) || e;
-							try {
-							if (!dl) throw new Error("权重包未下载成功，无法直写");
-							directWrite(dl.latest, dl.bText);
-							out.push("主模型：管线异常（" + msg + "），已直写存档强制完成——重启游戏生效");
-							} catch (e2) {
-							out.push("主模型：失败 - " + msg + "；直写兜底 - " + ((e2 && e2.message) || e2));
-							}
+							out.push("主模型：失败 - " + ((e && e.message) || e));
 						} finally {
 							cleanTmp();
 						}
@@ -2515,8 +2483,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 						}
 						alert("无名AI权重更新结果：" + NL + out.join(NL));
 					})();
-				},
-			},
+				},			},
 			// 灌顶：开关+技能池（默认空）。开启后每局开局自动把池内全部技能加给玩家操控的角色
 			autoAddSkills: {
 				name: "自动添加技能（灌顶）",
