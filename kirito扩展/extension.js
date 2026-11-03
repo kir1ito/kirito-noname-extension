@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.24";
+const VERSION = "4.25";
 
 // FIX-11 无名AI权重更新网络护甲（v4.17）：无名AI自带的权重下载走全局fetch，超时仅12秒（含正文
 // 读取）且自动检查0重试，data.feiqiaoai.uno（Cloudflare）在直连环境下偏慢→"经常失败和超时"。
@@ -123,8 +123,7 @@ export default function () {
 			return originLoseMaxHp.apply(this, arguments);
 		};
 	};
-// 降临默认候选池：本扩展全部可选技能（可在扩展设置的「降临技能池管理」中增删，存于配置 touyingPool）
-const DEFAULT_TOUYING_POOL = ["gryjuejing", "grylonghun", "gryshenti", "ktleishen", "ktxinghun", "ktshenpei"];
+const KT_OWN_SKILLS = ["gryjuejing", "grylonghun", "gryshenti", "ktleishen", "ktxinghun", "ktshenpei"];
 // 二进制写入统一转ArrayBuffer：安卓cordova桥对Uint8Array按JSON逐字节序列化成{"0":72,"1":101,...}，
 // 几MB的图片/语音就是百万级HashMap键值，直接OOM爆Java堆。注意：ArrayBuffer在本体APK上同样被
 // 逐字节JSON序列化（见ktWriteBinary），只是峰值内存小不再OOM——所以二进制落盘必须走校验链
@@ -947,7 +946,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		return { open };
 	})();
 	// 技能池管理器工厂：扩展设置里点按钮弹出的遮罩窗口（与更新中心共用KT_CSS样式）
-	// ①降临池 extension_kirito扩展_touyingPool（默认本扩展全部技能，上限20）：〖降临〗发动时读取；
 	// ②灌顶池 extension_kirito扩展_guandingPool（默认空，无上限）：开启「自动添加技能」后每局开局自动加给玩家
 	const ktCreatePoolManager = ({ key, title, hint, max, defaultPool, ownSkills, emptyHint, resetLabel }) => {
 		let overlay = null;
@@ -959,7 +957,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				const info = lib.character[cname];
 				if (!info || !Array.isArray(info.skills)) continue;
 				for (const skill of info.skills) {
-					if (typeof skill != "string" || skill == "grytouying" || map.has(skill) || skill.includes("#")) continue;
+					if (typeof skill != "string" || map.has(skill) || skill.includes("#")) continue;
 					if (!lib.skill[skill] || !lib.translate[skill] || !lib.translate[skill + "_info"]) continue;
 					map.set(skill, get.translation(cname) || cname);
 				}
@@ -1073,17 +1071,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		}
 		return { open };
 	};
-	// 降临技能池：〖降临〗局内可挑选的技能（默认本扩展全部技能，上限20）
-	const ktPoolManager = ktCreatePoolManager({
-		key: "extension_kirito扩展_touyingPool",
-		title: "降临技能池管理",
-		hint: "点下方标签移除技能；在搜索框中按技能名/ID/武将名筛选后点「+ 添加」加入（上限20个）。改动即时保存，对下一局生效",
-		max: 20,
-		defaultPool: DEFAULT_TOUYING_POOL,
-		ownSkills: [...DEFAULT_TOUYING_POOL, "kthuitian"],
-		emptyHint: "池子为空：游戏内降临将没有可选技能，点下方「恢复默认」可一键还原",
-		resetLabel: "恢复默认（本扩展全部技能）",
-	});
 	// 灌顶技能池：开启「自动添加技能」后每局开局自动加给玩家操控的角色（默认空，无上限）
 	const ktGuandingManager = ktCreatePoolManager({
 		key: "extension_kirito扩展_guandingPool",
@@ -1091,7 +1078,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		hint: "点下方标签移除技能；在搜索框中按技能名/ID/武将名筛选后点「+ 添加」加入（无上限）。改动即时保存，对下一局生效",
 		max: Infinity,
 		defaultPool: [],
-		ownSkills: [...DEFAULT_TOUYING_POOL, "kthuitian"],
+		ownSkills: [...KT_OWN_SKILLS],
 		emptyHint: "池子为空：开局不会自动添加任何技能，在下方搜索添加后配合「自动添加技能」开关使用",
 		resetLabel: "清空池子",
 	});
@@ -2240,49 +2227,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		precontent: function (config) {
 			// 无上神专属"寂灭"进度条样式：复刻自无名美化手杀神马超模块，类名一致（见 grytouying_bar）
 			lib.init.css(lib.assetURL + "extension/kirito扩展", "wushangshen_bar");
-			// 资产镜像：走本体FS抽象（readFile/writeFile），PC/安卓通用。
-			// 不用fetch的原因：①部分安卓webview下对资源URL的fetch不可靠；②旧版"存在即跳过"，
-			// 历史损坏留下的非空坏文件会被永远跳过（安卓端逐字节JSON假图片=结算头像空白元凶），
-			// 现全字节比对，不一致自动经ktWriteBinary校验链重写自愈
-			if (typeof game.writeFile == "function" && game.promises && typeof game.promises.readFile == "function") {
-			const copyFile = async (from, to) => {
-				try {
-					const data = await game.promises.readFile(from);
-					if (!data || !data.byteLength) {
-						return;
-					}
-					const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
-					// 旧版"存在即跳过"会把历史损坏留下的非空坏文件永久保留（安卓端即逐字节JSON损坏的
-					// 假图片，结算头像/限定技背景空白的元凶）——现读回全字节比对，一致才跳过，不一致自动重写自愈
-					let same = false;
-					try {
-						const existing = await game.promises.readFile(to);
-						same = ktBytesEqual(existing, bytes);
-					} catch {}
-					if (same) {
-						return;
-					}
-					// createDir等目录真正建完再回调（ensureDirectory在cordova端不等待，有竞态）
-					const slash = to.lastIndexOf("/");
-					await new Promise((resolve, reject) => game.createDir(to.slice(0, slash), resolve, reject));
-					// 附带源URL：安卓损坏内核走FileTransfer从本机资源服务直落盘（native下载不经JS桥）
-					await ktWriteBinary(bytes, to.slice(0, slash), to.slice(slash + 1), lib.assetURL + from);
-					console.log(`kirito扩展：已镜像 ${to}`);
-				} catch (e) {
-					console.warn(`kirito扩展：镜像 ${to} 失败`, e);
-				}
-			};
-				// (1) 立绘：十周年UI头像/限定技大字特效/MVP结算页等消费方直接请求本体 image/character/<武将>.jpg，
-				// 不读扩展目录（404导致结算大头像空白）
-				// (2) 限定技大字背景：太虚幻境版 decadeUI.effect.skill 读 extension/十周年UI/assets/image/bg_xianding_<势力>.png，
-				// 本地十周年UI裁剪包无 assets/image/ 目录——shen 404后兜底qun也404，onload永不触发，整段特效（大字+立绘+底盘）不渲染。
-				// 十周年UI自带 image/ui/misc/ 下仅有 wei/shu/wu/qun 四张（shen无官方素材，用qun占位），全部镜像补齐
-				for (const camp of ["wei", "shu", "wu", "qun"]) {
-					copyFile(`extension/十周年UI/image/ui/misc/bg_xianding_${camp}.png`, `extension/十周年UI/assets/image/bg_xianding_${camp}.png`);
-				}
-				copyFile("extension/十周年UI/image/ui/misc/bg_xianding_qun.png", "extension/十周年UI/assets/image/bg_xianding_shen.png");
-				copyFile("extension/十周年UI/image/ui/misc/bg_xianding_qun.png", "extension/十周年UI/image/ui/misc/bg_xianding_shen.png");
-			}
 			// 皮肤切换(第三方扩展)安卓守护：其postMsgApi的playAvatar/changeAvatarAction/action裸访问
 			// player.dynamic.renderer.postMessage——安卓webview下播放器worker常初始化失败或结算时已销毁置空，
 			// 直接TypeError崩溃，且空白动皮层会遮住静态立绘（结算图片空白）。此处运行时包装三个入口：
@@ -2571,15 +2515,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 						}
 						alert("无名AI权重更新结果：" + NL + out.join(NL));
 					})();
-				},
-			},
-			// 降临技能池：管理自制技〖降临〗(grytouying)局内可选的技能（默认本扩展全部技能，可增删，上限20）
-			touyingPool: {
-				name: "降临技能池管理（增加/排除）",
-				intro: "管理〖降临〗游戏开始时可挑选的技能池：默认为本扩展全部技能；可搜索添加本体及已开启扩展武将的所有技能（上限20个），点标签排除不需要的技能。改动即时保存，下一局生效",
-				clear: true,
-				onclick() {
-					ktPoolManager.open();
 				},
 			},
 			// 灌顶：开关+技能池（默认空）。开启后每局开局自动把池内全部技能加给玩家操控的角色
@@ -3191,118 +3126,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 								},
 							},
 						},
-						/* ===== 投影（无上神专属）=====
-						 * 游戏开始时从技能池中挑选任意个技能加入本局游戏，然后失去此技能
-						 * 候选池：绝境/龙魂（龙神赵云）+ 雷神（驭雳/霆威/寂灭三合一，手杀神马超）+ 天涛/星魂/神霈（手杀神姜维）
-						 * 时机写法（enterGame+phaseBefore）与挑选界面（chooseButton+textbutton列表）
-						 * 参照本体潜龙 offline_longxuexuanhuang.js lxqianlong */
-						grytouying: {
-							trigger: { player: "enterGame", global: "phaseBefore" },
-							forced: true,
-							locked: true,
-							group: ["grytouying_bar"],
-							filter(event, player) {
-								return event.name != "phase" || game.phaseNumber == 0;
-							},
-							async content(event, trigger, player) {
-								// 常驻"寂灭"进度条：无论是否选择马超系技能都显示（见 grytouying_bar）
-								if (lib._wssJimieBar) {
-									lib._wssJimieBar.create(player);
-								}
-								// 候选池：可在扩展设置「降临技能池管理」中增删（存于配置 touyingPool），
-								// 未配置时用默认池（DEFAULT_TOUYING_POOL，本扩展全部可选技能）。
-								// 运行时再过滤：技能本体已注册且有描述文案才进列表，防止源包未加载或配置残留失效技能
-								const saved = lib.config["extension_kirito扩展_touyingPool"];
-								const pool = (Array.isArray(saved) && saved.length ? saved : DEFAULT_TOUYING_POOL).filter(
-									(skill) => skill != "grytouying" && lib.skill[skill] && lib.translate[skill + "_info"]
-								);
-								if (pool.length) {
-									const list = pool.map((skill) => [
-										skill,
-										`<div class="popup text" style="width:calc(100% - 10px);display:inline-block"><div class="skill">【${get.translation(skill)}】</div><div>${lib.translate[skill + "_info"]}</div></div>`,
-									]);
-									// 预构建对话框：自注入"全选/反选"按钮（选中逻辑复刻ui.create.buttonChooseAll，
-									// 不受游戏选项"启用全选/反选按钮"开关影响，保证始终显示）
-									const dialog = ui.create.dialog("降临：挑选任意个技能加入本局游戏", [list, "textbutton"], "hidden");
-									const selectAll = ui.create.div(".select-all.popup.pointerdiv");
-									selectAll.innerHTML = "全选";
-									const caption = dialog.content.querySelector(".caption");
-									if (caption) {
-										dialog.content.insertBefore(selectAll, caption);
-									} else {
-										dialog.content.insertBefore(selectAll, dialog.content.firstChild);
-									}
-									selectAll.listen(function (e) {
-										const event2 = get.event();
-										const selecteds = [...ui.selected.buttons];
-										ui.selected.buttons.length = 0;
-										game.check();
-										const selectables = get.selectableButtons();
-										const buttons = selecteds.length ? [...new Set(selectables).difference(new Set(selecteds))] : selectables;
-										ui.selected.buttons.push(...buttons);
-										for (const button of ui.selected.buttons) {
-											button.classList.add("selected");
-										}
-										for (const button of selecteds) {
-											button.classList.remove("selected");
-										}
-										game.check();
-										if (typeof event2.custom?.add?.button == "function") {
-											event2.custom.add.button();
-										}
-										if (e) {
-											e.stopPropagation();
-										}
-									});
-									const chooseEvent = player.chooseButton({
-										dialog: dialog,
-										selectButton: [1, list.length],
-										forced: true,
-										ai(button) {
-											const info = get.info(button.link);
-											if (!info || info.ai?.neg || info.ai?.combo) {
-												return 0;
-											}
-											return 1 + Math.random();
-										},
-									});
-									// 挂到事件上后，引擎game.Check会在每次点选时自动刷新按钮文字（全选/反选）
-									chooseEvent.buttonChooseAll = selectAll;
-									// 覆写按钮点击：引擎默认在multitarget/complexSelect场景下点击已选按钮会
-									// uncheck清空全部选中，这里改为逐项反选（只取消点中的那个）
-									chooseEvent.custom = {
-										replace: {
-											button(button) {
-												if (!button.classList.contains("selectable")) {
-													return;
-												}
-												if (button.classList.contains("selected")) {
-													ui.selected.buttons.remove(button);
-													button.classList.remove("selected");
-												} else {
-													button.classList.add("selected");
-													ui.selected.buttons.add(button);
-												}
-												game.check();
-											},
-										},
-										add: {},
-									};
-									const result = await chooseEvent.forResult();
-									if (result?.bool && result.links?.length) {
-										game.log(player, "获得了技能", "#g" + result.links.map((skill) => `【${get.translation(skill)}】`).join(""));
-										await player.addSkills(result.links);
-									}
-								}
-								// 挑选完成后失去投影自身（投影不在绝境守护名单内，可正常移除）
-								player.removeSkill("grytouying");
-							},
-							subSkill: {
-								// 无上神专属"寂灭"进度条：复刻无名美化·手杀神马超模块的 createJimiePower/updateJimieNum
-								// DOM结构与类名（jimiePower系）完全沿用，样式见 wushangshen_bar.css：
-								// 无名美化模块开启时，其覆写的〖霆威〗〖寂灭〗内容会直接驱动本条（含满格特效与锁图标）；
-								// 未开启时由下方的标记增减拦截负责刷新计数与进度，锁图标保持隐藏
-								bar: {
+						grytouying_bar: {
 									charlotte: true,
 									silent: true,
 									init() {
@@ -3313,10 +3137,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										const FULL_NUM = 8;
 										// 销毁进度条：移除DOM并停掉满格充电特效（进度条跟随〖雷神〗技能，失去技能即销毁）
 										const destroyBar = (player) => {
-											if (player.storage._fullPowerAnim && typeof window.dcdAnim != "undefined") {
-												dcdAnim.stopSpine(player.storage._fullPowerAnim);
-												player.storage._fullPowerAnim = null;
-											}
 											player.querySelector(".jimiePower")?.remove();
 										};
 										// 刷新进度条：计数数字/clip-path填充/满8格循环特效（特效依赖无名美化的dcdAnim，缺席则只涨进度）
@@ -3339,20 +3159,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 											const barArea = powerCon.querySelector(".jimiePowerBarArea");
 											// 兼容两种标记名：克隆技能加 kttingwei，本体原版霆威加 tingwei
 											const num = player.countMark("kttingwei") + player.countMark("tingwei") + player.countMark("ktleishen_ting");
-											if (typeof window.dcdAnim != "undefined") {
-												if (num >= FULL_NUM) {
-													if (!player.storage._fullPowerAnim) {
-														// 满力特效为自带副本（animation/shenmachao/），路径经 dcdAnim 基址回溯本扩展目录
-														player.storage._fullPowerAnim = dcdAnim.playSpine(
-															{ name: "../../../kirito扩展/animation/shenmachao/Ss_smc_vfx_grogress", loop: true },
-															{ parent: barArea }
-														);
-													}
-												} else if (player.storage._fullPowerAnim) {
-													dcdAnim.stopSpine(player.storage._fullPowerAnim);
-													player.storage._fullPowerAnim = null;
-												}
-											}
 											if (numEl) {
 												numEl.innerHTML = num;
 											}
@@ -3386,71 +3192,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 											console.log("[kirito扩展]充能进度条已创建");
 											update(player);
 										};
-										// 演出播放器（供克隆技能与下方接管逻辑共用）：寂灭大招 / 神霈·回天神光
-										const playDazhao = () =>
-											new Promise((resolve) => {
-												if (typeof window.dcdAnim == "undefined") {
-													resolve();
-													return;
-												}
-												dcdAnim.loadSpine("../../../kirito扩展/animation/shenmachao/SS_smc_dazhao", "skel", () => {
-													const anim = dcdAnim.playSpine(
-														{ name: "../../../kirito扩展/animation/shenmachao/SS_smc_dazhao" },
-														{ x: [0, 0.5], y: [0, 0.5] }
-													);
-													if (anim) {
-														// 无条件挂完成回调（oncomplete 属性初始可能为空、播放中被调用，不能据此判断）
-														anim.oncomplete = () => {
-															anim.oncomplete = null;
-															dcdAnim.stopSpine(anim);
-															resolve();
-														};
-														// 兜底：播放器迟迟不回调时按时长放行，避免卡住结算
-														setTimeout(resolve, 8000);
-													} else {
-														resolve();
-													}
-												});
-											});
-										const playSjwAn = (skillName) =>
-											new Promise((resolve) => {
-												if (typeof window.dcdAnim == "undefined") {
-													resolve();
-													return;
-												}
-												dcdAnim.loadSpine("../../../kirito扩展/animation/shenjiangwei/SS_Sjw_mask", "skel", () => {
-													const mask = dcdAnim.playSpine({ name: "../../../kirito扩展/animation/shenjiangwei/SS_Sjw_mask", action: "play2", loop: true });
-													dcdAnim.loadSpine(`../../../kirito扩展/animation/shenjiangwei/${skillName}`, "skel", () => {
-														const main = dcdAnim.playSpine({ name: `../../../kirito扩展/animation/shenjiangwei/${skillName}` });
-														if (main) {
-															// 同 playDazhao：无条件挂完成回调 + 超时兜底
-															main.oncomplete = () => {
-																main.oncomplete = null;
-																if (mask) {
-																	dcdAnim.stopSpine(mask);
-																}
-																resolve();
-															};
-															setTimeout(() => {
-																if (main.oncomplete) {
-																	main.oncomplete = null;
-																	if (mask) {
-																		dcdAnim.stopSpine(mask);
-																	}
-																	resolve();
-																}
-															}, 8000);
-														} else {
-															if (mask) {
-																dcdAnim.stopSpine(mask);
-															}
-															resolve();
-														}
-													});
-												});
-											});
-										lib._wssJimieBar = { create, update, playDazhao };
-										lib._wssSJWPlay = playSjwAn;
+										lib._wssJimieBar = { create, update };
 										console.log("[kirito扩展]充能条系统已安装");
 										// 拦截标记增减：霆标记变动即刷新（不依赖无名美化是否开启；
 										// countMark 为纯存储读取，不会回调本拦截，无递归风险）
@@ -3466,7 +3208,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										};
 										watchMark("addMark");
 										watchMark("removeMark");
-										// 拦截技能增减：进度条跟随〖雷神〗——降临选中时创建，技能被移除时连特效一起销毁
+										// 拦截技能增减：进度条跟随〖雷神〗——灌顶/获得技能时创建，技能被移除时销毁
 										const watchSkill = (method) => {
 											const origin = Player.prototype[method];
 											Player.prototype[method] = function (name) {
@@ -3483,7 +3225,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										};
 										watchSkill("addSkill");
 										watchSkill("removeSkill");
-										// 降临经addSkills/changeSkills的$handle旁路添加技能时可能绕过addSkill拦截——
+										// addSkills/changeSkills的$handle旁路添加技能时可能绕过addSkill拦截——
 										// 在addSkills入口再挂一层，雷神到手即创建进度条
 										const watchAddSkills = () => {
 											const originAddSkills = Player.prototype.addSkills;
@@ -3499,54 +3241,11 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 											};
 										};
 										watchAddSkills();
-										// 接管寂灭释放演出：动画素材为自带副本（animation/shenmachao/SS_smc_dazhao）。
-										// 仅当无名美化的手杀神马超模块未开启时接管（其开启时会自行覆写寂灭内容，
-										// 我们再包一层会与它叠加导致动画播两次）；dcdAnim 即十周年UI动画系统(decadeUI.animation)，
-										// 缺席时静默跳过演出，技能结算不受影响
-										if (!lib.config.extension_无名美化_mbshenmachao && lib.skill.jimie && !lib.skill.jimie._wssDazhao) {
-											lib.skill.jimie._wssDazhao = true;
-											const originJimieContent = lib.skill.jimie.content;
-											const playDazhao = lib._wssJimieBar.playDazhao;
-											lib.skill.jimie.content = async function (event, trigger, player) {
-												await playDazhao();
-												await originJimieContent.apply(this, arguments);
-												if (lib._wssJimieBar) {
-													lib._wssJimieBar.update(player);
-													const lock = player.querySelector && player.querySelector(".jimieLock");
-													if (lock) {
-														lock.style.display = "block";
-													}
-												}
-											};
-										}
-										// 接管神霈/回天释放演出（面具+神光，素材自带副本 animation/shenjiangwei/）。
-										// 仅当无名美化的手杀神姜维特效模块未开启时接管，防止与其覆写叠加导致动画播两次；
-										// dcdAnim 缺席时静默跳过演出，技能结算不受影响
-										if (!lib.config.extension_无名美化_shenjiangwei && lib.skill.mbshenpei && !lib.skill.mbshenpei._wssSJW) {
-											lib.skill.mbshenpei._wssSJW = true;
-											const playSjwAn = lib._wssSJWPlay;
-											const wrapSJW = (skillName, animation) => {
-												if (!lib.skill[skillName] || lib.skill[skillName]._wssSJW) {
-													return;
-												}
-												lib.skill[skillName]._wssSJW = true;
-												const originContent = lib.skill[skillName].content;
-												lib.skill[skillName].content = async function (event, trigger, player) {
-													await playSjwAn(animation);
-													await originContent.apply(this, arguments);
-												};
-											};
-											// 神霈=skill2神光，衍生技回天=skill1
-											wrapSJW("mbshenpei", "SS_Sjw_skill2");
-											wrapSJW("mbhuitian", "SS_Sjw_skill1");
-										}
-									},
 								},
-							},
 						},
 						/* ===== 以下为手杀神马超/神姜维技能的完整复刻（kt前缀隔离）=====
 						 * 逻辑自本体 character/shiji/skill.js 原样移植：仅改名、音频指向扩展自带副本、内置释放演出
-						 * （寂灭大招/神霈·回天神光，播放器见 grytouying_bar 的 playDazhao/playSjwAn）
+						 * （音频已移除，纯结算）
 						 * 不依赖本体手杀武将包与无名美化；投影候选池指向本组技能。
 						/* ===== 雷神（v3.51：驭雳/霆威/寂灭三合一）=====
 						 * ①免疫雷电伤害：防止之并摸等量牌回复等量体力（语音沿用驭雳）；
@@ -3572,7 +3271,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 							},
 							subSkill: {
 								immune: {
-									audio: ["ext:kirito扩展/audio/skill/ktyuli5.mp3", "ext:kirito扩展/audio/skill/ktyuli6.mp3"],
+									audio: false,
 									fixed: true,
 									forced: true,
 									trigger: { player: "damageBegin4" },
@@ -3595,12 +3294,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 								},
 								},
 								sha: {
-									audio: [
-										"ext:kirito扩展/audio/skill/kttingwei1.mp3",
-										"ext:kirito扩展/audio/skill/kttingwei2.mp3",
-										"ext:kirito扩展/audio/skill/kttingwei3.mp3",
-										"ext:kirito扩展/audio/skill/kttingwei4.mp3",
-									],
+									audio: false,
 									fixed: true,
 									direct: true,
 									trigger: { player: "useCardToPlayered" },
@@ -3820,23 +3514,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										},
 									},
 									release: {
-										audio: [
-											"ext:kirito扩展/audio/skill/ktjimie1.mp3",
-											"ext:kirito扩展/audio/skill/ktjimie2.mp3",
-											"ext:kirito扩展/audio/skill/ktjimie3.mp3",
-											"ext:kirito扩展/audio/skill/ktjimie4.mp3",
-										],
-										logAudio(event) {
-											if (typeof event === "number") {
-												return `ext:kirito扩展/audio/skill/ktjimie${event}.mp3`;
-											}
-											return [
-												"ext:kirito扩展/audio/skill/ktjimie1.mp3",
-												"ext:kirito扩展/audio/skill/ktjimie2.mp3",
-												"ext:kirito扩展/audio/skill/ktjimie3.mp3",
-												"ext:kirito扩展/audio/skill/ktjimie4.mp3",
-											];
-										},
+										audio: false,
 										fixed: true,
 										// 12霆触发寂灭选择：上限雷伤+抹技能；不消耗霆、每局游戏限一次（released标记）
 										trigger: { player: "phaseDiscardAfter" },
@@ -3858,10 +3536,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 												.forResult();
 										},
 										async content(event, trigger, player) {
-											// 释放演出：自带寂灭大招动画，播完再结算
-											if (lib._wssJimieBar && lib._wssJimieBar.playDazhao) {
-												await lib._wssJimieBar.playDazhao();
-											}
 											player.setStorage("ktleishen_released", true);
 											const target = event.targets[0];
 											const damageEvent = target.damage({ num: target.maxHp, nature: "thunder" });
@@ -3898,7 +3572,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 								},
 						},
 						ktxinghun: {
-							audio: "ext:kirito扩展/audio/skill:2",
+							audio: false,
 							enable: "phaseUse",
 							usable: 1,
 							manualConfirm: true,
@@ -4037,7 +3711,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 							},
 						},
 						ktshenpei: {
-							audio: "ext:kirito扩展/audio/skill:2",
+							audio: false,
 							limited: true,
 							skillAnimation: true,
 							animationColor: "metal",
@@ -4049,10 +3723,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 								return !player.canSave(player) || player.countCards("hs", card => get.tag(card, "save")) <= -player.hp;
 							},
 							async content(event, trigger, player) {
-								// 释放演出：自带面具+神光动画，播完再结算
-								if (lib._wssSJWPlay) {
-									await lib._wssSJWPlay("SS_Sjw_skill2");
-								}
 								player.awakenSkill(event.name);
 								const num = game.getAllGlobalHistory("everything", evt => {
 									if (evt.name !== "dying" || evt.player !== player) {
@@ -4079,16 +3749,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 							},
 						},
 						kthuitian: {
-							audio: "ext:kirito扩展/audio/skill:4",
-							logAudio: (a, b, c, d, costResult) =>
-								costResult.die
-									? ["ext:kirito扩展/audio/skill/kthuitian3.mp3", "ext:kirito扩展/audio/skill/kthuitian4.mp3"]
-									: [
-											"ext:kirito扩展/audio/skill/kthuitian1.mp3",
-											"ext:kirito扩展/audio/skill/kthuitian2.mp3",
-											"ext:kirito扩展/audio/skill/kthuitian3.mp3",
-											"ext:kirito扩展/audio/skill/kthuitian4.mp3",
-										],
+							audio: false,
 							trigger: {
 								global: ["roundStart", "phaseEnd"],
 							},
@@ -4128,10 +3789,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 							},
 							async content(event, trigger, player) {
 								if (event.triggername === "roundStart") {
-									// 死亡演出：自带姜维之死动画
-									if (lib._wssSJWPlay) {
-										await lib._wssSJWPlay("SS_Sjw_dead");
-									}
 									await player.die();
 								} else {
 									await player.draw();
@@ -4147,9 +3804,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					gryshenti_info: "锁定技。①你的手牌上限+2，你不会被翻面，且你的体力上限不会减少。②当你进入或脱离濒死状态时，你摸两张牌。③你的所有技能均不会被禁用或封锁，特殊技能不会被移除。",
 					grylonghun: "龙魂",
 					grylonghun_info: "你可以将同花色的一至两张牌按下列规则使用或打出：红桃当【桃】，方块当火【杀】，梅花当【闪】，黑桃当【无懈可击】。若你以此法转化了两张：红色牌，则此牌回复值或伤害值+1；黑色牌，则你弃置当前回合角色一张牌。每当你以此法使用或打出牌，“魂”计数+X（单张牌+1，两张牌+2，计数持续累计，不会清空）。若计数为1或2的倍数，你摸一张牌。“魂”计数达到12后：你使用【杀】或【决斗】指定目标后，你可以选择一项：1.此伤害+1；2.获得该目标区域内一张牌（其区域内没有牌则不能选择此项）。“魂”计数达到24后：1.你转化发动的【杀】不可被响应，转化的【无懈可击】不可被【无懈可击】响应；2.你以单张牌转化【闪】或【无懈可击】后，获得当前回合角色区域内一张牌；3.你转化发动使用的牌不计入使用次数；4.你转化发动的【桃】自带酒效果（与饮酒效果叠加，且不占用【酒】的使用次数）。",
-					grytouying: "降临",
-					grytouying_info: "锁定技。游戏开始时，你从技能池中挑选任意个技能加入本局游戏（可多选），挑选完成后失去此技能。技能池默认为本扩展全部技能，可在扩展设置的「降临技能池管理」中增加或排除。",
-					ktleishen: "雷神",
+						ktleishen: "雷神",
 					ktleishen_info: "①当你受到雷电伤害时，你防止之，然后你摸等量数量的牌并回复等量体力。②每回合你使用的第一张【杀】指定目标后（此【杀】每击杀一名角色，次数+1），你弃置其一张牌（手牌/装备），若其没有可弃置的牌，你改为摸一张牌。③你造成伤害后，其他角色获得1枚“麻”标记（至多1枚；其使用牌时须弃置一张装备牌并移去“麻”标记，装备区无牌时不消耗；不会施加给你自己），你获得等同于伤害值的“霆”标记（寂灭大招的伤害只施加“麻”）。“霆”标记达到阈值时获得对应效果：≥4，你的拼点点数+13，且你受到伤害后伤害来源获得1枚“麻”标记（至多1枚）；≥8，每回合限一次，你可以用一张手牌替换判定牌并获得原判定牌；≥12，弃牌阶段结束时，你可以对一名角色造成等于其体力上限的雷电伤害，然后你可以彻底移除其一个技能（不消耗“霆”标记，每局游戏限一次）；≥16，你使用基本牌无次数限制且无距离限制。",
 					ktleishen_immune: "雷神",
 					ktleishen_sha: "雷神",
