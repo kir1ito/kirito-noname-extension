@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.32";
+const VERSION = "4.33";
 
 // FIX-11 无名AI权重更新网络护甲（v4.17）：无名AI自带的权重下载走全局fetch，超时仅12秒（含正文
 // 读取）且自动检查0重试，data.feiqiaoai.uno（Cloudflare）在直连环境下偏慢→"经常失败和超时"。
@@ -125,7 +125,7 @@ export default function () {
 					return next;
 				}
 				// 神体：上限不小于5时直接扣，保护仅在跌破5底线时启动
-				if (this.getMaxHp() >= 5) {
+				if (this.maxHp >= 5) {
 					return originLoseMaxHp.apply(this, arguments);
 				}
 				game.log(this, "的", guardName(this), "将体力上限的扣除转为了无来源伤害");
