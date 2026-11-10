@@ -167,3 +167,13 @@
 - 移除方式: 删 ktWriteBinary 内 `tempmove` 分支（代码锚 `__kttmp`）+ startIncremental 写入行还原为 `/\.json\$/.test(file)` 三元式
 - 代码锚: extension.js 搜 `__kttmp` / `tempmove`
 - 备注: 此前 2026-11-03 的修复方案成品（MD5 c6761fade…）已手动装到手机（Download/DSH-Go/kirito-fix/），本仓库落地版内容同源+版本号 bump 至 4.22。用户手动装 4.22 后，后续在线增量/全量更新即可自愈闭环
+
+## FIX-13 writeFile 传 path="." 在安卓 cordova 端随机弹窗 entry.getFile is not a function（本体 cordova.js writeFile 对非目录 path 不设防）
+- 引入 v4.28｜状态: 生效中
+- 上游bug: 本体 `noname/init/cordova.js` 的 `game.writeFile(data, path, name)`（约 283 行）把 path 当目录拼进 `resolveLocalFileSystemURL(nonameInitialized + path)`，成功回调里直接 `entry.getFile(...)`。kirito 的 exportSnapshot 传 `path="."`，拼接出 `.../noname/.`，部分安卓内核（子琪懒人包 1.11.6.1 实测）解析后回调的 entry 不是 DirectoryEntry（无 getFile 方法）→ TypeError 冒到 window.onerror 弹窗，时机随机（启动导出快照写一次即触发）
+- 实现: exportSnapshot 的 writeFile 调用把 path 从 `"."` 改为空串——legacy/node/browser 三端实现均对空 path 按游戏根目录兼容
+- 影响范围: 仅安卓 cordova 端的 config-sync.json 快照导出；PC 端行为不变（node 端对 "." 与 "" 等价）
+- 上游已修判定: 本体 cordova.js 的 writeFile 改为先解析游戏根目录再 getFile 带相对路径（或对 "." 路径段做清理）→ 已修（但空串写法本就是更正确的姿势，无需回改）
+- 移除方式: 无需移除（本体修复后空串依然兼容）
+- 代码锚: extension.js 搜 `config-sync.json` 写入段（exportSnapshot 内）
+- 备注: 本体侧加固方案（writeFile 改「根目录解析+JS层清理 ./.. 段+getFile 相对路径」，与 readFile 同款）属改本体文件，按惯例不越界。天庭等扩展若也传 "." 走同一入口，其报错与 kirito 无关、需各自修

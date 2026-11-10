@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.27";
+const VERSION = "4.28";
 
 // FIX-11 无名AI权重更新网络护甲（v4.17）：无名AI自带的权重下载走全局fetch，超时仅12秒（含正文
 // 读取）且自动检查0重试，data.feiqiaoai.uno（Cloudflare）在直连环境下偏慢→"经常失败和超时"。
@@ -1712,7 +1712,10 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					return;
 				}
 				const json = JSON.stringify(gatherConfig());
-				game.writeFile(json, ".", "config-sync.json", (err) => {
+				// path传空串：本体cordova版writeFile把path当目录拼进resolveLocalFileSystemURL，传"."会拼出".../noname/."，
+				// 部分安卓内核解析后回调的entry不是DirectoryEntry→entry.getFile is not a function随机弹窗（安卓1.11.6.1实测）；
+				// legacy/node/browser三端对空path均按游戏根目录兼容处理
+				game.writeFile(json, "", "config-sync.json", (err) => {
 					if (err) {
 						console.warn("kirito扩展：配置快照导出失败", err);
 					}
