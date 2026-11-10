@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.29";
+const VERSION = "4.30";
 
 // FIX-11 无名AI权重更新网络护甲（v4.17）：无名AI自带的权重下载走全局fetch，超时仅12秒（含正文
 // 读取）且自动检查0重试，data.feiqiaoai.uno（Cloudflare）在直连环境下偏慢→"经常失败和超时"。
@@ -52,7 +52,7 @@ export default function () {
 	// 绝境的X：已损失体力值（不封顶）
 	const juejingX = (player) => player.getDamagedHp();
 	// 绝境⑥/神体③共用守护：持有任一守护技能者，其所有技能不可被禁用/封锁，且不会被翻面；
-	// 体力上限扣除：绝境直接防止，神体转为1点无来源伤害（loseMaxHp拦截内区分）
+	// 体力上限扣除：绝境直接防止；神体上限≥5时正常扣除、<5时转为1点无来源伤害（loseMaxHp拦截内区分）
 	// （"特殊技能不会被移除"由各技能自身的 fixed: true 承担）。两技能共用同一套拦截器，先加载者安装、后到者直接复用
 	const installGrySkillGuard = () => {
 		if (lib._grySkillGuardInstalled) {
@@ -111,19 +111,28 @@ export default function () {
 			return originTurnOver.call(this, bool);
 		};
 		// 拦截体力上限扣除：①附加效果——绝境：体力上限只能增不能减（gainMaxHp不受影响）；
-		// 神体（未同时持有绝境时）：扣除被取消，改为受到1点无来源伤害（不传伤害来源，与闪电判定失败同款）
+		// 神体（未同时持有绝境时）：体力上限≥5时正常放行扣除；<5时取消扣除，改为受到1点
+		// 无来源伤害（不传伤害来源，与闪电判定失败同款）
 		const originLoseMaxHp = Player.prototype.loseMaxHp;
 		Player.prototype.loseMaxHp = function () {
 			if (hasGuard(this)) {
+				if (this.skills.includes("gryjuejing")) {
+					game.log(this, "的", guardName(this), "防止了体力上限的扣除");
+					const next = game.createEvent("loseMaxHp");
+					next.player = this;
+					next.num = 0;
+					next.setContent("emptyEvent");
+					return next;
+				}
+				// 神体：上限不小于5时直接扣，保护仅在跌破5底线时启动
+				if (this.getMaxHp() >= 5) {
+					return originLoseMaxHp.apply(this, arguments);
+				}
+				game.log(this, "的", guardName(this), "将体力上限的扣除转为了无来源伤害");
 				const next = game.createEvent("loseMaxHp");
 				next.player = this;
 				next.num = 0;
 				next.setContent("emptyEvent");
-				if (this.skills.includes("gryjuejing")) {
-					game.log(this, "的", guardName(this), "防止了体力上限的扣除");
-					return next;
-				}
-				game.log(this, "的", guardName(this), "将体力上限的扣除转为了无来源伤害");
 				this.damage(1);
 				return next;
 			}
@@ -2641,7 +2650,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 						},
 					},
 					/* ===== 神体（自定义技能，绝境①②⑥的独立复制版，绝境本身不受影响）=====
-					 * ①手牌上限+2、不会翻面、体力上限扣除转为1点无来源伤害；②进入/脱离濒死状态摸两张牌；③所有技能不被禁用/封锁
+					 * ①手牌上限+2、不会翻面、体力上限<5时扣除转为1点无来源伤害；②进入/脱离濒死状态摸两张牌；③所有技能不被禁用/封锁
 					 * 语音与绝境一致（xinjuejing）；守护拦截器与绝境共用（见 installGrySkillGuard） */
 					gryshenti: {
 						audio: "xinjuejing",
@@ -3779,7 +3788,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					gryjuejing: "绝境",
 					gryjuejing_info: "锁定技。①你的手牌上限+2，你不会被翻面，且你的体力上限不会减少。②当你进入或脱离濒死状态时，你摸两张牌。③摸牌阶段，你额外摸X张牌。④你至其他角色的距离-X。⑤你每回合使用牌的次数上限+X（X为你已损失的体力值）。⑥你的所有技能均不会被禁用或封锁，特殊技能不会被移除。",
 					gryshenti: "神体",
-					gryshenti_info: "锁定技。①你的手牌上限+2，你不会被翻面，当你体力上限将被扣除时，取消之，然后你受到1点无来源伤害。②当你进入或脱离濒死状态时，你摸两张牌。③你的所有技能均不会被禁用或封锁，特殊技能不会被移除。",
+					gryshenti_info: "锁定技。①你的手牌上限+2，你不会被翻面。当你的体力上限不小于5时，体力上限的扣除正常结算；当你的体力上限小于5时，你体力上限的扣除改为：取消之，然后你受到1点无来源伤害。②当你进入或脱离濒死状态时，你摸两张牌。③你的所有技能均不会被禁用或封锁，特殊技能不会被移除。",
 					grylonghun: "龙魂",
 					grylonghun_info: "你可以将同花色的一至两张牌按下列规则使用或打出：红桃当【桃】，方块当火【杀】，梅花当【闪】，黑桃当【无懈可击】。若你以此法转化了两张：红色牌，则此牌回复值或伤害值+1；黑色牌，则你弃置当前回合角色一张牌。每当你以此法使用或打出牌，“魂”计数+X（单张牌+1，两张牌+2，计数持续累计，不会清空）。若计数为1或2的倍数，你摸一张牌。“魂”计数达到12后：你使用【杀】或【决斗】指定目标后，你可以选择一项：1.此伤害+1；2.获得该目标区域内一张牌（其区域内没有牌则不能选择此项）。“魂”计数达到24后：1.你转化发动的【杀】不可被响应，转化的【无懈可击】不可被【无懈可击】响应；2.你以单张牌转化【闪】或【无懈可击】后，获得当前回合角色区域内一张牌；3.你转化发动使用的牌不计入使用次数；4.你转化发动的【桃】自带酒效果（与饮酒效果叠加，且不占用【酒】的使用次数）。",
 						ktleishen: "雷神",
