@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.30";
+const VERSION = "4.31";
 
 // FIX-11 无名AI权重更新网络护甲（v4.17）：无名AI自带的权重下载走全局fetch，超时仅12秒（含正文
 // 读取）且自动检查0重试，data.feiqiaoai.uno（Cloudflare）在直连环境下偏慢→"经常失败和超时"。
@@ -1873,8 +1873,46 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 		connect: false,
 		arenaReady: function () {},
 		content: function (config, pack) {
-		console.warn(`[kirito扩展] v${VERSION} content已加载`);
-		// 斗转星移chooseChar.css丢失样式补偿（v4.00）：10-22斗转星移更新重写chooseChar.css时丢失8组规则
+			console.warn(`[kirito扩展] v${VERSION} content已加载`);
+			// ●dialog备份保护：断开自用美化pindian.js包装环，防拼点爆栈 ●
+			// 背景：自用美化的 pindian/deckMoveUI/wugu 互相包装 ui.create.dialog，pindian 包装函数从全局
+			// __ssPdOrigDialog 取原版，该备份被包装链覆盖污染后形成自调用闭环（pindian.js:3704 爆栈，
+			// 斗地主拼点弹框即炸）。此处只锁这一个备份变量：带包装标记（__ssPdGuestResultHook）的值一律
+			// 不存，包装函数读到的永远是干净原版；ui.create.dialog 包装链不动，已装美化全部保留。
+			// （幂等，可重复执行；自用美化修复后删除本段）
+			(function () {
+				try {
+					if (window.__ktDialogBackupGuard) return;
+					window.__ktDialogBackupGuard = true;
+					var isClean = function (f) {
+						return typeof f === "function" && !f.__ssPdGuestResultHook;
+					};
+					// 优先保留现有干净备份，其次锁定当前干净 dialog 函数
+					var stored = null;
+					try { if (isClean(window.__ssPdOrigDialog)) stored = window.__ssPdOrigDialog; } catch (e) {}
+					if (!stored) {
+						var cd = window.ui && window.ui.create && window.ui.create.dialog;
+						if (isClean(cd)) stored = cd;
+					}
+					if (!stored) {
+						// 极端情况（备份已被污染且无法还原）才用本体直连构造器兜底
+						stored = function () {
+							var d = new lib.element.Dialog(...arguments);
+							if (!Array.from(arguments).includes("hidden")) d.open();
+							return d;
+						};
+					}
+					delete window.__ssPdOrigDialog;
+					Object.defineProperty(window, "__ssPdOrigDialog", {
+						configurable: true,
+						get: function () { return stored; },
+						set: function (v) { if (isClean(v)) stored = v; }
+					});
+				} catch (e) {
+					console.warn("[kirito扩展]dialog备份保护补丁失败", e);
+				}
+			})();
+			// 斗转星移chooseChar.css丢失样式补偿（v4.00）：10-22斗转星移更新重写chooseChar.css时丢失8组规则
 		// （倍率按钮ddz-multiple/选将卡光效jj-char-base-back/弹幕/卡牌提示底等），倍率UI因无尺寸变0x0
 		// 导致欢乐竞标死等点击。此处注入缺失规则（取自其自带chooseChar原版.css，仅路径改绝对），幂等
 		try {

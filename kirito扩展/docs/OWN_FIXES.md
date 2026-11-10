@@ -177,3 +177,12 @@
 - 移除方式: 无需移除（本体修复后空串依然兼容）
 - 代码锚: extension.js 搜 `config-sync.json` 写入段（exportSnapshot 内）
 - 备注: 本体侧加固方案（writeFile 改「根目录解析+JS层清理 ./.. 段+getFile 相对路径」，与 readFile 同款）属改本体文件，按惯例不越界。天庭等扩展若也传 "." 走同一入口，其报错与 kirito 无关、需各自修
+
+## FIX-14 自用美化 pindian.js 拼点弹框爆栈（__ssPdOrigDialog 备份被包装链污染）
+- 引入 v4.31｜状态: 生效中
+- 上游bug: 自用美化的 pindian / deckMoveUI / wugu 互相包装 `ui.create.dialog`，pindian 包装函数从全局备份变量 `__ssPdOrigDialog` 取原版——该备份被包装链覆盖污染后形成自调用闭环，斗地主拼点弹框即抛 Maximum call stack size exceeded（pindian.js:3704）
+- 实现: content 函数体开头注入「dialog备份保护」IIFE（幂等）：用存取器锁死 `__ssPdOrigDialog`——带包装标记（`__ssPdGuestResultHook`）的值一律不存，读到的永远是干净原版（优先保留现有干净备份→锁定当前干净 dialog→本体直连构造器兜底）。**不动 ui.create.dialog 包装链**，所有已装美化保留
+- 影响范围: 仅 `__ssPdOrigDialog` 这一个全局备份变量；其他扩展不受影响
+- 上游已修判定: 自用美化更新后拼点不再爆栈（打一局斗地主进拼点弹框验证：不再弹 Maximum call stack size exceeded 且美化样式不变）→ 可摘
+- 移除方式: 删 content 函数体开头的 `__ktDialogBackupGuard` 整段 IIFE
+- 代码锚: extension.js 搜 `__ktDialogBackupGuard`
