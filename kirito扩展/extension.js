@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.31";
+const VERSION = "4.32";
 
 // FIX-11 无名AI权重更新网络护甲（v4.17）：无名AI自带的权重下载走全局fetch，超时仅12秒（含正文
 // 读取）且自动检查0重试，data.feiqiaoai.uno（Cloudflare）在直连环境下偏慢→"经常失败和超时"。
@@ -1911,6 +1911,37 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				} catch (e) {
 					console.warn("[kirito扩展]dialog备份保护补丁失败", e);
 				}
+			})();
+			// ●localStorage自动瘦身：超4MB自动清无名AI经验缓存(2026-11) ●
+			// 三个键均为无名AI可再生数据（其自带PRUNE清单同款），不碰配置/进度/战绩；
+			// 无名AI更新修复其经验库膨胀问题后，删除本段即可
+			(function () {
+				var PRUNE = ['djsc_champion_v1', '__ai_reason_shadow_v5', 'djsc_classic_doudizhu_matches_v1'];
+				var totalSize = function () {
+					var t = 0;
+					for (var i = 0; i < localStorage.length; i++) {
+						var k = localStorage.key(i), v = "";
+						try { v = localStorage.getItem(k) || ""; } catch (e) {}
+						t += k.length + v.length;
+					}
+					return t;
+				};
+				var prune = function (why) {
+					var freed = 0;
+					PRUNE.forEach(function (k) {
+						try {
+							var v = localStorage.getItem(k) || "";
+							if (v) { freed += v.length; localStorage.removeItem(k); }
+						} catch (e) {}
+					});
+					if (freed > 0) console.log("[kirito]localStorage" + why +
+						"已清AI经验缓存，释放" + Math.round(freed / 1024) + "KB");
+				};
+				var check = function () {
+					try { if (totalSize() > 4 * 1024 * 1024) prune("超4MB"); } catch (e) {}
+				};
+				check();
+				setInterval(check, 5 * 60 * 1000);
 			})();
 			// 斗转星移chooseChar.css丢失样式补偿（v4.00）：10-22斗转星移更新重写chooseChar.css时丢失8组规则
 		// （倍率按钮ddz-multiple/选将卡光效jj-char-base-back/弹幕/卡牌提示底等），倍率UI因无尺寸变0x0

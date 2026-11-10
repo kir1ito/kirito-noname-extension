@@ -186,3 +186,12 @@
 - 上游已修判定: 自用美化更新后拼点不再爆栈（打一局斗地主进拼点弹框验证：不再弹 Maximum call stack size exceeded 且美化样式不变）→ 可摘
 - 移除方式: 删 content 函数体开头的 `__ktDialogBackupGuard` 整段 IIFE
 - 代码锚: extension.js 搜 `__ktDialogBackupGuard`
+
+## FIX-15 localStorage 膨胀自动瘦身（无名AI经验库无限增长）
+- 引入 v4.32｜状态: 生效中
+- 上游bug: 无名AI的经验缓存键（`djsc_champion_v1` / `__ai_reason_shadow_v5` / `djsc_classic_doudizhu_matches_v1`）持续累积，把 localStorage 顶到配额上限后游戏存档/配置读写开始报错（2026-11 实测膨胀到 4MB+）
+- 实现: content 开头注入自动瘦身 IIFE：统计 localStorage 总字符数（键+值），超 4MB 即清除上述三个经验缓存键（均为无名AI可再生数据，与其自带 PRUNE 清单同款，不碰配置/进度/战绩），启动检查一次 + 每 5 分钟轮询
+- 影响范围: 仅这三个 AI 经验键；清后无名AI会重新积累经验（无数据损失，只损失AI熟练度）
+- 上游已修判定: 无名AI更新修复其经验库膨胀问题（其自身不再把 localStorage 顶爆）→ 可摘
+- 移除方式: 删 content 内 localStorage 瘦身 IIFE 整段（搜 `localStorage自动瘦身` / `djsc_champion_v1`）
+- 代码锚: extension.js 搜 `localStorage自动瘦身`
