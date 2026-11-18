@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.36";
+const VERSION = "4.37";
 
 // FIX-11 无名AI权重更新网络护甲（v4.17）：无名AI自带的权重下载走全局fetch，超时仅12秒（含正文
 // 读取）且自动检查0重试，data.feiqiaoai.uno（Cloudflare）在直连环境下偏慢→"经常失败和超时"。
@@ -1990,37 +1990,47 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					console.warn("[kirito]GL画布回收补丁加载失败", e);
 				}
 			})();
-			// ●GL上下文丢失自愈v2：恢复请求+重绘触发+过滤恢复期瞬态报错(2026-11) ●
-			// 捕获webglcontextlost并preventDefault请求浏览器自动恢复；恢复后模拟尺寸变化（99.9%→还原+resize）
-			// 促使动画播放器重建纹理/缓冲。与上面的GL画布回收互补：一个防泄漏，一个防丢失后永久白屏
+			// ●GL上下文自愈v3：丢失恢复+spine静默降级，防白屏/防卡技能(2026-11) ●
+			// 与上面的GL画布回收互补：一个防泄漏，一个防丢失后永久白屏/卡技能
 			(function () {
 				try {
 					if (window.__ktGLLostHeal) return;
 					window.__ktGLLostHeal = true;
 					document.addEventListener("webglcontextlost", function (e) {
-						e.preventDefault(); // 阻止永久丢失，请求浏览器自动恢复
+						e.preventDefault();
 						console.warn("[kirito]GL上下文丢失，已请求自动恢复:",
 							(e.target && (e.target.className || e.target.tagName)) || e.target);
 					}, true);
-					let healTimer = null;
-					document.addEventListener("webglcontextrestored", function (e) {
-						const c = e.target;
-						console.warn("[kirito]GL上下文已恢复，触发重绘:",
-							(c && (c.className || c.tagName)) || c);
-						// 模拟尺寸变化，促使动画播放器重建纹理/缓冲
+					// spine（皮肤切换扩展）的 shader 定位失败时不再抛错，
+					// 改为返回 null 静默降级——与丢失期的官方行为一致，避免打断主循环
+					const wrapSpine = function () {
 						try {
-							const w = c.style.width, h = c.style.height;
-							c.style.width = "99.9%";
-							clearTimeout(healTimer);
-							healTimer = setTimeout(function () {
-								try { c.style.width = w || ""; } catch (e2) {}
-								window.dispatchEvent(new Event("resize"));
-							}, 80);
-						} catch (e3) {
-							try { window.dispatchEvent(new Event("resize")); } catch (e4) {}
-						}
-					}, true);
-					// 过滤spine恢复期抢跑的瞬态错误（只发生在重建后一两帧，无害）
+							const S = window.spine && window.spine.webgl && window.spine.webgl.Shader;
+							if (!S || !S.prototype) return false;
+							const safeLoc = function (origFind) {
+								return function (uniform) {
+									try {
+										const gl = this.context.gl;
+										if (gl.isContextLost()) return null;
+										const loc = origFind.call(this, uniform);
+										return loc || null;
+									} catch (e) { return null; }
+								};
+							};
+							S.prototype.getUniformLocation =
+								safeLoc(S.prototype.getUniformLocation);
+							S.prototype.getAttributeLocation =
+								safeLoc(S.prototype.getAttributeLocation);
+							console.log("[kirito]spine uniform 静默降级已启用");
+							return true;
+						} catch (e) { return false; }
+					};
+					if (!wrapSpine()) {
+						const t = setInterval(function () {
+							if (wrapSpine()) clearInterval(t);
+						}, 1000);
+					}
+					// 过滤恢复期瞬态报错（双保险，防止其他环节残留抛错弹窗）
 					const origError = window.onerror;
 					window.onerror = function (msg, src, line, col, err) {
 						if (typeof msg === "string" &&
