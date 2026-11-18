@@ -206,11 +206,12 @@
 - 代码锚: extension.js 搜 `__ktGLCanvasGC`
 
 ## FIX-17 动皮播放器GL上下文丢失后永久白屏（无自愈路径）
-- 引入 v4.35｜v2于 v4.36｜**v3于 v4.37**｜状态: 生效中
-- 上游bug: 动皮播放器的 WebGL 上下文被浏览器丢弃（GL上下文丢失，与FIX-16的泄漏压力相关）后，本体/十周年UI播放器无 webglcontextlost/restored 处理——丢失即永久白屏，不重绘；spine（皮肤切换扩展）shader 在丢失/恢复期定位 uniform/attribute 抛错，打断游戏主循环（卡技能）
-- v2（v4.36）: 增加恢复后画布宽度 99.9% 临时变化 + resize 触发重绘、onerror 过滤瞬态 `Couldn't find location for (uniform|attribute)`——v3 起移除重绘触发段（99.9% 抖动与 resize 对动态皮肤播放器无效甚至闪屏），仅保留丢失请求恢复 + 报错过滤
-- v3新增（v4.37）: 包装 spine.webgl.Shader 的 `getUniformLocation` / `getAttributeLocation`——上下文丢失或定位失败时返回 null 静默降级（与丢失期官方行为一致），不再抛错打断主循环；spine 对象未就绪时每秒轮询包装直至成功
-- 实现: content 开头注入 GL 上下文自愈 IIFE（幂等，锚 `__ktGLLostHeal`）：①捕获阶段监听 `webglcontextlost` 并 `preventDefault()`（阻止永久丢失、请求浏览器自动恢复）；②spine Shader 定位方法静默降级包装；③onerror 过滤恢复期瞬态报错（双保险）。与 FIX-16 互补：一个防泄漏（主动回收孤儿画布），一个防丢失后永久白屏/卡技能（被动自愈）
+- 引入 v4.35｜v2于 v4.36｜v3于 v4.37｜**v4于 v4.38**｜状态: 生效中
+- 上游bug: 动皮播放器的 WebGL 上下文被浏览器丢弃（GL上下文丢失，与FIX-16的泄漏压力相关）后，本体/十周年UI播放器无 webglcontextlost/restored 处理——丢失即永久白屏，不重绘；动画帧/恢复期异常直接打断游戏主循环（卡技能）
+- v2（v4.36）: 恢复后画布 99.9% 抖动+resize 触发重绘、onerror 过滤瞬态 `Couldn't find location for (uniform|attribute)`
+- v3（v4.37）: 包装 spine.webgl.Shader 定位方法静默降级，移除 99.9% 抖动段
+- v4（v4.38）: **移除 spine 包装**（防误伤），改为**requestAnimationFrame 帧隔离**——包装全局 RAF，任何动画帧内异常只跳过该帧（console 报「帧内异常已隔离」），不再打断游戏主循环；`webglcontextrestored` 恢复后仅派发一次 resize；保留丢失 preventDefault + onerror 瞬态过滤
+- 实现: content 开头注入 GL 上下文自愈 IIFE（幂等，锚 `__ktGLLostHeal` / `__ktRAFIsolated`）。与 FIX-16 互补：一个防泄漏（主动回收孤儿画布），一个防丢失后永久白屏/卡技能（被动自愈）
 - 影响范围: 仅 GL 上下文丢失/恢复事件路径；正常播放无感
 - 验证: 打完一局直接开第二局，选中手牌触发动皮——理想为短暂闪烁后画面恢复，console 出现「GL上下文丢失，已请求自动恢复」→「GL上下文已恢复，触发重绘」；若仍白屏，console 跑 `(()=>{const c=document.querySelector('canvas.animation-player');const g=c&&(c.getContext('webgl2')||c.getContext('webgl'));console.log('lost=',g&&g.isContextLost());})()`——true=恢复请求未生效；false=已恢复但播放器未重绘，需再加重建逻辑
 - 上游已修判定: 本体/十周年UI播放器自行处理 webglcontextlost/restored（丢失后自动重建重绘）→ 可摘
