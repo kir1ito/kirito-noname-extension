@@ -195,3 +195,12 @@
 - 上游已修判定: 无名AI更新修复其经验库膨胀问题（其自身不再把 localStorage 顶爆）→ 可摘
 - 移除方式: 删 content 内 localStorage 瘦身 IIFE 整段（搜 `localStorage自动瘦身` / `djsc_champion_v1`）
 - 代码锚: extension.js 搜 `localStorage自动瘦身`
+
+## FIX-16 连续开第二局白屏（离场动画画布泄漏WebGL上下文）
+- 引入 v4.34｜状态: 生效中
+- 上游bug: 动皮系统/山河图（离场动画）创建的 WebGL 画布在离开页面后不释放上下文，浏览器 GL 上下文数量（上限约8~16个）被耗尽后新一局的白屏/动画全黑（2026-11 实测连续开第二局即白屏）
+- 实现: content 开头注入 GL 画布回收 IIFE（幂等，锚 `__ktGLCanvasGC`）：包装 `HTMLCanvasElement.prototype.getContext` 追踪所有 WebGL 上下文画布；每 5 秒 + 页面隐藏时扫描，对已脱离页面（isConnected=false）的孤儿画布调用 `WEBGL_lose_context.loseContext()` 并清零宽高后移出追踪。正在显示的动画/牌局画布一律不动
+- 影响范围: 仅已脱离 DOM 的 WebGL 孤儿画布；清理时 console.log "[kirito]GL画布回收：已释放离场画布N个"
+- 上游已修判定: 动皮系统/山河图官方修复其释放逻辑（离场画布自行 loseContext 或不再泄漏）→ 可摘
+- 移除方式: 删 content 内 GL 画布回收 IIFE 整段（搜 `__ktGLCanvasGC` / `GL画布回收`）
+- 代码锚: extension.js 搜 `__ktGLCanvasGC`

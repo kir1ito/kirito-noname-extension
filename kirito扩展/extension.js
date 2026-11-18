@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.33";
+const VERSION = "4.34";
 
 // FIX-11 无名AI权重更新网络护甲（v4.17）：无名AI自带的权重下载走全局fetch，超时仅12秒（含正文
 // 读取）且自动检查0重试，data.feiqiaoai.uno（Cloudflare）在直连环境下偏慢→"经常失败和超时"。
@@ -1942,6 +1942,53 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 				};
 				check();
 				setInterval(check, 5 * 60 * 1000);
+			})();
+			// ●GL画布回收：释放离场动画画布占用的WebGL上下文，防连局白屏(2026-11) ●
+			// 只回收「已脱离页面」的孤儿画布（isConnected为false），正在显示的动画/牌局画布一律不动；
+			// 动皮系统/山河图官方修复释放逻辑后可删除本段
+			(function () {
+				try {
+					if (window.__ktGLCanvasGC) return;
+					window.__ktGLCanvasGC = true;
+					const tracked = new Set();
+					const origGet = HTMLCanvasElement.prototype.getContext;
+					HTMLCanvasElement.prototype.getContext = function (type, ...rest) {
+						const ctx = origGet.call(this, type, ...rest);
+						try {
+							if (ctx && typeof type === "string" &&
+									/^(webgl2?|experimental-webgl2?)$/i.test(type)) {
+								tracked.add(this);
+							}
+						} catch (e) {}
+						return ctx;
+					};
+					const release = function () {
+						let freed = 0;
+						try {
+							for (const c of Array.from(tracked)) {
+								if (c.isConnected) continue;
+								let gl = null;
+								try { gl = origGet.call(c, "webgl2"); } catch (e) {}
+								try { gl = gl || origGet.call(c, "webgl"); } catch (e) {}
+								if (gl && gl.getExtension) {
+									const lose = gl.getExtension("WEBGL_lose_context");
+									if (lose) { try { lose.loseContext(); } catch (e) {} }
+								}
+								try { c.width = 0; c.height = 0; } catch (e) {}
+								tracked.delete(c);
+								freed++;
+							}
+						} catch (e) {}
+						if (freed) console.log("[kirito]GL画布回收：已释放离场画布" +
+							freed + "个，当前驻留" + tracked.size + "个");
+					};
+					setInterval(release, 5000);
+					document.addEventListener("visibilitychange", function () {
+						if (document.hidden) release();
+					});
+				} catch (e) {
+					console.warn("[kirito]GL画布回收补丁加载失败", e);
+				}
 			})();
 			// 斗转星移chooseChar.css丢失样式补偿（v4.00）：10-22斗转星移更新重写chooseChar.css时丢失8组规则
 		// （倍率按钮ddz-multiple/选将卡光效jj-char-base-back/弹幕/卡牌提示底等），倍率UI因无尺寸变0x0
