@@ -206,7 +206,7 @@
 - 代码锚: extension.js 搜 `__ktGLCanvasGC`
 
 ## FIX-17 动皮播放器GL上下文丢失后永久白屏（无自愈路径）
-- 引入 v4.35｜v2于 v4.36｜v3于 v4.37｜**v4于 v4.38**｜状态: 生效中
+- 引入 v4.35｜v2于 v4.36｜v3于 v4.37｜v4于 v4.38｜**移除于 v4.39**｜状态: 已摘除（实测白屏根因由FIX-16画布泄漏解决，自愈补丁不再需要；用户指示删除）
 - 上游bug: 动皮播放器的 WebGL 上下文被浏览器丢弃（GL上下文丢失，与FIX-16的泄漏压力相关）后，本体/十周年UI播放器无 webglcontextlost/restored 处理——丢失即永久白屏，不重绘；动画帧/恢复期异常直接打断游戏主循环（卡技能）
 - v2（v4.36）: 恢复后画布 99.9% 抖动+resize 触发重绘、onerror 过滤瞬态 `Couldn't find location for (uniform|attribute)`
 - v3（v4.37）: 包装 spine.webgl.Shader 定位方法静默降级，移除 99.9% 抖动段
@@ -215,5 +215,5 @@
 - 影响范围: 仅 GL 上下文丢失/恢复事件路径；正常播放无感
 - 验证: 打完一局直接开第二局，选中手牌触发动皮——理想为短暂闪烁后画面恢复，console 出现「GL上下文丢失，已请求自动恢复」→「GL上下文已恢复，触发重绘」；若仍白屏，console 跑 `(()=>{const c=document.querySelector('canvas.animation-player');const g=c&&(c.getContext('webgl2')||c.getContext('webgl'));console.log('lost=',g&&g.isContextLost());})()`——true=恢复请求未生效；false=已恢复但播放器未重绘，需再加重建逻辑
 - 上游已修判定: 本体/十周年UI播放器自行处理 webglcontextlost/restored（丢失后自动重建重绘）→ 可摘
-- 移除方式: 删 content 内 GL 丢失自愈 IIFE 整段（搜 `__ktGLLostHeal` / `GL上下文丢失自愈`）
-- 代码锚: extension.js 搜 `__ktGLLostHeal`
+- 移除方式: ~~删 content 内 GL 丢失自愈 IIFE 整段（搜 `__ktGLLostHeal` / `GL上下文丢失自愈`）~~（已于 v4.39 删除）
+- 代码锚: ~~extension.js 搜 `__ktGLLostHeal`~~（已删）

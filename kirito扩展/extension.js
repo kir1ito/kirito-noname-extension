@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.38";
+const VERSION = "4.39";
 
 // FIX-11 无名AI权重更新网络护甲（v4.17）：无名AI自带的权重下载走全局fetch，超时仅12秒（含正文
 // 读取）且自动检查0重试，data.feiqiaoai.uno（Cloudflare）在直连环境下偏慢→"经常失败和超时"。
@@ -1988,50 +1988,6 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					});
 				} catch (e) {
 					console.warn("[kirito]GL画布回收补丁加载失败", e);
-				}
-			})();
-			// ●GL上下文自愈v4：丢失恢复+帧隔离+过滤弹窗(2026-11) ●
-			// 与上面的GL画布回收互补：一个防泄漏，一个防丢失后永久白屏/卡技能
-			(function () {
-				try {
-					if (window.__ktGLLostHeal) return;
-					window.__ktGLLostHeal = true;
-					document.addEventListener("webglcontextlost", function (e) {
-						e.preventDefault();
-						console.warn("[kirito]GL上下文丢失，已请求自动恢复:",
-							(e.target && (e.target.className || e.target.tagName)) || e.target);
-					}, true);
-					document.addEventListener("webglcontextrestored", function (e) {
-						console.warn("[kirito]GL上下文已恢复:",
-							(e.target && (e.target.className || e.target.tagName)) || e.target);
-						try { window.dispatchEvent(new Event("resize")); } catch (e2) {}
-					}, true);
-					// 帧隔离：任何动画帧里的异常只跳过该帧，不再打断游戏主循环
-					if (!window.__ktRAFIsolated) {
-						window.__ktRAFIsolated = true;
-						const origRAF = window.requestAnimationFrame;
-						window.requestAnimationFrame = function (cb, ...rest) {
-							return origRAF.call(window, function (t) {
-								try { cb(t); } catch (e) {
-									console.warn("[kirito]帧内异常已隔离:", (e && e.message) || e);
-								}
-							}, ...rest);
-						};
-					}
-					// 过滤恢复期瞬态报错（防弹窗）
-					const origError = window.onerror;
-					window.onerror = function (msg, src, line, col, err) {
-						if (typeof msg === "string" &&
-								/Couldn't find location for (uniform|attribute)/.test(msg)) {
-							console.warn("[kirito]已忽略GL恢复期瞬态错误:", msg);
-							return true;
-						}
-						if (typeof origError === "function") {
-							return origError.call(this, msg, src, line, col, err);
-						}
-					};
-				} catch (e) {
-					console.warn("[kirito]GL自愈补丁加载失败", e);
 				}
 			})();
 			// 斗转星移chooseChar.css丢失样式补偿（v4.00）：10-22斗转星移更新重写chooseChar.css时丢失8组规则
