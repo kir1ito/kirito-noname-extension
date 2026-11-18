@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.35";
+const VERSION = "4.36";
 
 // FIX-11 无名AI权重更新网络护甲（v4.17）：无名AI自带的权重下载走全局fetch，超时仅12秒（含正文
 // 读取）且自动检查0重试，data.feiqiaoai.uno（Cloudflare）在直连环境下偏慢→"经常失败和超时"。
@@ -1990,7 +1990,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					console.warn("[kirito]GL画布回收补丁加载失败", e);
 				}
 			})();
-			// ●GL上下文丢失自愈：修复动皮播放器丢上下文后的白屏(2026-11) ●
+			// ●GL上下文丢失自愈v2：恢复请求+重绘触发+过滤恢复期瞬态报错(2026-11) ●
 			// 捕获webglcontextlost并preventDefault请求浏览器自动恢复；恢复后模拟尺寸变化（99.9%→还原+resize）
 			// 促使动画播放器重建纹理/缓冲。与上面的GL画布回收互补：一个防泄漏，一个防丢失后永久白屏
 			(function () {
@@ -2020,6 +2020,18 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 							try { window.dispatchEvent(new Event("resize")); } catch (e4) {}
 						}
 					}, true);
+					// 过滤spine恢复期抢跑的瞬态错误（只发生在重建后一两帧，无害）
+					const origError = window.onerror;
+					window.onerror = function (msg, src, line, col, err) {
+						if (typeof msg === "string" &&
+								/Couldn't find location for (uniform|attribute)/.test(msg)) {
+							console.warn("[kirito]已忽略GL恢复期瞬态错误:", msg);
+							return true;
+						}
+						if (typeof origError === "function") {
+							return origError.call(this, msg, src, line, col, err);
+						}
+					};
 				} catch (e) {
 					console.warn("[kirito]GL自愈补丁加载失败", e);
 				}
