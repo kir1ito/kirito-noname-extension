@@ -2,7 +2,7 @@ import { lib, game, ui, get, ai, _status } from "noname";
 import { Character, Player } from "../../noname/library/element/index.js";
 export const type = "extension";
 // 扩展版本号：package与设置页展示共用，与info.json的version保持同步
-const VERSION = "4.39";
+const VERSION = "4.40";
 
 // FIX-11 无名AI权重更新网络护甲（v4.17）：无名AI自带的权重下载走全局fetch，超时仅12秒（含正文
 // 读取）且自动检查0重试，data.feiqiaoai.uno（Cloudflare）在直连环境下偏慢→"经常失败和超时"。
@@ -3355,7 +3355,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 						 * ②每回合第一次【杀】指定目标：弃置其一张牌（所有区域），无牌可弃则改为你摸一张牌
 						 *   （无任何类型附加效果；此杀击杀则次数+1，语音沿用霆威）；
 						 * ③造成伤害后：受击者获得等量"麻"（用牌弃手牌后-1）、自己获得等量"霆"（寂灭大招只施加麻）；
-						 * ④弃牌阶段结束霆≥12可触发寂灭：对一名角色造成其体力上限的雷伤+可抹一个技能（不消耗霆、每局一次）；
+						 * ④弃牌阶段结束霆≥12可触发寂灭：抹目标一个技能+对其造成体力上限的雷伤（不消耗霆、每局一次）；
  *   霆数常驻被动：≥4拼点+13与受击反麻、≥8每回合一次手牌换判定拿原牌、≥16武翊（
  *   基本牌无次数限制、无距离限制）
 						 * "霆"标记沿用独立名 ktleishen_ting，与本体/手杀标记互不干扰 */
@@ -3619,7 +3619,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 									release: {
 										audio: false,
 										fixed: true,
-										// 12霆触发寂灭选择：上限雷伤+抹技能；不消耗霆、每局游戏限一次（released标记）
+										// 12霆触发寂灭选择：先抹技能再上限雷伤；不消耗霆、每局游戏限一次（released标记）
 										trigger: { player: "phaseDiscardAfter" },
 										filter(_event, player) {
 											return player.countMark("ktleishen_ting") >= 12 && !player.storage.ktleishen_released;
@@ -3630,7 +3630,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 											event.result = await player
 												.chooseTarget({
 													prompt: get.prompt(event.skill) + "：寂灭（每局游戏限一次）",
-													prompt2: "对一名角色造成等于其体力上限的雷电伤害，并可彻底移除其一个技能（不消耗“霆”标记，每局游戏限一次）",
+													prompt2: "选择一名角色，先彻底移除其一个技能（可放弃），再对其造成等于其体力上限的雷电伤害（不消耗“霆”标记，每局游戏限一次）",
 													ai(target) {
 														const player = get.player();
 														return get.damageEffect(target, player, player);
@@ -3641,11 +3641,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 										async content(event, trigger, player) {
 											player.setStorage("ktleishen_released", true);
 											const target = event.targets[0];
-											const damageEvent = target.damage({ num: target.maxHp, nature: "thunder" });
-											// 标记本次伤害不产生霆（madamage结算时识别，防止大招自我回充）
-											damageEvent.ktNoTing = true;
-											await damageEvent;
-											// 命中后可彻底移除目标的一个技能（fixed技能引擎层面拒绝移除，已从候选排除），也可放弃；自己命中的不询问
+											// 先移除技能再造成伤害：命中前抹技能（防止目标死亡触发类技能先结算；fixed技能引擎层面拒绝移除，已从候选排除），也可放弃；自己命中的不询问
 											if (target.isIn() && target != player) {
 												const skills = target.getSkills().filter((skill) => {
 													const info = lib.skill[skill];
@@ -3667,6 +3663,10 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 													}
 												}
 											}
+											const damageEvent = target.damage({ num: target.maxHp, nature: "thunder" });
+											// 标记本次伤害不产生霆（madamage结算时识别，防止大招自我回充）
+											damageEvent.ktNoTing = true;
+											await damageEvent;
 											if (lib._wssJimieBar) {
 												lib._wssJimieBar.update(player);
 											}
@@ -3908,7 +3908,7 @@ div.ktupd-empty{padding:14px 4px;color:#7f8ca3;font-size:13px;text-align:center}
 					grylonghun: "龙魂",
 					grylonghun_info: "你可以将同花色的一至两张牌按下列规则使用或打出：红桃当【桃】，方块当火【杀】，梅花当【闪】，黑桃当【无懈可击】。若你以此法转化了两张：红色牌，则此牌回复值或伤害值+1；黑色牌，则你弃置当前回合角色一张牌。每当你以此法使用或打出牌，“魂”计数+X（单张牌+1，两张牌+2，计数持续累计，不会清空）。若计数为1或2的倍数，你摸一张牌。“魂”计数达到12后：你使用【杀】或【决斗】指定目标后，你可以选择一项：1.此伤害+1；2.获得该目标区域内一张牌（其区域内没有牌则不能选择此项）。“魂”计数达到24后：1.你转化发动的【杀】不可被响应，转化的【无懈可击】不可被【无懈可击】响应；2.你以单张牌转化【闪】或【无懈可击】后，获得当前回合角色区域内一张牌；3.你转化发动使用的牌不计入使用次数；4.你转化发动的【桃】自带酒效果（与饮酒效果叠加，且不占用【酒】的使用次数）。",
 						ktleishen: "雷神",
-					ktleishen_info: "①当你受到雷电伤害时，你防止之，然后你摸等量数量的牌并回复等量体力。②每回合你使用的第一张【杀】指定目标后（此【杀】每击杀一名角色，次数+1），你弃置其一张牌（手牌/装备），若其没有可弃置的牌，你改为摸一张牌。③你造成伤害后，其他角色获得1枚“麻”标记（至多1枚；其使用牌时须弃置一张装备牌并移去“麻”标记，装备区无牌时不消耗；不会施加给你自己），你获得等同于伤害值的“霆”标记（寂灭大招的伤害只施加“麻”）。“霆”标记达到阈值时获得对应效果：≥4，你的拼点点数+13，且你受到伤害后伤害来源获得1枚“麻”标记（至多1枚）；≥8，每回合限一次，你可以用一张手牌替换判定牌并获得原判定牌；≥12，弃牌阶段结束时，你可以对一名角色造成等于其体力上限的雷电伤害，然后你可以彻底移除其一个技能（不消耗“霆”标记，每局游戏限一次）；≥16，你使用基本牌无次数限制且无距离限制。",
+					ktleishen_info: "①当你受到雷电伤害时，你防止之，然后你摸等量数量的牌并回复等量体力。②每回合你使用的第一张【杀】指定目标后（此【杀】每击杀一名角色，次数+1），你弃置其一张牌（手牌/装备），若其没有可弃置的牌，你改为摸一张牌。③你造成伤害后，其他角色获得1枚“麻”标记（至多1枚；其使用牌时须弃置一张装备牌并移去“麻”标记，装备区无牌时不消耗；不会施加给你自己），你获得等同于伤害值的“霆”标记（寂灭大招的伤害只施加“麻”）。“霆”标记达到阈值时获得对应效果：≥4，你的拼点点数+13，且你受到伤害后伤害来源获得1枚“麻”标记（至多1枚）；≥8，每回合限一次，你可以用一张手牌替换判定牌并获得原判定牌；≥12，弃牌阶段结束时，你可以选择一名角色，先彻底移除其一个技能（可放弃），再对其造成等于其体力上限的雷电伤害（不消耗“霆”标记，每局游戏限一次）；≥16，你使用基本牌无次数限制且无距离限制。",
 					ktleishen_immune: "雷神",
 					ktleishen_sha: "雷神",
 					ktleishen_state: "雷神",
