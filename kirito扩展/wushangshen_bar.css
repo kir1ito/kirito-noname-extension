@@ -1,0 +1,49 @@
+/* 无上神专属"寂灭"进度条样式
+ * 复刻自无名美化·手杀神马超模块（mbshenmachao.css），类名与其保持一致：
+ * 无名美化开启时其覆写的〖霆威〗〖寂灭〗内容可直接驱动同一元素；
+ * 本文件保证未安装/未开启无名美化时进度条同样有样式 */
+.jimiePower {
+	position: relative;
+	top: -12px;
+	z-index: 90;
+	left: -18px;
+	width: 18px;
+	height: calc(100% + 12px);
+	background: url(./image/wushangshen_bar/smc_jindutiao_di.png) no-repeat center center;
+	background-size: 100% 100%;
+	z-index: 90 !important;
+	text-align: center;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	box-sizing: border-box;
+	padding-bottom: 17px;
+}
+.jimiePower div,
+.jimiePower span {
+	position: static;
+}
+.jimiePowerBarArea {
+	width: 8px;
+	flex: 1;
+	margin-left: 3px;
+	background: url(./image/wushangshen_bar/smc_jindutiao.png) no-repeat center bottom;
+	background-size: 100% 100%;
+	transition: clip-path 0.3s ease;
+}
+.jimieNum {
+	font-family: "shousha";
+	font-size: 13px;
+	color: #fff;
+	display: inline-block;
+	padding: 10px 0 3px;
+	font-weight: 600;
+}
+.jimieLock {
+	width: 18px;
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	display: none;
+}
